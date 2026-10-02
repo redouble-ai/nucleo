@@ -36,6 +36,10 @@ that version; no build publishes on its own.
 root builds the full site as `mvn site` does and then runs `PublishDocs`, which puts the
 site into that checkout under the reactor's version. `PublishDocsTest` holds what follows.
 
+The development line after a release corrects that release's documentation too. Adding
+`-Ddocs.version=0.1` generates the site of the tree as it stands with 0.1 on every page
+and in the javadoc's title, and publishes it as 0.1, replacing what 0.1 showed.
+
 - A version that is not in the repository yet is added as a directory of its own. A
   version that is there already has its directory replaced whole, so a page the new
   publication no longer has does not survive. Other versions are not touched.

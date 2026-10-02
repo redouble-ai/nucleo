@@ -78,6 +78,11 @@
         <maven.compiler.release>25</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+        <!-- The version the documentation site is generated and published as: this build's
+             own, unless a person names another. The line after a release corrects that
+             release's documentation too, and `-Ddocs.version=0.1` publishes the pages and
+             the javadoc of this tree as 0.1, replacing what 0.1 showed. -->
+        <docs.version>${project.version}</docs.version>
         <!-- Test-only versions. Everything a consumer can see is pinned in nucleo-bom. -->
         <junit-jupiter.version>6.0.3</junit-jupiter.version>
         <logback.version>1.5.38</logback.version>
@@ -293,6 +298,9 @@
                         <configuration>
                             <reportOutputDirectory>${project.basedir}/src/main/docs</reportOutputDirectory>
                             <destDir>javadoc</destDir>
+                            <!-- The javadoc names the version the site is published as -->
+                            <doctitle>${project.name} ${docs.version} API</doctitle>
+                            <windowtitle>${project.name} ${docs.version} API</windowtitle>
                             <quiet>true</quiet>
                             <doclint>none</doclint>
                             <failOnError>false</failOnError>

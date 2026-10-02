@@ -70,14 +70,14 @@
                                 <!-- The reactor root; the generator scans every module under it -->
                                 <argument>${project.basedir}/..</argument>
                                 <!-- The version every page carries in its badge -->
-                                <argument>${project.version}</argument>
+                                <argument>${docs.version}</argument>
                             </arguments>
                         </configuration>
                     </execution>
                     <!-- `mvn site-deploy -Ddocs.repo=<checkout of the documentation repository>`
                          generates the site as `mvn site` does, then puts it into that checkout
-                         as this version: a new directory for a version not published before, a
-                         replaced one for a version that was. The checkout is left uncommitted;
+                         as this version, or as the one `-Ddocs.version=` names: a new directory
+                         for a version not published before, a replaced one for a version that was. The checkout is left uncommitted;
                          a person reviews, commits and pushes it, and the push publishes. -->
                     <execution>
                         <id>publish-docs</id>
@@ -90,7 +90,7 @@
                             <arguments>
                                 <argument>${project.basedir}/../src/main/docs</argument>
                                 <argument>${docs.repo}</argument>
-                                <argument>${project.version}</argument>
+                                <argument>${docs.version}</argument>
                             </arguments>
                         </configuration>
                     </execution>
