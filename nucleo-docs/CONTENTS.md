@@ -226,5 +226,9 @@ same order as the guides. A reader using Nucleo never needs these pages.
 
 ## Appendix
 
+- [Contributing](../CONTRIBUTING.md)
+- [Code of conduct](../CODE_OF_CONDUCT.md)
+- [Security](../SECURITY.md)
+- [Changelog](../CHANGELOG.md)
 - [Utilities](../nucleo-core/src/main/java/ai/redouble/nucleo/util/PACKAGE.md)
 - [The site generator](../nucleo-docs/src/main/java/ai/redouble/docs/PACKAGE.md)

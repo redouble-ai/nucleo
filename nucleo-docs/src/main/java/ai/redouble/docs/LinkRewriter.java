@@ -20,8 +20,11 @@ import java.util.regex.*;
  * reading in the tree) gets the resolved page's title as its text - a reader of the site
  * should see the package's name, never a relative path. A target that does not resolve by
  * path falls back to a unique-basename match across the manifest; if that fails too the
- * link is left untouched and a warning goes to stderr. External (scheme-qualified)
- * targets are never touched, and neither is a link that starts inside code. Javadoc links: backtick-wrapped class names ({@code `Foo`},
+ * link is left untouched, and a warning goes to stderr when it names no file at all. External
+ * (scheme-qualified) targets are never touched, and neither is a link that starts inside code.
+ * File links: a link to a file of the reactor that is not a page - a source file, a plain
+ * document, a markdown file the contents do not list - leads to a copy of the file the site
+ * ships as text. Javadoc links: backtick-wrapped class names ({@code `Foo`},
  * {@code `Foo<T>`}, {@code `@Foo`}), member references ({@code `Foo.bar(...)`},
  * {@code `Foo#bar`}, {@code `Foo.CONSTANT`} - to the class page, since prose never
  * carries the parameter types an exact method anchor needs) and package names
@@ -35,12 +38,17 @@ import java.util.regex.*;
 public class LinkRewriter {
     private static final Pattern DOC_LINK = Pattern.compile("\\[([^\\[\\]]*)\\]\\(([^)\\s#]+\\.md)(#[^)]*)?\\)");
     private static final Pattern IMAGE_LINK = Pattern.compile("\\]\\(([^)\\s#]+\\.(?:svg|png|jpe?g|gif))\\)");
+    private static final Pattern FILE_LINK = Pattern.compile("\\[([^\\[\\]]*)\\]\\(([^)\\s#]+)(#[^)]*)?\\)");
+    private static final Pattern IMAGE_NAME = Pattern.compile(".*\\.(?:svg|png|jpe?g|gif)");
+    private final Path root;
     private final Map<Path, String> pathToId = new HashMap<>();
     private final Map<String, List<String>> basenameToIds = new HashMap<>();
     private final Map<String, String> idToTitle = new HashMap<>();
     private final Map<String, String> classIndex;
+    private final Map<String, Path> shipped = new TreeMap<>();
 
-    public LinkRewriter(List<GenerateDocs.Page> pages, Map<String, String> classIndex) {
+    public LinkRewriter(Path root, List<GenerateDocs.Page> pages, Map<String, String> classIndex) {
+        this.root = root.toAbsolutePath().normalize();
         this.classIndex = classIndex;
         for (GenerateDocs.Page page : pages) {
             Path source = page.source().toAbsolutePath().normalize();
@@ -76,7 +84,10 @@ public class LinkRewriter {
                 }
             }
             if (pageId == null) {
-                System.err.println("WARNING: unresolved doc link '" + target + "' in " + originalMd);
+                // A markdown file of the tree that is not a page is rewriteFileLinks' to ship; only a link to nothing is the author's to fix
+                if (!Files.isRegularFile(baseDir.resolve(target).normalize())) {
+                    System.err.println("WARNING: unresolved doc link '" + target + "' in " + originalMd);
+                }
                 matcher.appendReplacement(out, Matcher.quoteReplacement(matcher.group()));
                 continue;
             }
@@ -89,6 +100,55 @@ public class LinkRewriter {
         matcher.appendTail(out);
         return out.toString();
     }
+
+    /**
+     * A link to a file of the reactor that is not a page - a source file, a plain document
+     * like a license, a markdown file the contents do not list - leads to a copy the site
+     * ships ({@link #ship}), so a reader of the site can open what a reader of the tree can.
+     * Runs after {@link #rewriteDocLinks}: a link to a page points at the generated page by
+     * then, which is no file of the tree. Images are {@link #rewriteImageLinks}'s, a link
+     * that starts inside code stays as written, and so does a link to no file at all.
+     */
+    public String rewriteFileLinks(String content, Path originalMd) {
+        Path baseDir = originalMd.toAbsolutePath().getParent();
+        boolean[] code = codeMask(content);
+        Matcher matcher = FILE_LINK.matcher(content);
+        StringBuilder out = new StringBuilder();
+        while (matcher.find()) {
+            String target = matcher.group(2);
+            if (target.contains(":") || code[matcher.start()] || IMAGE_NAME.matcher(target).matches()) {
+                matcher.appendReplacement(out, Matcher.quoteReplacement(matcher.group()));
+                continue;
+            }
+            Path file = baseDir.resolve(target).normalize();
+            if (!file.startsWith(root) || !Files.isRegularFile(file)) {
+                matcher.appendReplacement(out, Matcher.quoteReplacement(matcher.group()));
+                continue;
+            }
+            matcher.appendReplacement(out, Matcher.quoteReplacement("[" + matcher.group(1) + "](" + ship(file) + ")"));
+        }
+        matcher.appendTail(out);
+        return out.toString();
+    }
+
+    /**
+     * Has the site carry a copy of a file of the reactor and answers the copy's name: the
+     * file's own name with {@code .txt} appended, so a browser shows it as text whatever its
+     * extension says. The copies sit flat beside the pages, so two different files with one
+     * name are refused.
+     */
+    public String ship(Path file) {
+        file = file.toAbsolutePath().normalize();
+        String name = file.getFileName() + ".txt";
+        Path earlier = shipped.putIfAbsent(name, file);
+        if (earlier != null && !earlier.equals(file)) {
+            throw new IllegalStateException("the site ships linked files flat, by name, and two of them are named " + file.getFileName() + ": " + earlier + " and " + file);
+        }
+        return name;
+    }
+
+    /** The files the site ships, by the name each copy carries. */
+    public Map<String, Path> shipped() {return shipped;}
 
     /**
      * Which characters of a markdown text are code: every character of a fenced block (from

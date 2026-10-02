@@ -31,13 +31,15 @@ import java.util.regex.*;
  *    produced by the aggregate goal bound to pre-site, so one tree covers every module.
  * 3. Per page, in reading order: {@link Samples} checks every checked sample against its
  *    source region, the source's own H1 gives way to the page frame, {@link LinkRewriter}
- *    resolves inter-doc .md links and links backticked class names to javadoc, and flexmark
- *    converts the body to HTML.
+ *    resolves inter-doc .md links, points a link to any other file of the reactor at a copy
+ *    the site ships, and links backticked class names to javadoc, and flexmark converts the
+ *    body to HTML.
  * 4. Wrap each body in the shared template: the search box in the titlebar, the part and
  *    title above the body, the previous and next pages of the reading order and the
  *    copyright and license footer below it, the sidebar {@link NavGenerator} renders once
  *    from the contents beside it. The reactor's LICENSE and NOTICE ride along as
- *    {@code LICENSE.txt} and {@code NOTICE.txt}, which the footer links.
+ *    {@code LICENSE.txt} and {@code NOTICE.txt}, which the footer links, and so does every
+ *    file a page links that is not a page itself, each under its own name with .txt appended.
  * 5. Write {@code llms.txt} and {@code llms-full.txt}, the contents and the whole site as
  *    markdown for a coding agent, and {@code search-index.js}, what the search box searches
  *    ({@link SearchIndex}), and verify: every page appears in the nav, no .md href is left,
@@ -54,7 +56,7 @@ public class GenerateDocs {
      * document outside every module's source tree).
      */
     public record Page(String id, String title, Path source, String part, String origin) {}
-    private static final Pattern LEFTOVER_MD_HREF = Pattern.compile("href=\"[^\"]*\\.md[^\"]*\"");
+    private static final Pattern LEFTOVER_MD_HREF = Pattern.compile("href=\"[^\"]*\\.md(#[^\"]*)?\"");
     private static final Pattern LOCAL_SRC = Pattern.compile("src=\"([^\"]+)\"");
     private static final Pattern EXAMPLE_CALLOUT = Pattern.compile("<blockquote>\\s*<p><strong>Example");
 
@@ -109,10 +111,7 @@ public class GenerateDocs {
         // The brand lockup in every titlebar and the favicon, both linking the pages to Redouble
         copyResource("/redoubleAI.svg", docsDir.resolve("redoubleAI.svg"));
         copyResource("/redoubleAI.png", docsDir.resolve("redoubleAI.png"));
-        // The site is a copy of the work, so it carries the work's license and notice, and
-        // every page's footer names the copyright holder the notice names
-        Files.copy(root.resolve("LICENSE"), docsDir.resolve("LICENSE.txt"), StandardCopyOption.REPLACE_EXISTING);
-        Files.copy(root.resolve("NOTICE"), docsDir.resolve("NOTICE.txt"), StandardCopyOption.REPLACE_EXISTING);
+        // Every page's footer names the copyright holder the notice names
         String copyright = copyright(root.resolve("NOTICE"));
         List<Path> srcRoots = sourceRoots(root);
         copySvgs(srcRoots, docsDir);
@@ -130,7 +129,11 @@ public class GenerateDocs {
             bySource.put(page.source(), page);
         }
         String nav = NavGenerator.generate(contents, bySource, version, versionsBeside);
-        LinkRewriter rewriter = new LinkRewriter(pages, classIndex);
+        LinkRewriter rewriter = new LinkRewriter(root, pages, classIndex);
+        // The site is a copy of the work, so it carries the work's license and notice whether
+        // or not a page links them; the footer of every page does
+        rewriter.ship(root.resolve("LICENSE"));
+        rewriter.ship(root.resolve("NOTICE"));
         MutableDataSet options = new MutableDataSet();
         options.set(Parser.EXTENSIONS, List.of(TablesExtension.create()));
         options.set(HtmlRenderer.GENERATE_HEADER_ID, true);
@@ -146,6 +149,7 @@ public class GenerateDocs {
             sampleProblems.addAll(Samples.check(markdown, page.source()));
             markdown = withoutTitle(markdown, page.source());
             markdown = rewriter.rewriteDocLinks(markdown, page.source());
+            markdown = rewriter.rewriteFileLinks(markdown, page.source());
             markdown = rewriter.rewriteImageLinks(markdown, page.source());
             full.append("\n---\n\n# ").append(page.title()).append("\n\n");
             if (page.part() != null) {
@@ -165,6 +169,9 @@ public class GenerateDocs {
         }
         if (!sampleProblems.isEmpty()) {
             throw new IllegalStateException("checked samples out of date:\n" + String.join("\n\n", sampleProblems));
+        }
+        for (Map.Entry<String, Path> file : rewriter.shipped().entrySet()) {
+            Files.copy(file.getValue(), docsDir.resolve(file.getKey()), StandardCopyOption.REPLACE_EXISTING);
         }
         Files.writeString(docsDir.resolve("llms.txt"), llmsIndex(contents, bySource));
         Files.writeString(docsDir.resolve("llms-full.txt"), full.toString());

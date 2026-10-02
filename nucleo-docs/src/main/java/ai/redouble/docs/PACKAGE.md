@@ -70,7 +70,7 @@ site into that checkout under the reactor's version. `PublishDocsTest` holds wha
 | `SearchIndex` | What the search box searches: one entry per page opening, per section and, with the javadoc tree, per public class, written as `search-index.js`. |
 | `Contents` | The reading order, parsed from `nucleo-docs/CONTENTS.md`: the site's title and introduction, the front matter, and the parts with their introductions and pages. |
 | `Samples` | Checks every checked sample of a page against the source region it names. |
-| `LinkRewriter` | Resolves inter-doc `.md` links against the page manifest and turns backticked class names into javadoc links. |
+| `LinkRewriter` | Resolves inter-doc `.md` links against the page manifest, points a link to any other file of the reactor at the copy the site ships, and turns backticked class names into javadoc links. |
 | `NavGenerator` | Emits the sidebar shared by every page from the contents, the version badge at its top. |
 | `PublishDocs` | The main of publication. Puts the generated site into a checkout of the documentation repository as one version, and rewrites the list of versions and the routing file. |
 
@@ -119,6 +119,11 @@ site into that checkout under the reactor's version. `PublishDocsTest` holds wha
 - A markdown link that resolves to a manifest page is rewritten to the generated page,
   and a link whose text is itself a path gets the page's title as its text; a link that
   resolves nowhere stays as written and warns.
+- A link to a file of the reactor that is not a page - a source file, a plain document
+  like `DCO`, a markdown file the contents do not list - leads to a copy the site ships
+  beside the pages, under the file's own name with `.txt` appended, so a browser shows it
+  as text. Only a file some page links is shipped. The copies sit flat, so two linked
+  files with one name fail the build.
 - A link that starts inside a code span or a fence is code and stays as written; a link
   whose text is code resolves like any other.
 - Backticked code references link into the aggregate javadoc: class names to their pages,

@@ -19,7 +19,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * and a contents file: the reading order in the nav, the frame and the previous and next
  * links of every page, the example callout, the checked samples, the llms.txt pair, the
  * search index and the search box, the version badge, the copyright and license footer,
- * and the refusals when the contents and the tree disagree.
+ * the files a page links shipped beside the pages, and the refusals when the contents and
+ * the tree disagree.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-09-27)
@@ -295,6 +296,38 @@ class GenerateDocsTest {
         appendToAlpha("\nSee [elsewhere](nowhere/PACKAGE.md).\n");
         GenerateDocs.generate(root, site, "1.2.3", false, true);
         assertTrue(read("alpha.html").contains("<a href=\"nowhere/PACKAGE.md\">elsewhere</a>"), "an unresolved link is left for its author to fix");
+    }
+
+    @Test
+    void aLinkToAFileOfTheReactorThatIsNoPageLeadsToACopyTheSiteShips() throws IOException {
+        write("DCO", "The certificate, whole.\n");
+        write("NOTES.md", "Notes the contents do not list.\n");
+        appendToAlpha("\nSign off under [the certificate](../../../../../../../../DCO), read [Hello.java](Hello.java) and [the notes](../../../../../../../../NOTES.md#today).\n");
+        GenerateDocs.generate(root, site, "1.2.3", false, true);
+        String alpha = read("alpha.html");
+        assertTrue(alpha.contains("<a href=\"DCO.txt\">the certificate</a>"), "a plain document is linked as the copy the site ships: " + alpha);
+        assertTrue(alpha.contains("<a href=\"Hello.java.txt\">Hello.java</a>"), "a source file is linked as its copy");
+        assertTrue(alpha.contains("<a href=\"NOTES.md.txt\">the notes</a>"), "a markdown file that is no page is linked as its copy, the anchor gone with the markdown");
+        assertEquals("The certificate, whole.\n", read("DCO.txt"), "the copy is the file");
+        assertTrue(read("Hello.java.txt").contains("String greet()"), "the copy of the source is the source");
+        assertEquals("Notes the contents do not list.\n", read("NOTES.md.txt"), "the copy of the markdown is the markdown");
+        assertTrue(read("llms-full.txt").contains("[the certificate](DCO.txt)"), "the markdown for a coding agent links the copy too");
+    }
+
+    @Test
+    void aFileNoPageLinksIsNotShipped() throws IOException {
+        write("DCO", "The certificate, whole.\n");
+        GenerateDocs.generate(root, site, "1.2.3", false, true);
+        assertFalse(Files.exists(site.resolve("DCO.txt")), "only what a page links rides along, beside the license and the notice");
+    }
+
+    @Test
+    void twoLinkedFilesWithOneNameFailTheBuild() throws IOException {
+        write("DCO", "The certificate.\n");
+        write("mod-a/DCO", "Another certificate.\n");
+        appendToAlpha("\n[One](../../../../../../../../DCO) and [the other](../../../../../../../DCO).\n");
+        IllegalStateException refused = assertThrows(IllegalStateException.class, () -> GenerateDocs.generate(root, site, "1.2.3", false, true));
+        assertTrue(refused.getMessage().contains("two of them are named DCO"), "the refusal names the shared name: " + refused.getMessage());
     }
 
     @Test
