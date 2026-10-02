@@ -45,9 +45,10 @@ doers](../TOOLS_INTERNALS.md).
   reconciliation (`ToolResultReconciliationTest`,
   `ThinkingResponseHandlerToolUseTest`).
 - **Corrections are bounded and typed.** Parse and required-field failures go back to the
-  model under `ResponseCorrection`'s budget; on exhaustion a parse failure surfaces and an
-  invalid answer returns as-is for the caller's own boundary to judge
-  (`LLMCallCorrectionTest`).
+  model under `ResponseCorrection`'s budget; on exhaustion either failure surfaces, a parse
+  failure as `JsonParseException` and a missing required field as
+  `ResponseValidationException`, so no caller receives an answer lacking a required field
+  (`LLMCallCorrectionTest`, `AbstractToolCorrectionTest`).
 - **The turn ends cleanly or says why.** `ReactiveThinker` rolls an abnormal end back to
   the last user utterance and records the LLM-readable reason as a marker, so a resumed
   model never sees a question hanging unanswered

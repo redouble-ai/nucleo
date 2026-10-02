@@ -214,13 +214,14 @@ public class AbstractToolCorrectionTest {
     }
 
     @Test
-    void anAnswerWithoutItsRequiredFieldIsCorrected_thenReturnedAsIs() throws Exception {
+    void anAnswerWithoutItsRequiredFieldIsCorrected_thenSurfaces() {
         StrictTool tool = new StrictTool(new CannedClient("{}"));
         tool.getRequirements();
         for (int attempt = 1; attempt <= ResponseCorrection.MAX_CORRECTIONS; attempt++) {
             assertThrows(ResponseCorrectionRetryException.class, () -> tool.execute(null, null));
         }
-        assertNotNull(tool.execute(null, null), "validation degrades to a warning and the answer comes back as it is");
+        assertThrows(ResponseValidationException.class, () -> tool.execute(null, null),
+                "required is required: past the budget the missing field fails the call, and no caller receives an answer with a hole in it");
     }
 
     @Test

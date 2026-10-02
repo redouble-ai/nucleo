@@ -9,6 +9,14 @@ group `ai.redouble`; a published version is never changed in place.
   `<artifact>-<version>-cyclonedx.json` and signed with it.
 - `NOTICE` carries the copyright and licence only. The statement on Redouble AI's patents
   is in the README's License section, where it can be explained.
+- A model can no longer author an artifact: an artifact-typed field takes a reference, and
+  the caller receives the registry's object (GHSA-m8pq-5898-5q8j).
+- `WebFetchTool` declares its address policy itself and applies it to every redirect
+  (GHSA-5h79-cgv5-c74w).
+- An answer still missing a required field after its corrections fails the call
+  ([#13](https://github.com/redouble-ai/nucleo/issues/13)).
+- A cancelled job that then fails settles as cancelled and releases its caller
+  ([#14](https://github.com/redouble-ai/nucleo/issues/14)).
 - The demo's extract, pricing and decision runs read the corpus the demo ships, located by
   the engine; no request names a folder to read or a file to write, and the pricing report
   is the response alone. The page shows the folder in place of an input.
