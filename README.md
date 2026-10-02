@@ -12,6 +12,83 @@ Authoring frameworks give an engineer a way to write an agent. Nucleo is the lay
 agents run in - it sits with them the way an application server sits with a web framework,
 and code written with any of them can run inside one of its tools.
 
+## Quickstart
+
+The written walk-through is [Hello, model](https://docs.redouble.ai/nucleo/0.1/examples-hello.html),
+the first page of the documentation's examples, which go on to a first tool, agent and
+doer. What follows is the short form.
+
+Java 25 and Maven. The build targets Java 25 and the artifacts carry class files for it,
+so an older JDK cannot load them.
+
+The runtime comes from Maven Central under the group `ai.redouble`: import the BOM, then
+depend on `nucleo-core` and the provider modules of the accounts you hold
+(`nucleo-provider-anthropic`, `nucleo-provider-openai`, `nucleo-provider-bedrock`,
+`nucleo-provider-bedrock-anthropic`, `nucleo-provider-systemone`). A Spring Boot
+application adds `nucleo-spring-boot-starter`, a Quarkus application `nucleo-quarkus`.
+
+```xml
+<dependencyManagement>
+    <dependencies>
+        <dependency>
+            <groupId>ai.redouble</groupId>
+            <artifactId>nucleo-bom</artifactId>
+            <version>0.1</version>
+            <type>pom</type>
+            <scope>import</scope>
+        </dependency>
+    </dependencies>
+</dependencyManagement>
+<dependencies>
+    <dependency>
+        <groupId>ai.redouble</groupId>
+        <artifactId>nucleo-core</artifactId>
+    </dependency>
+    <dependency>
+        <groupId>ai.redouble</groupId>
+        <artifactId>nucleo-provider-anthropic</artifactId>
+    </dependency>
+</dependencies>
+```
+
+A first question to a model, with the credential of that provider exported in the
+environment (`ANTHROPIC_API_KEY` for the one above; [AGENTS.md](AGENTS.md) names every
+provider's variables):
+
+```java
+JobDispatcher dispatcher = JobDispatcher.getInstance();
+dispatcher.start();
+try {
+    QuickLLMQuestionInput question = new QuickLLMQuestionInput();
+    question.setQuestion("Who is speaking, and where are they going?");
+    question.setContext("Call me Ishmael. Some years ago, having little money in my purse,"
+            + " I thought I would sail about a little and see the watery part of the world.");
+    question.setGrade(Grade.SMALL);
+    QuickLLMQuestionTool tool = new QuickLLMQuestionTool(Job.workflow("you", "hello"));
+    tool.setInput(question);
+    QuickLLMQuestionOutput answer = dispatcher.submit(tool).get();
+    System.out.println(answer.getAnswer());
+}
+finally {
+    dispatcher.shutdown(JobDispatcher.DEFAULT_SHUTDOWN_TIMEOUT_MS);
+}
+```
+
+That is [HelloModel.java](nucleo-examples/src/main/java/ai/redouble/examples/hello/HelloModel.java)
+from `nucleo-examples`, runnable as it stands and explained line by line on the
+[Hello, model](https://docs.redouble.ai/nucleo/0.1/examples-hello.html) page. The demo,
+which runs the same work on a Spring Boot host and a
+Quarkus host against your own account's models, is set up by [AGENTS.md](AGENTS.md):
+
+```
+mvn install -DskipTests
+cd nucleo-demo
+java -jar target/nucleo-demo.jar discover
+java -jar target/nucleo-demo.jar
+```
+
+and its page is at http://localhost:8080.
+
 ## Philosophy
 
 The systems you build already encode how the business works: the validations, the
@@ -102,35 +179,10 @@ twenty lines
 first tool, agent and doer, and one small program per thing the runtime keeps under the
 application's control.
 
-In your own build, the runtime comes from Maven Central under the group `ai.redouble`:
-import the BOM, then depend on `nucleo-core` and the provider modules of the accounts you
-hold (`nucleo-provider-anthropic`, `nucleo-provider-openai`, `nucleo-provider-bedrock`,
-`nucleo-provider-bedrock-anthropic`, `nucleo-provider-systemone`). A Spring Boot
-application adds `nucleo-spring-boot-starter`, a Quarkus application `nucleo-quarkus`.
-
-```xml
-<dependencyManagement>
-    <dependencies>
-        <dependency>
-            <groupId>ai.redouble</groupId>
-            <artifactId>nucleo-bom</artifactId>
-            <version>0.1</version>
-            <type>pom</type>
-            <scope>import</scope>
-        </dependency>
-    </dependencies>
-</dependencyManagement>
-<dependencies>
-    <dependency>
-        <groupId>ai.redouble</groupId>
-        <artifactId>nucleo-core</artifactId>
-    </dependency>
-    <dependency>
-        <groupId>ai.redouble</groupId>
-        <artifactId>nucleo-provider-anthropic</artifactId>
-    </dependency>
-</dependencies>
-```
+Two extensions, `nucleo-ext-lit` (literature search: PubMed, PMC, bioRxiv) and
+`nucleo-ext-patent` (patent search: the EPO and the USPTO), and the `nucleo-provider-systemone`
+decision-model provider ship in this repository and on Central as optional modules: tools
+and a provider built on the runtime, which nothing in the runtime depends on.
 
 ## Documentation
 
@@ -147,14 +199,26 @@ that order. `mvn site` (after a build) generates the same site from your checkou
 ## The runtime and the platform
 
 Nucleo is Apache-2.0 and complete on its own: everything above ships here and works with
-nothing behind it. Redouble AI's commercial platform, Silverlake, builds on Nucleo for
-enterprise deployments: durable run records for every job and model call, conversation
-persistence stores, and fleet-level controls. The boundary is the package name -
-`ai.redouble.nucleo` is the open runtime.
+nothing behind it. The record of what an agent did is part of that: the runtime publishes
+every job, tool call and model call, in order, with what went in and what came out, as an
+event stream the application subscribes to, logs, traces or exports while the process
+runs. Redouble AI's commercial platform, Silverlake, builds on Nucleo for enterprise
+deployments: the store that keeps those records and the conversations after the process
+exits, and fleet-level controls. The boundary is the package name - `ai.redouble.nucleo`
+is the open runtime.
 
 ## Requirements
 
 Java 25 and Maven.
+
+## Contributing
+
+Nucleo is developed by Redouble AI, which holds its design. Bug reports and questions are
+always welcome, small fixes come in as pull requests, and anything that changes the API or
+the design starts as an issue. [CONTRIBUTING.md](CONTRIBUTING.md) says exactly which is
+which, before you write code.
+
+Security reports go to oss@redouble.ai, never to a public issue: [SECURITY.md](SECURITY.md).
 
 ## License
 
