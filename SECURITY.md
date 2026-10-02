@@ -5,11 +5,18 @@ in it is a defect inside that perimeter. Report it to the authors before anyone 
 
 ## Reporting
 
-Write to oss@redouble.ai. Do not open a public issue for a vulnerability.
+Report it privately, either way:
+
+- on GitHub, [Report a vulnerability](https://github.com/redouble-ai/nucleo/security/advisories/new),
+  which opens a draft advisory that only the maintainers can see, with a private thread
+  for the discussion and the fix;
+- or by mail to oss@redouble.ai.
+
+Do not open a public issue for a vulnerability.
 
 Include what you found, how to reproduce it, the version, and the impact as you see it.
 The report is acknowledged within two working days with what is being done about it, and
-the fix credits you unless you ask otherwise.
+the published advisory credits you unless you ask otherwise.
 
 There is no bounty programme.
 
