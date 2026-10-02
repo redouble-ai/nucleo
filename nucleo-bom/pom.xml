@@ -45,7 +45,7 @@
 
     <properties>
         <!-- JSON: request and response bodies, tool schemas, the model catalog, skill front matter, EPO XML -->
-        <jackson.version>2.21.6</jackson.version>
+        <jackson.version>2.22.3</jackson.version>
         <!-- jackson-annotations is released once per minor line since 2.20; no patch digit -->
         <jackson.annotations.version>2.21</jackson.annotations.version>
         <!-- HTTP transport shared by every client through the connection pool -->
