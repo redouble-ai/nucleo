@@ -81,9 +81,12 @@ class EventDeliveryScopeTest {
         bus.publish(new ai.redouble.nucleo.events.heartbeat.CancelHeartbeat("hb-1"));
         bus.publish(new LimiterEvent(null, java.time.Instant.now(), "memory", "memory", 1, 0, 0, LimiterEvent.Type.RELEASED, 0, null, null, 1));
         bus.publish(new JobStartedEvent(snapshot("j", "wf-1"), 1));
+        // every subscription has its own queue and its own thread: a count is settled on the
+        // subscription it is asserted on, never inferred from another's
         settle(marker, 1);
         settle(global, 4);
         settle(byType, 1);
+        settle(byWorkflow, 1);
         assertEquals(4, global.seen.size(), "a global subscription sees the three job-less events and the job event");
         assertEquals(1, byType.seen.size(), "a by-type subscription for all jobs sees a job-less event of its type, the way a Stethoscope hears heartbeats");
         assertEquals(0, byTypeAndJobType.seen.size(), "a by-type subscription scoped to a job type never sees an event with no owning job");
