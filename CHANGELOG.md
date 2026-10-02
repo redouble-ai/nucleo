@@ -3,6 +3,13 @@
 Every release of Nucleo, newest first. Released artifacts are on Maven Central under the
 group `ai.redouble`; a published version is never changed in place.
 
+## Unreleased
+
+- Every published artifact carries a CycloneDX software bill of materials, attached as
+  `<artifact>-<version>-cyclonedx.json` and signed with it.
+- `NOTICE` carries the copyright and licence only. The statement on Redouble AI's patents
+  is in the README's License section, where it can be explained.
+
 ## 0.1 (2026-10-01)
 
 The first public release.

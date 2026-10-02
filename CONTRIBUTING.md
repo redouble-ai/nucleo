@@ -1,6 +1,8 @@
 # Contributing
 
-Nucleo is developed by Redouble AI, and its design is held by its authors. Contributions
+Nucleo is developed by Redouble AI, which keeps its design coherent from one release to
+the next. Opinions and suggestions are welcome, well-argued ones especially, and the place
+for them is an issue, where the approach is agreed before anybody writes code. Contributions
 are taken in the forms below, and the categories are stated here so that nobody writes
 code the project will not take.
 
@@ -30,15 +32,18 @@ Open an issue and agree the approach before writing code:
 - new features
 - moving or reorganising packages
 
-A pull request in this category that arrives without an agreed issue is closed unreviewed,
-with the category named.
+The issue is where the design is proposed, in words, and the code follows what was agreed
+there. A pull request in this category that arrives without an agreed issue is closed
+unreviewed, with the category named.
 
 ## What is not taken
 
-Large refactors and architectural changes.
+- large refactors and architectural changes
+- a redesign that arrives as a pull request, generated or written by hand
 
 A reported fix may be implemented by the authors rather than merged as a patch, in the
-core runtime in particular. The report is what matters.
+core runtime in particular. The report is what matters, and the fix credits the reporter,
+in the changelog and the commit, unless they prefer otherwise.
 
 ## Sign-off
 

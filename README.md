@@ -16,10 +16,13 @@ and code written with any of them can run inside one of its tools.
 
 The written walk-through is [Hello, model](https://docs.redouble.ai/nucleo/0.1/examples-hello.html),
 the first page of the documentation's examples, which go on to a first tool, agent and
-doer. What follows is the short form.
+doer. For a coding agent, [AGENTS.md](AGENTS.md) is the same start written to it: open
+this repository in the agent and ask it to read `AGENTS.md`. Every step there is a command
+with a checkable result, so it works as a by-hand quickstart too. What follows is the short
+form.
 
-Java 25 and Maven. The build targets Java 25 and the artifacts carry class files for it,
-so an older JDK cannot load them.
+Java 25, with Maven or Gradle. The build targets Java 25 and the artifacts carry class
+files for it, so an older JDK cannot load them.
 
 The runtime comes from Maven Central under the group `ai.redouble`: import the BOM, then
 depend on `nucleo-core` and the provider modules of the accounts you hold
@@ -51,6 +54,16 @@ application adds `nucleo-spring-boot-starter`, a Quarkus application `nucleo-qua
 </dependencies>
 ```
 
+The same with Gradle:
+
+```kotlin
+dependencies {
+    implementation(platform("ai.redouble:nucleo-bom:0.1"))
+    implementation("ai.redouble:nucleo-core")
+    implementation("ai.redouble:nucleo-provider-anthropic")
+}
+```
+
 A first question to a model, with the credential of that provider exported in the
 environment (`ANTHROPIC_API_KEY` for the one above; [AGENTS.md](AGENTS.md) names every
 provider's variables):
@@ -77,8 +90,7 @@ finally {
 That is [HelloModel.java](nucleo-examples/src/main/java/ai/redouble/examples/hello/HelloModel.java)
 from `nucleo-examples`, runnable as it stands and explained line by line on the
 [Hello, model](https://docs.redouble.ai/nucleo/0.1/examples-hello.html) page. The demo,
-which runs the same work on a Spring Boot host and a
-Quarkus host against your own account's models, is set up by [AGENTS.md](AGENTS.md):
+set up by [AGENTS.md](AGENTS.md), runs against your own account's models:
 
 ```
 mvn install -DskipTests
@@ -87,102 +99,44 @@ java -jar target/nucleo-demo.jar discover
 java -jar target/nucleo-demo.jar
 ```
 
-and its page is at http://localhost:8080.
-
-## Philosophy
-
-The systems you build already encode how the business works: the validations, the
-entitlements, the edge cases, the audit. And nobody knows better than you where their
-judgment calls live, because you built those seams: the review queue, the approval step,
-the exception workbasket, the branch that routes a case to a human specialist. Wherever the code
-could not decide, it stopped and prompted a human.
-
-We built Nucleo so that this prompt can go to a model, without the case ever leaving your
-process. You wrap
-the code you already trust - the data access, the service call, the validation - as typed
-`Tool`s, hand a set of them to a `Thinker` with a prompt stating its objective, and that
-seam in the workflow can exercise judgment: the model decides which tools to call and what
-to conclude, much like a human decides how to interact with a user interface; your code
-does what it always did, and everything that can be deterministic stays deterministic,
-because code is cheaper, faster, testable, and already right.
-
-The AI engineering is the runtime's job. Everything between "call the model" and a typed
-answer landing in your code - the provider APIs and their differences, the malformed
-replies, the retries, the bookkeeping - is carried for you, out of your code and out of
-sight until you choose to look, but fully customizable, extendable and moldable when you
-do. You use the model the way you use a database: a component you build on, whose
-internals are somebody else's job.
-
-And it asks nothing of the rest of your architecture. Your data and your internal logic
-stay unexposed: there is no hosted runtime to feed and no fleet of MCP servers publishing
-your data access to the network. There is no parallel stack: agents deploy inside the
-application they serve, through the pipeline you already run. There is no new profession
-to hire for: the engineer who knows the business logic is the qualified author, on day one.
-
-## The process stays in charge
-
-Enterprises have run non-deterministic actors inside deterministic processes forever; they
-are called people, and systems govern their input with types, validation and permissions.
-Nucleo governs the model the same way, in code, and here is what that buys you:
-
-- **Your data cannot be garbled.** An account number, a dosage, a table of results comes
-  out of a chain of agents byte-identical to what your tool produced. Models decide what
-  to pass along and are structurally unable to alter it
-  (*[artifacts](nucleo-core/src/main/java/ai/redouble/nucleo/harness/artifacts/PACKAGE.md)*).
-- **An agent stays inside its case.** You set what a workflow may touch when it starts,
-  and the boundary holds in code: no prompt, no injected instruction, no conversational
-  cleverness widens it
-  (*[scope](nucleo-core/src/main/java/ai/redouble/nucleo/tools/guardrails/PACKAGE.md)*).
-- **Your rules stay deterministically enforced.** Any check you can write in Java runs before a tool executes,
-  under the caller's identity. Policy lives where the model cannot negotiate with it
-  (*[guardrails](nucleo-core/src/main/java/ai/redouble/nucleo/guardrails/PACKAGE.md)*).
-- **You never parse model text.** An answer arrives as the Java object you declared,
-  validated like any user input; a reply that does not conform is corrected before your
-  code ever sees it.
-- **"What did it do?" always has an answer.** Every model call and tool call is recorded
-  in order, with what went in and what came out, per workflow. Debugging an agent is
-  reading a record, like debugging anything else.
-- **Failures behave.** A tool that throws tells the agent what went wrong and whether
-  trying again can help, so a workflow degrades the way you designed instead of the way
-  the stack trace fell.
-
-## Hundreds of agents inside the JVM you already run
-
-Agents are greedy workloads: they hold things for minutes that everything else holds for
-milliseconds, they arrive in bursts, and their ceiling is a provider quota rather than
-your hardware. Nucleo runs them beside your application anyway, safely: hundreds of
-concurrent agents on virtual threads, each acquiring everything it needs before it runs or
-waiting its turn holding nothing - the same discipline you already trust in a connection
-pool, applied to everything a job touches. Provider rate limits are respected before a
-request is sent rather than apologized for after, so your application keeps its capacity
-and the agents queue for theirs.
-
-## Getting started
-
-[AGENTS.md](AGENTS.md) sets up the demo and is written to your coding agent: open this
-repository in the agent and ask it to read `AGENTS.md`. Every step is a command with a
-checkable result, so it works as a by-hand quickstart too.
-
-The demo runs the same work on two hosts - a Spring Boot process and a Quarkus one, the
-Quarkus host on the JVM or compiled to a native image - through the runtime against your own
-account's models: ask a model a question, watch an agent choose its own tools and skills,
-push a folder of documents through parallel extraction, race one workload across every
-model your account can call - judged blind - to see which quality tier the job actually
-needs, and run an agent on a decision model, a third kind of model that never writes a word
-and only ranks the options code puts in front of it
+and its page is at http://localhost:8080. It runs the same work on two hosts - a Spring
+Boot process and a Quarkus one, the Quarkus host on the JVM or compiled to a native image:
+ask a model a question, watch an agent choose its own tools and skills, push a folder of
+documents through parallel extraction, race one workload across every model your account
+can call - judged blind - to see which quality tier the job actually needs, and run an
+agent on a decision model, a third kind of model that never writes a word and only ranks
+the options code puts in front of it
 (*[deciding](nucleo-core/src/main/java/ai/redouble/nucleo/tools/deciding/PACKAGE.md)*).
 It serves its own documentation at `/docs`.
-
-After the demo, `nucleo-examples` is where to start writing: a first question to a model in
-twenty lines
-(*[hello](nucleo-examples/src/main/java/ai/redouble/examples/hello/PACKAGE.md)*), then a
-first tool, agent and doer, and one small program per thing the runtime keeps under the
-application's control.
 
 Two extensions, `nucleo-ext-lit` (literature search: PubMed, PMC, bioRxiv) and
 `nucleo-ext-patent` (patent search: the EPO and the USPTO), and the `nucleo-provider-systemone`
 decision-model provider ship in this repository and on Central as optional modules: tools
 and a provider built on the runtime, which nothing in the runtime depends on.
+
+## What Nucleo gives you
+
+| You need                                              | Nucleo gives you                                                  | Read                                                                                                                                                      |
+|-------------------------------------------------------|-------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------|
+| A model's answer as a Java object                     | a `Tool` that calls the model, typed in and out                   | [Hello, model](https://docs.redouble.ai/nucleo/0.1/examples-hello.html)                                                                                   |
+| Your code, callable by a model                        | `Tool`: the Java you already trust, with a typed input and output | [Your first tool](https://docs.redouble.ai/nucleo/0.1/examples-tool.html)                                                                                 |
+| An agent that chooses among tools                     | `Thinker`                                                         | [Your first agent](https://docs.redouble.ai/nucleo/0.1/examples-agent.html), [The kinds of thinker](https://docs.redouble.ai/nucleo/0.1/tools-thinking.html) |
+| An agent that carries a multi-step task through       | `Doer`                                                            | [Your first doer](https://docs.redouble.ai/nucleo/0.1/examples-doer.html)                                                                                 |
+| A boundary a job cannot leave, a rule in code         | `Scope`, `Guardrail`                                              | [An agent that stays inside its case](https://docs.redouble.ai/nucleo/0.1/examples-scope.html), [Writing a guardrail](https://docs.redouble.ai/nucleo/0.1/guardrails.html) |
+| Data that crosses agents byte-identical               | `Artifact`                                                        | [Data the model cannot alter](https://docs.redouble.ai/nucleo/0.1/examples-artifacts.html)                                                                |
+| Hundreds of agents in one JVM, inside provider quotas | `JobDispatcher` on virtual threads, admission and rate limiting   | [Admission](https://docs.redouble.ai/nucleo/0.1/harness-admission.html), [A dollar cap on a workflow](https://docs.redouble.ai/nucleo/0.1/examples-cap.html) |
+| The record of what every job did                      | the event stream                                                  | [What a running job reports](https://docs.redouble.ai/nucleo/0.1/events.html), [Logs, traces, metrics and cost](https://docs.redouble.ai/nucleo/0.1/harness-observability.html) |
+| Tools served by an MCP server                         | `MCPConnector`                                                    | [Calling an MCP server](https://docs.redouble.ai/nucleo/0.1/examples-mcpclient.html)                                                                      |
+| Spring Boot, Quarkus                                  | `nucleo-spring-boot-starter`, `nucleo-quarkus`                    | [Running inside Spring Boot](https://docs.redouble.ai/nucleo/0.1/spring.html), [Running inside Quarkus](https://docs.redouble.ai/nucleo/0.1/quarkus.html) |
+
+## Why Nucleo
+
+The systems you build already encode how the business works, and wherever the code could
+not decide, it stopped and prompted a human. Nucleo lets that prompt go to a model without
+the case ever leaving your process: your code stays deterministic, the model exercises
+judgment inside the boundary the application set, and hundreds of such agents run on
+virtual threads inside the JVM you already run. [Why Nucleo](PHILOSOPHY.md) makes the case
+in full: what the runtime keeps under the application's control, and what that buys you.
 
 ## Documentation
 
@@ -209,17 +163,33 @@ is the open runtime.
 
 ## Requirements
 
-Java 25 and Maven.
+| Nucleo | Java        | Spring Boot | Quarkus |
+|--------|-------------|-------------|---------|
+| 0.1    | 25 or later | 4.x         | 3.x     |
+
+Nucleo uses virtual threads and the Java 25 language throughout; no older Java is planned.
+Java 25 is a long-term support release, and the first one in which virtual threads, which
+the runtime is built on, reached maturity. Nucleo plans long-term support for Java 25. The artifacts are consumed
+with Maven or Gradle.
 
 ## Contributing
 
-Nucleo is developed by Redouble AI, which holds its design. Bug reports and questions are
-always welcome, small fixes come in as pull requests, and anything that changes the API or
-the design starts as an issue. [CONTRIBUTING.md](CONTRIBUTING.md) says exactly which is
-which, before you write code.
+Nucleo is developed by Redouble AI, which keeps its design coherent from one release to the
+next. Bug reports and questions are always welcome, small fixes come in as pull requests,
+and anything that changes the API or the design starts as an issue, where the approach is
+agreed first. [CONTRIBUTING.md](CONTRIBUTING.md) says exactly which is which, before you
+write code.
 
-Security reports go to oss@redouble.ai, never to a public issue: [SECURITY.md](SECURITY.md).
+A vulnerability is reported privately, through GitHub's
+[report form](https://github.com/redouble-ai/nucleo/security/advisories/new) or to
+oss@redouble.ai, never as a public issue: [SECURITY.md](SECURITY.md).
 
 ## License
 
 Apache-2.0. Copyright 2024-present Redouble AI, Inc. Authors.
+
+**Does Redouble AI have patents related to Nucleo?** Yes, we have IP. No, we are not
+playing games with the licence. Redouble AI has filed patent applications on technology in
+this area. Nucleo is released under the Apache License 2.0, its patent provisions included,
+and that licence alone governs what you may do with Nucleo: use it, change it, ship it,
+sell with it.

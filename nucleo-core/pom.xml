@@ -15,8 +15,8 @@
 
     <name>Nucleo core</name>
     <description>
-        The runtime proper: ai.redouble.nucleo and everything beneath it, including the lit and
-        patent extension packages until they get their own artifacts.
+        The runtime proper: ai.redouble.nucleo and everything beneath it. Providers, host
+        integrations and the extension libraries are their own artifacts.
     </description>
 
     <dependencies>

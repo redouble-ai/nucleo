@@ -8,6 +8,7 @@ many can run at once, how to see what they did, and how to host the runtime. Eac
 builds on the ones before it, and the links at the bottom of every page walk this order.
 
 - [Overview](../README.md)
+- [Why Nucleo](../PHILOSOPHY.md)
 - [Contents](CONTENTS.md)
 - [Set up and run the demo](../AGENTS.md)
 
