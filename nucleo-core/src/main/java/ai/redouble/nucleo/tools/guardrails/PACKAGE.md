@@ -240,12 +240,13 @@ This package holds four content checks, each ready to declare.
 
 - **`UrlGuardrail`**, for a tool whose input implements `UrlInput`, as `WebFetchInput`, the
   input of `WebFetchTool`, does. It refuses a URL that is blank, is not a valid URI, has no
-  host, has a host that does not resolve, or resolves to a loopback, private (RFC 1918) or
-  link-local address, which covers cloud metadata endpoints. Each refusal names the
+  host, has a host that does not resolve, or has a host any of whose addresses is a
+  loopback, private (RFC 1918) or link-local one, which covers cloud metadata endpoints.
+  Each refusal names the
   parameter and the rule it broke and never the value, since the model needs the rule to
-  fix the call and the value may be anything it pasted. `WebFetchTool` itself fetches any
-  address it is given; declaring this guardrail is where the address policy lives, and a
-  subclass overriding `isBlocked(String, InetAddress)` sets another, such as a domain
+  fix the call and the value may be anything it pasted. `WebFetchTool` declares this
+  guardrail itself and applies it to every redirect it follows; a
+  subclass overriding `isBlocked(String, InetAddress)` sets another policy, such as a domain
   allow-list. The check resolves the host when it runs, so a host that resolves differently
   when the connection is made (DNS rebinding) gets past it; in an untrusted environment,
   isolating the network (a proxy, a DMZ) is the defense.

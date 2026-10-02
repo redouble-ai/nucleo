@@ -6,18 +6,23 @@
 
 package ai.redouble.nucleo.tools.builtin;
 
+import ai.redouble.nucleo.guardrails.*;
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.artifacts.*;
 import ai.redouble.nucleo.harness.errors.*;
 import ai.redouble.nucleo.http.*;
 import ai.redouble.nucleo.tools.*;
+import ai.redouble.nucleo.tools.guardrails.*;
 import org.apache.hc.client5.http.classic.methods.*;
+import org.apache.hc.client5.http.config.*;
 import org.apache.hc.client5.http.impl.classic.*;
 import org.jsoup.*;
 import org.jsoup.nodes.*;
 import org.slf4j.*;
 
+import java.net.*;
 import java.time.*;
+import java.util.*;
 
 /**
  * Fetches web page content from a URL.
@@ -28,10 +33,13 @@ import java.time.*;
  * <p>Uses Jsoup to parse HTML and extract main content, removing scripts,
  * styles, and navigation elements.
  *
- * <p>The tool itself refuses no address - it fetches what it is given.
- * {@link ai.redouble.nucleo.tools.guardrails.UrlGuardrail}, declared as an INPUT content
- * guardrail, is where private and reserved ranges are refused; external-facing deployments
- * subclass it for domain allowlists or other restrictions.
+ * <p>GHSA-5h79-cgv5-c74w. The address a model may send this tool to is a policy, and the tool declares one:
+ * {@link #addressPolicy()}, by default a {@link UrlGuardrail}, which admits public http and
+ * https addresses and refuses loopback, private, link-local and the cloud metadata
+ * endpoints. It runs as an INPUT content guardrail on every dispatched call, and the tool
+ * applies the same policy to every redirect it follows, so a public page cannot send the
+ * fetch somewhere the policy refuses. A deployment with another policy, a domain allow-list
+ * say, subclasses the tool and overrides {@link #addressPolicy()}.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-01-10)
@@ -44,10 +52,25 @@ public class WebFetchTool extends AbstractTool<WebFetchInput, WebFetchOutput> {
     private static final Logger log = LoggerFactory.getLogger(WebFetchTool.class);
     private static final int DEFAULT_MAX_LENGTH = 50000;
     private static final String USER_AGENT = "Mozilla/5.0 (compatible; RedoubleBot/1.0; +https://redouble.ai)";
+    /** Redirects followed for one fetch; a chain longer than this is the service's failure. */
+    static final int MAX_REDIRECTS = 5;
 
     public WebFetchTool(Identifiable parent) {
         super(parent);
         setTimeout(Duration.ofSeconds(30));
+    }
+
+    /**
+     * The policy on where this tool may be sent: which URLs are admitted, for the call's own
+     * URL and for every redirect followed from it. Override for another policy.
+     */
+    protected UrlGuardrail addressPolicy() {
+        return new UrlGuardrail(this);
+    }
+
+    @Override
+    public List<ContentGuardrail<?>> declareContentGuardrails() {
+        return List.of(addressPolicy());
     }
 
     @Override
@@ -65,15 +88,22 @@ public class WebFetchTool extends AbstractTool<WebFetchInput, WebFetchOutput> {
             int maxLength = input.getMaxLength() != null ? input.getMaxLength() : DEFAULT_MAX_LENGTH;
             context.publish("Fetching: " + url, 10);
             CloseableHttpClient httpClient = resources.getHttpClient();
-            HttpGet request = new HttpGet(url);
-            request.setHeader("User-Agent", USER_AGENT);
-            request.setHeader("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
-            HttpReply reply;
-            try {
-                reply = httpClient.execute(request, HttpReply.reader());
-            }
-            catch (Exception e) {
-                throw LLMReadableCheckedException.wrapWithContext(e, "web:" + url, "url", url, "fetching the page");
+            HttpReply reply = get(httpClient, url);
+            // Redirects are followed here, one hop at a time, so that each target passes the
+            // address policy before it is fetched; the client following them on its own would
+            // let a public page lead the fetch to an address the policy refuses.
+            for (int redirects = 0; isRedirect(reply.status()); redirects++) {
+                String location = reply.header("Location");
+                if (location == null || redirects == MAX_REDIRECTS) {
+                    throw new ExternalServiceException("web:" + url, location == null
+                            ? "HTTP " + reply.status() + " with no Location to follow"
+                            : "more than " + MAX_REDIRECTS + " redirects");
+                }
+                url = URI.create(url).resolve(location).toString();
+                WebFetchInput hop = new WebFetchInput();
+                hop.setUrl(url);
+                addressPolicy().validate(hop);
+                reply = get(httpClient, url);
             }
             if (reply.status() != 200) {
                 throwForHttpStatus(reply.status(), url);
@@ -104,6 +134,24 @@ public class WebFetchTool extends AbstractTool<WebFetchInput, WebFetchOutput> {
         catch (Exception e) {
             throw LLMReadableCheckedException.unwrap(e);
         }
+    }
+
+    /** One GET, redirects left unfollowed so the caller decides each hop. */
+    private HttpReply get(CloseableHttpClient httpClient, String url) throws LLMReadableCheckedException {
+        HttpGet request = new HttpGet(url);
+        request.setConfig(RequestConfig.custom().setRedirectsEnabled(false).build());
+        request.setHeader("User-Agent", USER_AGENT);
+        request.setHeader("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
+        try {
+            return httpClient.execute(request, HttpReply.reader());
+        }
+        catch (Exception e) {
+            throw LLMReadableCheckedException.wrapWithContext(e, "web:" + url, "url", url, "fetching the page");
+        }
+    }
+
+    private static boolean isRedirect(int status) {
+        return status == 301 || status == 302 || status == 303 || status == 307 || status == 308;
     }
 
     private void throwForHttpStatus(int statusCode, String url) throws LLMReadableCheckedException {

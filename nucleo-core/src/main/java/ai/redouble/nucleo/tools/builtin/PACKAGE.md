@@ -162,11 +162,15 @@ Upstream statuses map to the framework error types: 400/422 `InvalidInputExcepti
 401/403 `UnauthorizedException`, 404 `ResourceNotFoundException`, anything else
 `ExternalServiceException`.
 
-The tool itself refuses no address - it fetches what it is given, loopback included.
-`ai.redouble.nucleo.tools.guardrails.UrlGuardrail` is the seat where private and reserved
-ranges are refused: declared as an INPUT content guardrail, it judges every input that
-carries the `UrlInput` marker before the fetch runs. External-facing deployments subclass
-it for allowlists.
+The tool carries its own address policy. It declares
+`ai.redouble.nucleo.tools.guardrails.UrlGuardrail` as an INPUT content guardrail, so every
+dispatched call is judged before the fetch runs: public http and https addresses are
+admitted, and loopback, private and link-local addresses, the cloud metadata endpoints among
+them, are refused. Redirects are followed by the tool itself, at most 5 of them, and each
+target passes the same policy before it is fetched, so a page the policy admits cannot lead
+the fetch to an address it refuses; the artifact's `url` is the address fetched in the end.
+A deployment with another policy, a domain allow-list for instance, subclasses the tool and
+overrides `addressPolicy()`.
 
 ---
 
@@ -186,7 +190,7 @@ protected List<Class<? extends Tool>> declareDefaultTools() {
 ```
 
 The calculators and the clock need no guardrails (no scope, no resources, no side
-effects). `web_fetch` wants `UrlGuardrail`. Every tool's input/output POJO pair lives in
+effects). `web_fetch` declares `UrlGuardrail` itself. Every tool's input/output POJO pair lives in
 this package beside it.
 
 > **Example:** [Hello, model](../../../../../../../../../nucleo-examples/src/main/java/ai/redouble/examples/hello/PACKAGE.md) -

@@ -34,11 +34,13 @@ import static org.junit.jupiter.api.Assertions.*;
  * is cut, and the cut is marked in the text rather than left for the model to discover, so a
  * truncated page is never mistaken for a short one.
  *
- * <p>What the tool does NOT do is refuse an address. It fetches what it is given, including
- * loopback, and {@link UrlGuardrail} is the separate declaration that narrows that - which is
- * why one test here fetches its own local server successfully and the next shows the same URL
- * refused once the guardrail judges it. A reader who assumed the tool was self-protecting
- * would be wrong, and that is worth an assertion.
+ * <p><b>The tool carries its own address policy.</b> It declares {@link UrlGuardrail}, so a
+ * dispatched call to loopback, a private range or a metadata endpoint is refused before any
+ * request is made, with nothing for a deployment to remember to switch on. The same policy
+ * judges every redirect the tool follows, so a page the policy admits cannot lead the fetch
+ * to one it refuses; a chain of redirects is followed up to a stated number and no further.
+ * The tests reach their own loopback server through a subclass whose policy admits that one
+ * host, which is also the documented way a deployment sets a policy of its own.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-09-06)
@@ -64,8 +66,37 @@ public class WebFetchToolTest {
         serve("/status/422", 422, "unprocessable");
         serve("/status/500", 500, "server error");
         serve("/status/503", 503, "unavailable");
+        redirect("/moved", "/page");
+        redirect("/loop", "/loop");
         server.start();
         base = "http://127.0.0.1:" + server.getAddress().getPort();
+        // the same server under the one name the test policy does not admit
+        redirect("/escape", "http://localhost:" + server.getAddress().getPort() + "/page");
+    }
+
+    private static void redirect(String path, String location) {
+        server.createContext(path, exchange -> {
+            exchange.getResponseHeaders().add("Location", location);
+            exchange.sendResponseHeaders(302, -1);
+            exchange.close();
+        });
+    }
+
+    /** The tool under a policy that admits the test server's literal address and nothing else private. */
+    static class LocalFetchTool extends WebFetchTool {
+        LocalFetchTool(Identifiable parent) {
+            super(parent);
+        }
+
+        @Override
+        protected UrlGuardrail addressPolicy() {
+            return new UrlGuardrail(this) {
+                @Override
+                protected boolean isBlocked(String host, InetAddress addr) {
+                    return !host.equals("127.0.0.1") && super.isBlocked(host, addr);
+                }
+            };
+        }
     }
 
     @AfterAll
@@ -89,7 +120,10 @@ public class WebFetchToolTest {
     }
 
     private static WebFetchOutput fetch(String url, Integer maxLength) throws Exception {
-        WebFetchTool tool = new WebFetchTool(root());
+        return fetch(new LocalFetchTool(root()), url, maxLength);
+    }
+
+    private static WebFetchOutput fetch(WebFetchTool tool, String url, Integer maxLength) throws Exception {
         WebFetchInput input = new WebFetchInput();
         input.setUrl(url);
         input.setMaxLength(maxLength);
@@ -192,14 +226,35 @@ public class WebFetchToolTest {
     }
 
     @Test
-    void theToolItselfFetchesLoopbackAndTheGuardrailIsWhatRefusesIt() throws Exception {
-        assertNotNull(fetch(base + "/page", null).getPage(),
-                "the tool has no address policy of its own - it fetches what it is given");
-        WebFetchInput input = new WebFetchInput();
-        input.setUrl(base + "/page");
-        UrlGuardrail guard = new UrlGuardrail(root());
-        assertThrows(ai.redouble.nucleo.guardrails.GuardrailException.class, () -> guard.validate(input),
-                "the same URL is refused once UrlGuardrail is declared, which is where the policy lives");
+    void theToolAsShippedRefusesAPrivateAddressBeforeAnyRequestIsMade() {
+        ExecutionException refused = assertThrows(ExecutionException.class, () -> fetch(new WebFetchTool(root()), base + "/page", null),
+                "the tool declares its own address policy, so a dispatched call to loopback never reaches the network");
+        assertTrue(chainHas(refused, ai.redouble.nucleo.guardrails.GuardrailException.class),
+                "the refusal is the guardrail's, correctable by the model that wrote the URL: " + refused);
+        assertEquals(1, new WebFetchTool(root()).declareContentGuardrails().size(), "one policy, declared by the tool itself");
+    }
+
+    @Test
+    void aRedirectThePolicyAdmitsIsFollowedToThePage() throws Exception {
+        WebPageArtifact page = fetch(base + "/moved", null).getPage();
+        assertEquals("A Title", page.getTitle(), "the page the redirect led to is the page returned");
+        assertEquals(base + "/page", page.getUrl(), "and the artifact names the address that was fetched in the end");
+    }
+
+    @Test
+    void aRedirectToAnAddressThePolicyRefusesIsNotFollowed() {
+        ExecutionException refused = assertThrows(ExecutionException.class, () -> fetch(base + "/escape", null),
+                "a page the policy admits must not be able to send the fetch to an address it refuses");
+        assertTrue(chainHas(refused, ai.redouble.nucleo.guardrails.GuardrailException.class),
+                "the hop is refused by the same policy that judged the first address: " + refused);
+    }
+
+    @Test
+    void aRedirectChainPastTheLimitIsTheServicesFailure() {
+        Throwable failure = failureFor(base + "/loop");
+        assertTrue(chainHas(failure, ExternalServiceException.class), "a loop of redirects ends as a service failure: " + failure);
+        assertTrue(String.valueOf(failure.getMessage()).contains(String.valueOf(WebFetchTool.MAX_REDIRECTS)),
+                "and the failure states how many redirects were followed: " + failure.getMessage());
     }
 
     @Test

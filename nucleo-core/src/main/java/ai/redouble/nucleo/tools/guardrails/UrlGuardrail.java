@@ -15,7 +15,7 @@ import java.time.*;
 /**
  * Guardrail that validates URLs against private/reserved IP ranges.
  * <p>
- * Blocks URLs that resolve to:
+ * A host is resolved to every address it has, and the URL is refused when any one of them is:
  * <ul>
  *   <li>Loopback (127.0.0.0/8, ::1)</li>
  *   <li>RFC 1918 private ranges (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16)</li>
@@ -76,27 +76,31 @@ public class UrlGuardrail extends AbstractContentGuardrail<UrlInput> {
         if (host == null) {
             throw new GuardrailException("Validation failed for parameter 'url': must carry a host component");
         }
-        InetAddress addr;
+        InetAddress[] addresses;
         try {
-            addr = InetAddress.getByName(host);
+            addresses = InetAddress.getAllByName(host);
         }
         catch (UnknownHostException e) {
             throw new GuardrailException("Validation failed for parameter 'url': its host must resolve in DNS");
         }
-        if (isBlocked(host, addr)) {
-            throw new GuardrailException("Validation failed for parameter 'url': must resolve to a public address, "
-                    + "never a loopback, private or link-local one");
+        // every address the host has: a name that answers with one public and one private
+        // address is refused, since the connection may be made to either
+        for (InetAddress addr : addresses) {
+            if (isBlocked(host, addr)) {
+                throw new GuardrailException("Validation failed for parameter 'url': must resolve to a public address, "
+                        + "never a loopback, private or link-local one");
+            }
         }
     }
 
     /**
-     * Determines if a resolved address should be blocked.
-     * Override to customize the policy.
+     * Determines if a resolved address should be blocked; asked once per address the host
+     * resolves to. Override to customize the policy.
      * <p>
      * Default implementation blocks loopback, site-local (RFC 1918), and link-local addresses.
      *
      * @param host the hostname from the URL
-     * @param addr the resolved address
+     * @param addr one of the addresses it resolves to
      * @return true if the URL should be blocked
      */
     protected boolean isBlocked(String host, InetAddress addr) {
