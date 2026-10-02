@@ -1251,10 +1251,21 @@ public enum JobDispatcher {
 
         }
         catch (DependencyFailedException e) {
-            context.setState(JobState.FAILED);
-            publishEvent(new DependencyFailureEvent(context.getSnapshot(), e));
-            publishWorkflowFailedIfRoot(context);
-            failure = e;
+            // gh-14. The first terminal transition wins: a cancel that landed while this job waited on
+            // its dependency already made it CANCELLED, and the outcome its caller was promised
+            // is then the cancellation, settled the way a job cancelled in a queue is.
+            context.fail(e);
+            if (context.getState() == JobState.CANCELLED) {
+                String message = "Job " + jobId + " was cancelled while it waited for its dependencies";
+                publishEvent(new JobCancelled(context.getSnapshot(), false, message, 0, context.getLlmResponses(), context.getAllMetadata()));
+                publishWorkflowFailedIfRoot(context);
+                failure = new JobCancelledException(new JobContext.CancellationException(message));
+            }
+            else {
+                publishEvent(new DependencyFailureEvent(context.getSnapshot(), e));
+                publishWorkflowFailedIfRoot(context);
+                failure = e;
+            }
         }
         catch (Exception e) {
             publishWorkflowFailedIfRoot(context);
@@ -1745,8 +1756,14 @@ public enum JobDispatcher {
         // User-facing terminal event (WorkflowCompleteEvent) is published by executeJobUnified for root jobs
         // The runtime's own cancellations are JobContext.CancellationException throughout; the
         // JDK's is accepted too, for a job that was waiting on a future somebody cancelled.
-        boolean wasCancelled = lastError instanceof java.util.concurrent.CancellationException
+        // gh-14. The first terminal transition wins: an external cancel that landed while the job ran
+        // made it CANCELLED already, and whatever the job did afterwards - failed with an error
+        // of its own, ran into its timeout - the outcome its caller was promised is the cancel.
+        boolean cancelledFirst = context.getState() == JobState.CANCELLED;
+        boolean wasCancelled = cancelledFirst
+                || lastError instanceof java.util.concurrent.CancellationException
                 || lastError instanceof JobContext.CancellationException;
+        timedOut = timedOut && !cancelledFirst;
         if (timedOut) {
             context.setState(JobState.TIMED_OUT);
             publishEvent(new JobTimedOut(context.getSnapshot(), timeout, failedAttempt, context.getLlmResponses(), context.getAllMetadata()));
@@ -1772,9 +1789,9 @@ public enum JobDispatcher {
             if (timedOut && !(lastError instanceof LLMReadable)) {
                 throw new JobTimeoutException(timeout, lastError);
             }
-            // wasCancelled means lastError IS a cancellation exception (that is how the
-            // flag is derived), so the canonical wrap always applies; the LLM-readable
-            // cancellation message survives as the cause for anyone walking the chain
+            // The canonical wrap always applies to a cancelled job. Its cause is what the job
+            // unwound with: the cancellation message itself when the job observed its token,
+            // or the error of its own a job that ignored the token ended on after the cancel.
             if (wasCancelled) {
                 throw new JobCancelledException(lastError);
             }

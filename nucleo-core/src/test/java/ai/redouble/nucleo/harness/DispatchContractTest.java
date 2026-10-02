@@ -28,7 +28,8 @@ import static org.junit.jupiter.api.Assertions.*;
  *       ({@code singleDependencyResult}), no blocking anywhere.</li>
  *   <li><b>Dependency failure</b> - a non-tolerant dependent fails with
  *       {@link DependencyFailedException} and never executes; a tolerant one executes and
- *       sees the failed dependency as a null result.</li>
+ *       sees the failed dependency as a null result; a dependent cancelled while it waited
+ *       settles as cancelled when the dependency then fails, and its caller is released.</li>
  *   <li><b>Call-order ordinals</b> - a doer's sequential submits stamp 1, 2, ...; a fan-out
  *       shares one ordinal, so the trajectory tree is reconstructible.</li>
  *   <li><b>Limiter signaling</b> - a job failing with {@code ExternalServiceException}
@@ -120,6 +121,60 @@ class DispatchContractTest {
         }
         assertTrue(found, "the dependent's failure names the dependency contract: " + failure);
         assertFalse(consumer.executed.get(), "a job whose dependency failed must never execute");
+    }
+
+    /** A dependency that fails only when the test lets it, so a dependent can be cancelled while it waits. */
+    static class GatedFailingProducer extends AbstractJob<String> {
+        private final CountDownLatch release;
+
+        GatedFailingProducer(Identifiable parent, CountDownLatch release) {
+            super(parent, "gated-producer-fixture");
+            this.release = release;
+        }
+
+        @Override
+        public JobRequirements getRequirements() {
+            return new JobRequirements();
+        }
+
+        @Override
+        public String execute(JobResources resources, JobContext<String> context) throws InterruptedException {
+            release.await();
+            throw new IllegalStateException("gated producer fixture fails");
+        }
+    }
+
+    @Test
+    void aDependentCancelledWhileItWaits_settlesAsCancelledWhenItsDependencyThenFails() throws Exception {
+        CountDownLatch release = new CountDownLatch(1);
+        JobHandle<String> producer = JobDispatcher.getInstance().submit(new GatedFailingProducer(root(), release));
+        // unqueued, so the dependent goes straight to its own thread and a cancel can only find it
+        // there, waiting on the dependency, never in a queue
+        ConsumerJob consumer = new ConsumerJob(root(), false) {
+            @Override
+            public JobRequirements getRequirements() {
+                JobRequirements req = super.getRequirements();
+                req.setRequiresQueueing(false);
+                return req;
+            }
+        };
+        JobHandle<String> handle = JobDispatcher.getInstance().submit(consumer, producer);
+        long deadline = System.currentTimeMillis() + 5_000;
+        boolean cancelled = false;
+        while (!cancelled && System.currentTimeMillis() < deadline) {
+            cancelled = handle.cancel("the caller gave up");
+            if (!cancelled) {
+                Thread.sleep(10);
+            }
+        }
+        assertTrue(cancelled, "the dependent waiting on its dependency is a running job a cancel finds");
+        release.countDown();
+        ExecutionException failure = assertThrows(ExecutionException.class, () -> handle.get(5, TimeUnit.SECONDS),
+                "the handle settles: a caller never waits forever on a job that was cancelled and whose dependency then failed");
+        assertInstanceOf(JobCancelledException.class, failure.getCause(),
+                "the cancel came first, so the outcome is the cancellation and not the dependency's failure");
+        assertFalse(consumer.executed.get(), "and the job never executed");
+        assertEquals(JobState.CANCELLED, handle.getContext().getState());
     }
 
     @Test

@@ -195,6 +195,45 @@ class JobStateTransitionTest {
         assertEquals(JobState.CANCELLED, handle.getContext().getState(), "the cancel that landed first is the recorded outcome");
     }
 
+    /** Never consults its token; fails on its own schedule with an error of its own. */
+    static class ObliviousFailingJob extends AbstractJob<String> {
+        final CountDownLatch started = new CountDownLatch(1);
+        final CountDownLatch mayFail = new CountDownLatch(1);
+
+        ObliviousFailingJob() {
+            super(ROOT, "oblivious-failing-job");
+        }
+
+        @Override
+        public JobRequirements getRequirements() {
+            return new JobRequirements();
+        }
+
+        @Override
+        public String execute(JobResources resources, JobContext<String> context) throws Exception {
+            started.countDown();
+            mayFail.await(10, TimeUnit.SECONDS);
+            throw new IllegalArgumentException("failed on its own after the cancel");
+        }
+    }
+
+    @Test
+    void aCancelledJobThatFailsAnyway_endsCancelledThroughTheDispatcher() throws Exception {
+        ObliviousFailingJob job = new ObliviousFailingJob();
+        JobHandle<String> handle = JobDispatcher.getInstance().submit(job);
+        assertTrue(job.started.await(5, TimeUnit.SECONDS), "job did not start");
+        JobDispatcher.getInstance().cancel(job.getId(), "external cancel");
+        job.mayFail.countDown();
+        ExecutionException outcome = assertThrows(ExecutionException.class, () -> handle.get(5, TimeUnit.SECONDS),
+                "the handle settles: a caller never waits forever on a cancelled job that then failed");
+        assertNotNull(cancellationIn(outcome), "the cancel landed first, so the caller sees a cancellation: " + outcome);
+        for (Throwable t = outcome; t != null; t = t.getCause()) {
+            assertFalse(String.valueOf(t.getMessage()).contains("illegal state transition"),
+                    "the terminal guard must not fire on the job's own thread: " + t);
+        }
+        assertEquals(JobState.CANCELLED, handle.getContext().getState(), "the cancel that landed first is the recorded outcome");
+    }
+
     /** Walks the cause chain for a JobCancelledException, the one shape every cancellation reaches a caller in. */
     private static JobCancelledException cancellationIn(Throwable outcome) {
         for (Throwable t = outcome; t != null; t = t.getCause()) {

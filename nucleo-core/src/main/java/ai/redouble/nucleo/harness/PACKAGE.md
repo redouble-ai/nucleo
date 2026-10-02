@@ -269,7 +269,9 @@ A tool sets its own timeout with `setTimeout` in its constructor. Orchestrators 
 job of a workflow. A job still waiting in a queue is removed and never runs. A running job is
 told through its context and stops at its next `context.checkCancellation()`, which throws,
 or when it sees `context.isCancelled()`. Cancellation is cooperative: a job that never checks
-runs to its end, and its caller still receives the cancellation. Either way the caller's
+runs to its end, and its caller still receives the cancellation, whether the job then
+returned a result or failed with an error of its own. A job cancelled while it waits for its
+dependencies ends cancelled too, whatever becomes of them. In every case the caller's
 `get()` throws an `ExecutionException` whose cause is a `JobCancelledException`.
 
 ## When a provider fails
