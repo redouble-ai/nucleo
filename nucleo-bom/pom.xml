@@ -334,11 +334,30 @@
 
     <profiles>
         <!-- The signature Central requires on every published file, with the parent's key,
-             on a release build only: `mvn deploy -Prelease` -->
+             on a release build only: `mvn deploy -Prelease`. The same SBOM the parent
+             attaches to every module rides along, so every published artifact has one. -->
         <profile>
             <id>release</id>
             <build>
                 <plugins>
+                    <plugin>
+                        <groupId>org.cyclonedx</groupId>
+                        <artifactId>cyclonedx-maven-plugin</artifactId>
+                        <version>2.9.1</version>
+                        <executions>
+                            <execution>
+                                <id>sbom</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>makeBom</goal>
+                                </goals>
+                                <configuration>
+                                    <outputFormat>json</outputFormat>
+                                    <skipNotDeployed>false</skipNotDeployed>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-gpg-plugin</artifactId>
