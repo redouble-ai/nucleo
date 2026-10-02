@@ -123,7 +123,12 @@ class AdmissionTest {
         admitAsync(demand(first, second), context(), out, new AtomicReference<>());
         assertTrue(await(() -> admission.queueSize() == 1, 5_000));
 
-        assertEquals(0, first.currentInUse(), "the first account's permit was given back inside the same critical section");
+        // the give-back happens inside the evaluator's critical section, which this thread is
+        // outside of: a read that lands between the take and the give-back sees the permit
+        // held for the instant it is. Passes run only on a wake, so once the pass the enqueue
+        // woke is over the permit stays back until the account is woken again below.
+        assertTrue(await(() -> first.currentInUse() == 0, 5_000), "the first account's permit was given back inside the same critical section");
+        assertEquals(0, first.currentInUse());
         assertNull(out.get());
 
         second.mode = Scripted.Mode.FITS;
@@ -599,10 +604,15 @@ class AdmissionTest {
 
         long start = System.nanoTime();
         bucket.give(List.of(1));
-        assertTrue(await(() -> grants.get(0).get() != null, 10_000), "one token grants exactly the head");
+        // the queue is FIFO in arrival order, and arrival is the moment a waiter's thread
+        // reaches the lock, which ten thousand virtual threads do in no particular order: which
+        // waiter is the head is theirs to decide, so what this test can hold the monitor to is
+        // one token, one grant, and the pass that finds it
+        assertTrue(await(() -> grants.stream().anyMatch(g -> g.get() != null), 10_000), "one token grants the head");
         long passMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
 
         assertEquals(waiters - 1, admission.queueSize());
+        assertEquals(1, grants.stream().filter(g -> g.get() != null).count(), "one token, one grant");
         log.info("Admission pass over {} waiters, one grant: {} ms (wake latency included)", waiters, passMs);
         assertTrue(passMs < 2_000, "a pass over ten thousand waiters completes in well under two seconds: " + passMs + " ms");
     }
