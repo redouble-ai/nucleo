@@ -50,7 +50,7 @@
         <jackson.annotations.version>2.21</jackson.annotations.version>
         <!-- HTTP transport shared by every client through the connection pool -->
         <httpclient5.version>5.5.2</httpclient5.version>
-        <httpcore5.version>5.3.6</httpcore5.version>
+        <httpcore5.version>5.4.4</httpcore5.version>
         <!-- LLM providers -->
         <anthropic.version>2.62.0</anthropic.version>
         <openai.version>4.54.0</openai.version>
