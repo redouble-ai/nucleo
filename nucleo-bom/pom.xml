@@ -7,7 +7,7 @@
     <!-- Standalone on purpose: the parent imports this BOM, so the BOM cannot inherit from it. -->
     <groupId>ai.redouble</groupId>
     <artifactId>nucleo-bom</artifactId>
-    <version>0.1.1</version>
+    <version>0.1.2</version>
     <packaging>pom</packaging>
 
     <name>Nucleo BOM</name>
