@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>ai.redouble</groupId>
+        <artifactId>nucleo-parent</artifactId>
+        <version>0.1</version>
+    </parent>
+
+    <artifactId>nucleo-demo-engine</artifactId>
+    <packaging>jar</packaging>
+
+    <name>Nucleo demo engine</name>
+    <description>
+        The demo itself, with no web framework in it: the agent, the extraction and pricing
+        workflows, the file index, the shipped corpus and skills, the page, and the embedded
+        documentation. The Spring Boot and Quarkus demo applications are thin shells over this
+        module - same endpoints, same engine - which is the point: the runtime and the work it
+        runs are host-framework-free.
+    </description>
+
+    <properties>
+        <!-- The demo, run from the checkout: never published to Maven Central -->
+        <skipPublishing>true</skipPublishing>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>ai.redouble</groupId>
+                <artifactId>nucleo-bom</artifactId>
+                <version>${project.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <dependency>
+            <groupId>ai.redouble</groupId>
+            <artifactId>nucleo-core</artifactId>
+        </dependency>
+        <!-- Build-time only: the site generator that embeds the documentation under
+             META-INF/resources/docs (see the exec execution below), where both host
+             frameworks serve it. Provided scope keeps it and its markdown renderer off the
+             runtime classpath. -->
+        <dependency>
+            <groupId>ai.redouble</groupId>
+            <artifactId>nucleo-docs</artifactId>
+            <version>${project.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Tests -->
+        <dependency>
+            <!-- the runtime's test-jar: the fake decision provider a scripted policy drives the
+                 decision agent with, and the test configurator that names the test picker -->
+            <groupId>ai.redouble</groupId>
+            <artifactId>nucleo-core</artifactId>
+            <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-engine</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- A host supplies the provider artifacts; the catalog test needs them to resolve the
+             spec_type of the models its pinned fixture names, so they are on the test classpath
+             only -->
+        <dependency>
+            <groupId>ai.redouble</groupId>
+            <artifactId>nucleo-provider-anthropic</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>ai.redouble</groupId>
+            <artifactId>nucleo-provider-openai</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>ai.redouble</groupId>
+            <artifactId>nucleo-provider-bedrock</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>ai.redouble</groupId>
+            <artifactId>nucleo-provider-bedrock-anthropic</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>ai.redouble</groupId>
+            <artifactId>nucleo-provider-systemone</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- The demos serve the library's documentation at /docs, generated into this jar
+                 from the same sources the binary is built from - it can never be stale and
+                 needs no toolchain beyond Maven and a JDK. No javadoc links: the demos do
+                 not carry the 39M javadoc tree, so class names stay code chips; the full
+                 site with javadoc is `mvn site` at the reactor root. -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                    <execution>
+                        <id>embed-docs</id>
+                        <phase>generate-resources</phase>
+                        <goals>
+                            <goal>java</goal>
+                        </goals>
+                        <configuration>
+                            <mainClass>ai.redouble.docs.GenerateDocs</mainClass>
+                            <classpathScope>compile</classpathScope>
+                            <arguments>
+                                <argument>${project.basedir}/..</argument>
+                                <argument>${project.version}</argument>
+                                <argument>--out</argument>
+                                <argument>${project.build.outputDirectory}/META-INF/resources/docs</argument>
+                                <argument>--no-javadoc-links</argument>
+                                <argument>--no-versions</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

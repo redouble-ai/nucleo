@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>ai.redouble</groupId>
+        <artifactId>nucleo-parent</artifactId>
+        <version>0.1</version>
+    </parent>
+
+    <artifactId>nucleo-provider-systemone</artifactId>
+    <packaging>jar</packaging>
+
+    <name>Nucleo provider: System One decision models</name>
+    <description>
+        The client for decision models that speak TypeSafe's System One wire - Jev itself and
+        the open replicas served from a machine the deployment owns - over the runtime's own HTTP
+        transport, with the catalog fragment of the entries it serves.
+    </description>
+
+    <dependencies>
+        <dependency>
+            <groupId>ai.redouble</groupId>
+            <artifactId>nucleo-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.httpcomponents.core5</groupId>
+            <artifactId>httpcore5</artifactId>
+        </dependency>
+
+        <!-- Tests -->
+        <dependency>
+            <groupId>ai.redouble</groupId>
+            <artifactId>nucleo-core</artifactId>
+            <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-engine</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <!-- The dispatcher-driven tests run on this module's own catalog, one decision entry
+                     served from a local server the test starts, and on this module's own
+                     configurator: the runtime's test-jar registers one too, and two registrations
+                     refuse at startup, so the property names which one applies here. -->
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <systemPropertyVariables>
+                        <nucleo.models>${project.basedir}/src/test/resources/test-models.json</nucleo.models>
+                        <nucleo.env>ai.redouble.nucleo.providers.systemone.SystemOneTestConfigurator</nucleo.env>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

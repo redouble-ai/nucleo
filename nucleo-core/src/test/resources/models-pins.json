@@ -1,0 +1,22 @@
+{
+  "provider_defaults": {
+    "fake-llm": { "cache_read_multiplier": 0.5, "cache_write_multiplier": 1.0 },
+    "fake-decision": { "cache_read_multiplier": 1.0, "cache_write_multiplier": 1.0, "currency": "USD" }
+  },
+  "models": [
+    { "id": "pinned-small",  "identity": "pinned-small",  "grade": "SMALL",  "provider_key": "fake-llm", "wire_model_id": "pinned-small",  "max_context_tokens": 1000, "max_output_tokens": 100, "supports_vision": false, "thinking_mode": "NONE", "tpm": 5000, "rpm": 100 },
+    { "id": "other-small",   "identity": "other-small",   "grade": "SMALL",  "provider_key": "fake-llm", "wire_model_id": "other-small",   "max_context_tokens": 1000, "max_output_tokens": 100, "supports_vision": false, "thinking_mode": "NONE", "tpm": 5000, "rpm": 100 },
+    { "id": "only-medium",   "identity": "only-medium",   "grade": "MEDIUM", "provider_key": "openai",   "wire_model_id": "only-medium",   "max_context_tokens": 1000, "max_output_tokens": 100, "supports_vision": false, "thinking_mode": "NONE", "tpm": 5000, "rpm": 100 },
+    { "id": "retired-large", "identity": "retired-large", "grade": "LARGE",  "provider_key": "fake-llm", "wire_model_id": "retired-large", "max_context_tokens": 1000, "max_output_tokens": 100, "supports_vision": false, "thinking_mode": "NONE", "tpm": 5000, "rpm": 100, "status": "DEPRECATED" },
+    { "id": "live-large",    "identity": "live-large",    "grade": "LARGE",  "provider_key": "fake-llm", "wire_model_id": "live-large",    "max_context_tokens": 1000, "max_output_tokens": 100, "supports_vision": false, "thinking_mode": "NONE", "tpm": 5000, "rpm": 100 },
+    { "id": "only-xl",       "identity": "only-xl",       "grade": "XL",     "provider_key": "fake-llm", "wire_model_id": "only-xl",       "max_context_tokens": 1000, "max_output_tokens": 100, "supports_vision": false, "thinking_mode": "NONE", "tpm": 5000, "rpm": 100 },
+    { "id": "embed-a",       "identity": "embed-a",       "provider_key": "fake-embeddings", "wire_model_id": "embed-a", "max_context_tokens": 1000, "max_output_tokens": 1000, "supports_vision": false, "thinking_mode": "NONE", "tpm": 5000, "rpm": 100 },
+    { "id": "embed-b",       "identity": "embed-b",       "provider_key": "fake-embeddings", "wire_model_id": "embed-b", "max_context_tokens": 1000, "max_output_tokens": 1000, "supports_vision": false, "thinking_mode": "NONE", "tpm": 5000, "rpm": 100 },
+    { "id": "decide-hosted", "identity": "decide-hosted", "provider_key": "fake-decision", "wire_model_id": "decide-hosted", "max_context_tokens": 4096, "max_output_tokens": 0, "supports_vision": false, "thinking_mode": "NONE", "tpm": 5000, "rpm": 100, "input_price_per_million": 0.042 },
+    { "id": "decide-local",  "identity": "decide-local",  "provider_key": "fake-decision", "wire_model_id": "decide-local",  "max_context_tokens": 4096, "max_output_tokens": 0, "supports_vision": false, "thinking_mode": "NONE", "max_concurrent": 1, "input_price_per_million": 0.0 }
+  ],
+  "pins": {
+    "SMALL": ["pinned-small"],
+    "embeddings": "embed-b"
+  }
+}

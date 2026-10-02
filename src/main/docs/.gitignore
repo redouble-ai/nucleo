@@ -1,0 +1,4 @@
+# All files in this directory are generated
+# Run: mvn site (after a build) from the reactor root
+*
+!.gitignore

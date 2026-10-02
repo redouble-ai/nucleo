@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>ai.redouble</groupId>
+        <artifactId>nucleo-parent</artifactId>
+        <version>0.1</version>
+    </parent>
+
+    <artifactId>nucleo-quarkus</artifactId>
+    <packaging>jar</packaging>
+
+    <name>Nucleo quarkus integration</name>
+    <description>
+        What a Quarkus application tells the runtime, and nothing more: credentials are
+        MicroProfile Config properties under nucleo.credentials.*, the nucleo.* properties bind
+        onto the registered Settings classes at startup, and the dispatcher's lifecycle rides
+        the CDI container's. The analog of nucleo-spring-boot-starter for the other host, built
+        on quarkus-arc and MicroProfile Config alone - no web framework, so it serves a REST
+        app or a batch process the same way.
+    </description>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>ai.redouble</groupId>
+                <artifactId>nucleo-bom</artifactId>
+                <version>${project.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>io.quarkus.platform</groupId>
+                <artifactId>quarkus-bom</artifactId>
+                <version>${quarkus.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <dependency>
+            <groupId>ai.redouble</groupId>
+            <artifactId>nucleo-core</artifactId>
+        </dependency>
+        <!-- CDI and the config API: the whole surface this module builds on. quarkus-arc
+             brings the container and the lifecycle events; the config API reads the same
+             nucleo.* properties application.properties declares -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-arc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.eclipse.microprofile.config</groupId>
+            <artifactId>microprofile-config-api</artifactId>
+        </dependency>
+        <!-- GraalVM's own annotations, for the native-image substitutions in the graal package.
+             provided: needed only to compile the substitutions; the native-image builder supplies
+             them at build time, and nothing here is used at application runtime. -->
+        <dependency>
+            <groupId>org.graalvm.sdk</groupId>
+            <artifactId>nativeimage</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <!-- Apache HttpClient, provided: the ContentCompressionExec substitution below re-declares
+             one of its constructors and names its registry types. nucleo-core already carries these
+             at runtime; provided here means they are on the compile path for the substitution only. -->
+        <dependency>
+            <groupId>org.apache.httpcomponents.client5</groupId>
+            <artifactId>httpclient5</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.httpcomponents.core5</groupId>
+            <artifactId>httpcore5</artifactId>
+            <scope>provided</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- Marks this jar the runtime half of a Quarkus extension and names its deployment
+                 module, so a Quarkus application that depends on it runs the build steps in
+                 nucleo-quarkus-deployment (reflection registration, runtime-init, resource
+                 inclusion) that make the runtime work in a native image. Also produces the
+                 Jandex index the CDI beans are discovered through. -->
+            <plugin>
+                <groupId>io.quarkus</groupId>
+                <artifactId>quarkus-extension-maven-plugin</artifactId>
+                <version>${quarkus.version}</version>
+                <executions>
+                    <execution>
+                        <id>extension-descriptor</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>extension-descriptor</goal>
+                        </goals>
+                        <configuration>
+                            <deployment>ai.redouble:nucleo-quarkus-deployment:${project.version}</deployment>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>io.smallrye</groupId>
+                <artifactId>jandex-maven-plugin</artifactId>
+                <version>3.2.0</version>
+                <executions>
+                    <execution>
+                        <id>make-index</id>
+                        <goals>
+                            <goal>jandex</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

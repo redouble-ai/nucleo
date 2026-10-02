@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Logging for the runtime's own test runs. Named logback-test.xml so it wins over any
+  logback.xml a dependency carries on the test classpath. The levels mirror what the
+  platform runs with: the runtime at INFO, everything else at WARN.
+-->
+<configuration>
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%msg%n</pattern>
+        </encoder>
+    </appender>
+    <logger name="ai.redouble" level="INFO"/>
+    <root level="WARN">
+        <appender-ref ref="STDOUT"/>
+    </root>
+</configuration>

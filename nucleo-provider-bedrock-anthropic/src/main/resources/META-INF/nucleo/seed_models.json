@@ -1,0 +1,13 @@
+{
+  "provider_defaults": {
+    "anthropic-bedrock": { "spec_type": "anthropic", "cache_read_multiplier": 0.10, "cache_write_multiplier": 1.25, "cache_breakpoints": 4, "currency": "USD" },
+    "anthropic-bedrock-mantle": { "spec_type": "anthropic", "cache_read_multiplier": 0.10, "cache_write_multiplier": 1.25, "cache_breakpoints": 4, "currency": "USD" }
+  },
+  "models": [
+    { "id": "claude-opus-5-bedrock", "identity": "opus-5", "grade": "XL", "provider_key": "anthropic-bedrock", "wire_model_id": "us.anthropic.claude-opus-5", "max_context_tokens": 1000000, "max_output_tokens": 128000, "supports_vision": true, "supports_documents": true, "thinking_mode": "ADAPTIVE", "tpm": 30000000, "input_price_per_million": 5.0, "output_price_per_million": 25.0 },
+    { "id": "claude-sonnet-5-bedrock", "identity": "sonnet-5", "grade": "MEDIUM", "provider_key": "anthropic-bedrock", "wire_model_id": "us.anthropic.claude-sonnet-5", "max_context_tokens": 1000000, "max_output_tokens": 128000, "supports_vision": true, "supports_documents": true, "thinking_mode": "ADAPTIVE", "tpm": 6000000, "input_price_per_million": 2.0, "output_price_per_million": 10.0 },
+    { "id": "claude-haiku-4-5-bedrock", "identity": "haiku-4.5", "grade": "SMALL", "provider_key": "anthropic-bedrock", "wire_model_id": "global.anthropic.claude-haiku-4-5-20251001-v1:0", "max_context_tokens": 200000, "max_output_tokens": 64000, "supports_vision": true, "supports_documents": true, "thinking_mode": "EXTENDED", "tpm": 5000000, "rpm": 10000, "input_price_per_million": 1.0, "output_price_per_million": 5.0 },
+    { "id": "claude-fable-5-mantle",    "identity": "fable-5",   "grade": "MEGA", "provider_key": "anthropic-bedrock-mantle", "wire_model_id": "anthropic.claude-fable-5",   "max_context_tokens": 1000000, "max_output_tokens": 128000, "supports_vision": true, "supports_documents": true, "thinking_mode": "ADAPTIVE", "tpm": 2000000,  "input_price_per_million": 10.0, "output_price_per_million": 50.0, "requires_lax": true },
+    { "id": "claude-opus-5-mantle",     "identity": "opus-5",    "grade": "XL", "provider_key": "anthropic-bedrock-mantle", "wire_model_id": "anthropic.claude-opus-5",    "max_context_tokens": 1000000, "max_output_tokens": 128000, "supports_vision": true, "supports_documents": true, "thinking_mode": "ADAPTIVE", "tpm": 20000000, "input_price_per_million": 5.0, "output_price_per_million": 25.0 }
+  ]
+}

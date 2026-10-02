@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>ai.redouble</groupId>
+        <artifactId>nucleo-parent</artifactId>
+        <version>0.1</version>
+    </parent>
+
+    <artifactId>nucleo-demo</artifactId>
+    <packaging>jar</packaging>
+
+    <name>Nucleo demo</name>
+    <description>
+        A Spring Boot process running the runtime in-process: the dispatcher started and stopped
+        with the application, provider credentials read from environment variables, and an HTTP
+        endpoint that submits a job and returns its result. The shape a host application copies.
+    </description>
+
+    <properties>
+        <!-- The demo, run from the checkout: never published to Maven Central -->
+        <skipPublishing>true</skipPublishing>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <!-- The runtime's pins come first: Boot manages Jackson 2 as well, and the first
+                 import to name an artifact wins, so the runtime keeps the line it is built on -->
+            <dependency>
+                <groupId>ai.redouble</groupId>
+                <artifactId>nucleo-bom</artifactId>
+                <version>${project.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-dependencies</artifactId>
+                <version>${spring-boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <!-- The demo itself - the agent, the workflows, the index, the corpus, the page and
+             the embedded documentation - with no web framework in it; this module is the
+             Spring shell around it -->
+        <dependency>
+            <groupId>ai.redouble</groupId>
+            <artifactId>nucleo-demo-engine</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <!-- The POI/PDFBox reader: on the JVM the Spring host reads Office and PDF locally,
+             overriding the engine's toolkit-free default -->
+        <dependency>
+            <groupId>ai.redouble</groupId>
+            <artifactId>nucleo-demo-poi</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <!-- The runtime in a Boot process: credentials from nucleo.credentials.*, the
+             dispatcher's lifecycle, the cost ledger, and the discover command -->
+        <dependency>
+            <groupId>ai.redouble</groupId>
+            <artifactId>nucleo-spring-boot-starter</artifactId>
+        </dependency>
+        <!-- One provider artifact per vendor the process may call; each ships its own catalog
+             fragment and is served only when its credential is in the environment -->
+        <dependency>
+            <groupId>ai.redouble</groupId>
+            <artifactId>nucleo-provider-anthropic</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ai.redouble</groupId>
+            <artifactId>nucleo-provider-openai</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ai.redouble</groupId>
+            <artifactId>nucleo-provider-bedrock</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ai.redouble</groupId>
+            <artifactId>nucleo-provider-bedrock-anthropic</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ai.redouble</groupId>
+            <artifactId>nucleo-provider-systemone</artifactId>
+        </dependency>
+        <!-- A skilljar: skills under META-INF/skills/ in a jar, found by the runtime's loader
+             at startup. This one is the project's own public bundle; any jar laid out the
+             same way is picked up the same way, beside the demo's own bundle in the engine's
+             resources -->
+        <dependency>
+            <groupId>ai.redouble</groupId>
+            <artifactId>nucleo-skills</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+
+        <!-- Tests -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+            <!-- The demo's tests run the real runtime against a real context; nothing is mocked -->
+            <exclusions>
+                <exclusion>
+                    <groupId>org.mockito</groupId>
+                    <artifactId>mockito-core</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.mockito</groupId>
+                    <artifactId>mockito-junit-jupiter</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-webmvc-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <!-- A stable jar name: documentation and the demo's own instructions say
+             `java -jar target/nucleo-demo.jar`, and a version bump must not turn every
+             such line stale. The installed artifact keeps its versioned name. -->
+        <finalName>nucleo-demo</finalName>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <!-- The tests prove the process with NO credentials. Bedrock resolves through
+                         AWS's own chain, which would otherwise find the developer's ~/.aws profile
+                         and make a real call; the chain is pointed at files that do not exist and
+                         away from instance metadata, so the run is the same on every machine. -->
+                    <systemPropertyVariables>
+                        <aws.configFile>${project.build.directory}/no-aws-config</aws.configFile>
+                        <aws.sharedCredentialsFile>${project.build.directory}/no-aws-credentials</aws.sharedCredentialsFile>
+                        <aws.disableEc2Metadata>true</aws.disableEc2Metadata>
+                        <!-- The tests run on a catalog of their own, named explicitly, so a
+                             models.json a discovery wrote into this directory never reaches them. -->
+                        <nucleo.models>${project.basedir}/src/test/resources/test-models.json</nucleo.models>
+                    </systemPropertyVariables>
+                    <!-- The same no-credential guarantee for the environment: application.yaml binds
+                         these three, so a shell that exports any of them (a developer's profile
+                         commonly sets AWS_REGION) would hand the tests a credential and break the
+                         refusals they assert. Excluded from the fork, not blanked: the AWS SDK
+                         answers an empty variable with a different message than an absent one,
+                         and the tests pin the absent one, which names the variable to export. -->
+                    <excludedEnvironmentVariables>
+                        <excludedEnvironmentVariable>AWS_REGION</excludedEnvironmentVariable>
+                        <excludedEnvironmentVariable>AWS_ACCESS_KEY_ID</excludedEnvironmentVariable>
+                        <excludedEnvironmentVariable>AWS_SECRET_ACCESS_KEY</excludedEnvironmentVariable>
+                    </excludedEnvironmentVariables>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <version>${spring-boot.version}</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

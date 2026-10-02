@@ -1,0 +1,9 @@
+{
+  "provider_defaults": {
+    "openai": { "cache_read_multiplier": 0.5, "cache_write_multiplier": 1.0 }
+  },
+  "models": [
+    { "id": "partial-output", "identity": "partial-output", "grade": "MEDIUM", "provider_key": "openai", "wire_model_id": "partial-output", "max_context_tokens": 200000, "max_output_tokens": 64000, "supports_vision": false, "thinking_mode": "NONE", "tpm": 5000, "rpm": 100,
+      "output_budgets": { "VERDICT": 2000, "COMPACT": 6000, "STANDARD": 20000 } }
+  ]
+}

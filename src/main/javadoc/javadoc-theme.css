@@ -1,0 +1,219 @@
+/* The Redouble theme for the generated javadoc, loaded after the JDK stylesheet via
+   --add-stylesheet. The JDK stylesheet drives every color through the :root variables
+   redefined here; the rules after the variables restate the few affordances the JDK
+   sheet hardcodes (search results, kbd, hr, the toc button, the jquery-ui search
+   dropdown) in terms of the same variables, so they follow the theme. Same palette as
+   the documentation site's style.css: light with an indigo tint, violet accent, deep
+   navy navbar; the dark scheme is the same violet identity on an indigo-black canvas.
+   javadoc-theme.js (loaded via --add-script) adds the System/Light/Dark switch and sets
+   data-theme from the stored choice. */
+:root {
+    --body-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --block-font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --code-font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --body-text-color: #334155;
+    --block-text-color: #334155;
+    --body-background-color: #ffffff;
+    --section-background-color: var(--body-background-color);
+    --detail-background-color: #ffffff;
+    --code-background-color: #f0ecfa;
+    --mark-background-color: #f0ecfa;
+    --detail-block-color: #f6f5fb;
+    --navbar-background-color: #020617;
+    --navbar-text-color: #f1f5f9;
+    --subnav-background-color: #f0ecfa;
+    --subnav-link-color: #6d28d9;
+    --member-heading-background-color: var(--subnav-background-color);
+    --selected-background-color: #7c3aed;
+    --selected-text-color: #ffffff;
+    --selected-link-color: #ffffff;
+    --table-header-color: #e8e2f4;
+    --even-row-color: #ffffff;
+    --odd-row-color: #f6f5fb;
+    --title-color: #1e1b4b;
+    --link-color: #7c3aed;
+    --link-color-active: #6d28d9;
+    --toc-background-color: #f6f5fb;
+    --toc-highlight-color: #e8e2f4;
+    --toc-hover-color: #f0ecfa;
+    --snippet-background-color: #f0ecfa;
+    --snippet-text-color: var(--block-text-color);
+    --snippet-highlight-color: #c4b5fd;
+    --pre-background-color: var(--snippet-background-color);
+    --pre-text-color: var(--snippet-text-color);
+    --border-color: #e8e2f4;
+    --table-border-color: #c4b5fd;
+    --search-input-background-color: #ffffff;
+    --search-input-text-color: #334155;
+    --search-input-placeholder-color: #64748b;
+    --search-tag-highlight-color: #ddd6fe;
+    --button-border-color: #a78bfa;
+    /* Our own: secondary text the JDK sheet hardcodes per rule */
+    --rd-muted: #64748b;
+}
+
+/* The dark palette twice: once for a system in dark mode without a forced light choice,
+   once for an explicitly chosen dark. The blocks must stay identical. */
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+        --body-text-color: #d8d4e8;
+        --block-text-color: #d8d4e8;
+        --body-background-color: #0d0b14;
+        --section-background-color: var(--body-background-color);
+        --detail-background-color: #171225;
+        --code-background-color: #241d38;
+        --mark-background-color: #241d38;
+        --detail-block-color: #201a33;
+        --navbar-background-color: #020617;
+        --navbar-text-color: #f1f5f9;
+        --subnav-background-color: #201a33;
+        --subnav-link-color: #c4b5fd;
+        --member-heading-background-color: var(--subnav-background-color);
+        --selected-background-color: #a78bfa;
+        --selected-text-color: #1e1035;
+        --selected-link-color: #1e1035;
+        --table-header-color: #2b2342;
+        --even-row-color: #171225;
+        --odd-row-color: #1c1630;
+        --title-color: #ede9fe;
+        --link-color: #a78bfa;
+        --link-color-active: #c4b5fd;
+        --toc-background-color: #171225;
+        --toc-highlight-color: #2b2342;
+        --toc-hover-color: #201a33;
+        --snippet-background-color: #241d38;
+        --snippet-text-color: var(--block-text-color);
+        --snippet-highlight-color: #4c3d78;
+        --border-color: #2b2342;
+        --table-border-color: #4c3d78;
+        --search-input-background-color: #201a33;
+        --search-input-text-color: #d8d4e8;
+        --search-input-placeholder-color: #948fae;
+        --search-tag-highlight-color: #4c3d78;
+        --button-border-color: #5b4a8a;
+        --invalid-tag-background-color: #331420;
+        --invalid-tag-text-color: #fda4af;
+        --rd-muted: #948fae;
+    }
+}
+
+:root[data-theme="dark"] {
+    --body-text-color: #d8d4e8;
+    --block-text-color: #d8d4e8;
+    --body-background-color: #0d0b14;
+    --section-background-color: var(--body-background-color);
+    --detail-background-color: #171225;
+    --code-background-color: #241d38;
+    --mark-background-color: #241d38;
+    --detail-block-color: #201a33;
+    --navbar-background-color: #020617;
+    --navbar-text-color: #f1f5f9;
+    --subnav-background-color: #201a33;
+    --subnav-link-color: #c4b5fd;
+    --member-heading-background-color: var(--subnav-background-color);
+    --selected-background-color: #a78bfa;
+    --selected-text-color: #1e1035;
+    --selected-link-color: #1e1035;
+    --table-header-color: #2b2342;
+    --even-row-color: #171225;
+    --odd-row-color: #1c1630;
+    --title-color: #ede9fe;
+    --link-color: #a78bfa;
+    --link-color-active: #c4b5fd;
+    --toc-background-color: #171225;
+    --toc-highlight-color: #2b2342;
+    --toc-hover-color: #201a33;
+    --snippet-background-color: #241d38;
+    --snippet-text-color: var(--block-text-color);
+    --snippet-highlight-color: #4c3d78;
+    --border-color: #2b2342;
+    --table-border-color: #4c3d78;
+    --search-input-background-color: #201a33;
+    --search-input-text-color: #d8d4e8;
+    --search-input-placeholder-color: #948fae;
+    --search-tag-highlight-color: #4c3d78;
+    --button-border-color: #5b4a8a;
+    --invalid-tag-background-color: #331420;
+    --invalid-tag-text-color: #fda4af;
+    --rd-muted: #948fae;
+}
+
+/* Affordances the JDK stylesheet colors outside the variables, restated on them */
+hr {
+    border-color: var(--border-color);
+}
+.main-grid nav.toc button {
+    color: var(--rd-muted);
+}
+.ui-autocomplete .search-result-desc,
+#result-container div.result-table > a.search-result-link .search-result-desc {
+    color: var(--rd-muted);
+}
+.ui-menu .ui-state-active .search-result-desc {
+    color: var(--selected-text-color);
+}
+select#search-modules {
+    background: var(--search-input-background-color);
+    border: 1px solid var(--button-border-color);
+    color: var(--search-input-text-color);
+}
+kbd {
+    background-color: var(--code-background-color);
+    border: 1px solid var(--button-border-color);
+    color: var(--body-text-color);
+}
+/* The jquery-ui sheet paints the search dropdown with its own colors */
+.ui-widget-content {
+    background: var(--detail-background-color);
+    border-color: var(--border-color);
+    color: var(--body-text-color);
+}
+.ui-menu .ui-menu-item-wrapper.ui-state-active {
+    background: var(--selected-background-color);
+    border-color: var(--selected-background-color);
+    color: var(--selected-text-color);
+}
+
+/* The brand mark javadoc-theme.js puts at the front of the top navbar, linking home.
+   The navbar is the same deep navy in both schemes, so these are literals. */
+.rd-brand {
+    display: flex;
+    align-items: center;
+    margin: 0 18px 0 6px;
+}
+.rd-brand:hover {
+    opacity: 0.85;
+    text-decoration: none;
+}
+.rd-brand svg {
+    display: block;
+}
+
+/* The System/Light/Dark switch javadoc-theme.js appends to the top navbar. The navbar
+   is the same deep navy in both schemes, so these are literals, as on the demo page. */
+.theme-switch {
+    margin-left: auto;
+    margin-right: 12px;
+    display: flex;
+    gap: 2px;
+    border: 1px solid rgba(178,81,243,0.4);
+    border-radius: 8px;
+    padding: 2px;
+}
+.theme-switch button, .theme-switch button:hover {
+    font-size: 12px;
+    font-weight: 500;
+    padding: 2px 10px;
+    border-radius: 6px;
+    background: transparent;
+    color: #94a3b8;
+    border: 0;
+    cursor: pointer;
+}
+.theme-switch button:hover {
+    color: #f1f5f9;
+}
+.theme-switch button.active, .theme-switch button.active:hover {
+    background: rgba(178,81,243,0.15);
+    color: #b251f3;
+}

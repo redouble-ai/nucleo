@@ -1,0 +1,10 @@
+{
+  "providers": { "gone-llm": { "platform": "fake" }, "stranded-llm": { "platform": "elsewhere" } },
+  "models": [
+    { "id": "moved", "identity": "moved", "grade": "SMALL", "provider_key": "gone-llm", "wire_model_id": "wire-moved",
+      "max_context_tokens": 1000, "max_output_tokens": 100, "tpm": 5000 },
+    { "id": "stranded", "identity": "stranded", "grade": "MEDIUM", "provider_key": "stranded-llm", "wire_model_id": "wire-stranded",
+      "max_context_tokens": 1000, "max_output_tokens": 100, "tpm": 5000 }
+  ],
+  "pins": { "MEDIUM": ["stranded"] }
+}

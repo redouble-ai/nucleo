@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>ai.redouble</groupId>
+        <artifactId>nucleo-parent</artifactId>
+        <version>0.1</version>
+    </parent>
+
+    <artifactId>nucleo-demo-quarkus</artifactId>
+    <packaging>jar</packaging>
+
+    <name>Nucleo demo quarkus</name>
+    <description>
+        The same demo as nucleo-demo, hosted by Quarkus instead of Spring Boot: the identical
+        engine (nucleo-demo-engine) behind JAX-RS resources, credentials from MicroProfile
+        Config, the dispatcher's lifecycle on the CDI container. It runs on any JDK as an
+        ordinary jar, and builds to a GraalVM native image under the `native` profile - the
+        point of the second host is that the runtime and the demo need neither framework.
+    </description>
+
+    <properties>
+        <!-- The demo, run from the checkout: never published to Maven Central -->
+        <skipPublishing>true</skipPublishing>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <!-- The runtime's pins come first: Quarkus manages Jackson too, and the first
+                 import to name an artifact wins, so the runtime keeps the line it is built on -->
+            <dependency>
+                <groupId>ai.redouble</groupId>
+                <artifactId>nucleo-bom</artifactId>
+                <version>${project.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>io.quarkus.platform</groupId>
+                <artifactId>quarkus-bom</artifactId>
+                <version>${quarkus.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <!-- The demo itself, with no web framework in it; this module is the Quarkus shell -->
+        <dependency>
+            <groupId>ai.redouble</groupId>
+            <artifactId>nucleo-demo-engine</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <!-- The AWS SDK v2's native-image metadata, carried by its Quarkus extension: on the
+             classpath it registers the reflection, substitutions and runtime-init the Bedrock
+             SDK needs under native, even though the provider constructs the client itself. Without
+             it the native build fails on the SDK's optional CRT paths. -->
+        <dependency>
+            <groupId>io.quarkiverse.amazonservices</groupId>
+            <artifactId>quarkus-amazon-bedrockruntime</artifactId>
+            <version>3.22.1</version>
+        </dependency>
+        <!-- The runtime under the CDI container: credentials from nucleo.credentials.*, the
+             dispatcher's lifecycle, the cost ledger -->
+        <dependency>
+            <groupId>ai.redouble</groupId>
+            <artifactId>nucleo-quarkus</artifactId>
+        </dependency>
+        <!-- One provider artifact per vendor the process may call; each ships its own catalog
+             fragment and is served only when its credential is configured. The direct Anthropic
+             provider is JVM-only (in the jvm profile below): its Kotlin SDK has no GraalVM metadata
+             and cannot run in a native image, so native reaches Claude through Bedrock instead. -->
+        <dependency>
+            <groupId>ai.redouble</groupId>
+            <artifactId>nucleo-provider-openai</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ai.redouble</groupId>
+            <artifactId>nucleo-provider-bedrock</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ai.redouble</groupId>
+            <artifactId>nucleo-provider-systemone</artifactId>
+        </dependency>
+        <!-- The project's public skilljar, found on the classpath by the runtime's loader -->
+        <dependency>
+            <groupId>ai.redouble</groupId>
+            <artifactId>nucleo-skills</artifactId>
+        </dependency>
+        <!-- JAX-RS with Jackson binding, and CDI: the whole web surface of this host -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-rest</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-rest-jackson</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-arc</artifactId>
+        </dependency>
+
+        <!-- Tests -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-junit</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.rest-assured</groupId>
+            <artifactId>rest-assured</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <finalName>nucleo-demo-quarkus</finalName>
+        <plugins>
+            <plugin>
+                <groupId>io.quarkus.platform</groupId>
+                <artifactId>quarkus-maven-plugin</artifactId>
+                <version>${quarkus.version}</version>
+                <extensions>true</extensions>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>build</goal>
+                            <goal>generate-code</goal>
+                            <goal>generate-code-tests</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- Quarkus logs through the JBoss LogManager; a test JVM that touches JUL before
+                 Quarkus starts would otherwise fix the JDK's manager for the whole run -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <systemPropertyVariables>
+                        <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
+                        <!-- The tests run on a catalog of their own, named explicitly, so the demo's
+                             catalog in src/main/resources never reaches them and a test run never
+                             seeds one there. -->
+                        <nucleo.models>${project.basedir}/src/test/resources/test-models.json</nucleo.models>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+    <profiles>
+        <!-- The JVM demo reads Office and PDF locally with the POI/PDFBox reader, like the Spring
+             host. This profile is active by default and is deactivated when `native` is selected,
+             so PDFBox and POI - and the AWT they pull - never enter the native dependency graph.
+             The native image then falls back to the engine's toolkit-free reader (Office as
+             zip/XML, PDFs shipped whole to the model), which builds and runs on any OS. -->
+        <profile>
+            <id>jvm</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <dependencies>
+                <dependency>
+                    <groupId>ai.redouble</groupId>
+                    <artifactId>nucleo-demo-poi</artifactId>
+                    <version>${project.version}</version>
+                </dependency>
+                <!-- The direct Anthropic provider: its Kotlin SDK is native-hostile, so it rides
+                     the JVM host only. Native reaches Claude through the Bedrock provider. -->
+                <dependency>
+                    <groupId>ai.redouble</groupId>
+                    <artifactId>nucleo-provider-anthropic</artifactId>
+                </dependency>
+                <!-- Claude on Bedrock through the Anthropic SDK: JVM-only for the same reason.
+                     Native serves Claude through the base's Converse provider. -->
+                <dependency>
+                    <groupId>ai.redouble</groupId>
+                    <artifactId>nucleo-provider-bedrock-anthropic</artifactId>
+                </dependency>
+            </dependencies>
+        </profile>
+        <!-- `mvn -Pnative package` builds a GraalVM native image; selecting it deactivates the
+             jvm profile above, so the AWT-pulling PDF/Office reader is absent and the image builds
+             on any OS. See README.md. -->
+        <profile>
+            <id>native</id>
+            <properties>
+                <quarkus.native.enabled>true</quarkus.native.enabled>
+                <quarkus.package.jar.enabled>false</quarkus.package.jar.enabled>
+            </properties>
+        </profile>
+    </profiles>
+</project>

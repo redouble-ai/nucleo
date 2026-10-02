@@ -1,0 +1,253 @@
+/* The Redouble theme, as toponet and topochat carry it: light with an indigo tint,
+   violet accent, deep navy titlebar; the dark scheme is the same violet identity on an
+   indigo-black canvas, never a generic blue dark mode. */
+:root {
+  --bg: #f6f5fb; --card: #ffffff; --ink: #334155; --heading: #1e1b4b; --muted: #64748b;
+  --line: #c4b5fd; --line-soft: #e8e2f4; --shadow: rgba(99,102,241,0.12);
+  --accent: #7c3aed; --accent-hover: #6d28d9; --accent-ink: #ffffff; --ring: #8b5cf6;
+  --control: #f0ecfa; --control-border: #a78bfa;
+  --ok: #166534; --warn: #b35a00; --bad: #b91c1c;
+  --ok-bg: #d0ecda; --warn-bg: #fdebd0; --bad-bg: #f5d5d5; --code: #f0ecfa;
+  --titlebar-bg: #020617; --titlebar-text: #f1f5f9; --titlebar-muted: #94a3b8;
+  --titlebar-accent: #b251f3; --titlebar-accent-bg: rgba(178,81,243,0.15); --titlebar-accent-border: rgba(178,81,243,0.4);
+}
+/* The dark palette twice: once for a system in dark mode without a forced light choice,
+   once for an explicitly chosen dark. The blocks must stay identical. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d0b14; --card: #171225; --ink: #d8d4e8; --heading: #ede9fe; --muted: #948fae;
+    --line: #4c3d78; --line-soft: #2b2342; --shadow: rgba(0,0,0,0.5);
+    --accent: #a78bfa; --accent-hover: #c4b5fd; --accent-ink: #1e1035; --ring: #a78bfa;
+    --control: #201a33; --control-border: #5b4a8a;
+    --ok: #6ee7a0; --warn: #f0b04a; --bad: #fda4af;
+    --ok-bg: #142a1e; --warn-bg: #33250b; --bad-bg: #331420; --code: #241d38;
+    --titlebar-bg: #020617; --titlebar-text: #f1f5f9; --titlebar-muted: #94a3b8;
+    --titlebar-accent: #b251f3; --titlebar-accent-bg: rgba(178,81,243,0.15); --titlebar-accent-border: rgba(178,81,243,0.4);
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d0b14; --card: #171225; --ink: #d8d4e8; --heading: #ede9fe; --muted: #948fae;
+  --line: #4c3d78; --line-soft: #2b2342; --shadow: rgba(0,0,0,0.5);
+  --accent: #a78bfa; --accent-hover: #c4b5fd; --accent-ink: #1e1035; --ring: #a78bfa;
+  --control: #201a33; --control-border: #5b4a8a;
+  --ok: #6ee7a0; --warn: #f0b04a; --bad: #fda4af;
+  --ok-bg: #142a1e; --warn-bg: #33250b; --bad-bg: #331420; --code: #241d38;
+  --titlebar-bg: #020617; --titlebar-text: #f1f5f9; --titlebar-muted: #94a3b8;
+  --titlebar-accent: #b251f3; --titlebar-accent-bg: rgba(178,81,243,0.15); --titlebar-accent-border: rgba(178,81,243,0.4);
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 1em/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+.titlebar { background: var(--titlebar-bg); color: var(--titlebar-text); padding: 10px 20px; display: flex; align-items: center; gap: 12px; font-size: 14px; position: sticky; top: 0; z-index: 40; }
+.theme-switch { margin-left: auto; display: flex; gap: 2px; border: 1px solid var(--titlebar-accent-border); border-radius: 8px; padding: 2px; }
+.theme-switch button, .theme-switch button:hover { font-size: 12px; font-weight: 500; padding: 2px 10px; border-radius: 6px; background: transparent; color: var(--titlebar-muted); border: 0; }
+.theme-switch button:hover { color: var(--titlebar-text); }
+.theme-switch button.active, .theme-switch button.active:hover { background: var(--titlebar-accent-bg); color: var(--titlebar-accent); }
+.titlebar b { font-weight: 700; letter-spacing: 0.02em; }
+.titlebar a.brand { display: flex; align-items: center; }
+.titlebar a.brand:hover { opacity: .85; }
+.titlebar a.brand img { display: block; }
+.titlebar .app { color: var(--titlebar-accent); background: var(--titlebar-accent-bg); border: 1px solid var(--titlebar-accent-border); border-radius: 6px; padding: 1px 9px; font-weight: 600; }
+.titlebar span.dim { color: var(--titlebar-muted); }
+main { max-width: 1120px; margin: 0 auto; padding: 32px 20px 80px; }
+header h1 { margin: 0; font-size: 28px; letter-spacing: -0.02em; color: var(--heading); }
+header p { margin: 6px 0 0; color: var(--muted); }
+header ul.points { color: var(--ink); }
+.pills { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.pill { padding: 3px 10px; border-radius: 999px; font-size: 13px; border: 1px solid var(--line); background: var(--card); }
+.pill.ok { color: var(--ok); border-color: var(--ok); }
+.pill.bad { color: var(--bad); border-color: var(--bad); }
+section { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 22px 24px; margin-top: 20px; box-shadow: 0 1px 4px var(--shadow); }
+section h2 { margin: 0 0 4px; font-size: 19px; display: flex; gap: 10px; align-items: baseline; color: var(--heading); }
+section h2 .n { color: var(--muted); font-weight: 500; font-size: 15px; }
+section > p.lead { margin: 0 0 14px; color: var(--muted); }
+section > p.lead + .points { margin: -8px 0 14px; color: var(--muted); }
+.callout { border-radius: 10px; padding: 14px 16px; margin: 12px 0; }
+.callout.warn { background: var(--warn-bg); border: 1px solid var(--warn); }
+.callout.ok { background: var(--ok-bg); border: 1px solid var(--ok); }
+.callout.bad { background: var(--bad-bg); border: 1px solid var(--bad); white-space: pre-wrap; }
+.callout h3 { margin: 0 0 6px; font-size: 1em; }
+.callout ol, .callout ul.pins { margin: 6px 0 0; padding-left: 20px; }
+.callout li { margin: 4px 0; }
+.callout li ul, .callout li ol { margin: 4px 0 0; padding-left: 20px; }
+code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; }
+code { background: var(--code); padding: 1px 5px; border-radius: 4px; word-break: break-all; }
+form { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+label.grow { flex: 1 1 320px; }
+/* a control that steps aside (a currency picker with one currency) stays in its form, unseen */
+label[hidden] { display: none; }
+input, select { font: inherit; color: var(--ink); background: var(--control); border: 1px solid var(--control-border); border-radius: 8px; padding: 8px 10px; min-width: 0; }
+input:focus, select:focus { outline: 2px solid var(--ring); outline-offset: -1px; }
+button { font: inherit; font-weight: 600; background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 8px; padding: 9px 18px; cursor: pointer; }
+button:hover { background: var(--accent-hover); }
+button:disabled { opacity: .55; cursor: progress; }
+button.mini { font-size: 12px; font-weight: 500; padding: 2px 8px; border-radius: 6px; margin-left: 4px; }
+button.mini:disabled { cursor: not-allowed; }
+td.pin, th.pin { text-align: center; width: 1%; white-space: nowrap; }
+td.pin input { margin: 0; accent-color: var(--accent); cursor: pointer; }
+td.pin input:disabled { cursor: not-allowed; opacity: .45; }
+/* a grade's order: a placed entry's number is strong, one the runtime fills in by price is muted */
+td.ord, th.ord { width: 1%; white-space: nowrap; }
+/* a price a person can edit: a narrow number field in the cell, right-aligned like the figure it replaces */
+td.num input[data-price] { width: 6.5em; text-align: right; font-variant-numeric: tabular-nums; padding: 2px 4px; }
+td.ord input { margin: 0; accent-color: var(--accent); cursor: pointer; }
+td.ord input:disabled { cursor: not-allowed; opacity: .45; }
+td.ord .place { display: inline-block; min-width: 1.6em; text-align: right; }
+td.ord .place.filled { color: var(--muted); font-style: italic; }
+td.ord .handle { cursor: grab; color: var(--muted); margin-right: 4px; user-select: none; }
+td.ord button.arrow { padding: 0 4px; margin-left: 2px; font-size: 10px; line-height: 1.4; background: transparent;
+  color: var(--muted); border: 1px solid var(--line-soft); box-shadow: none; }
+td.ord button.arrow:hover { color: var(--accent); border-color: var(--accent); }
+tr[draggable="true"].dragging { opacity: .4; }
+tr.drop-before > td { box-shadow: inset 0 2px 0 var(--accent); }
+tr.drop-after > td { box-shadow: inset 0 -2px 0 var(--accent); }
+tr.sep td { background: var(--code); color: var(--heading); font-weight: 600; padding: 6px 10px; border-top: 2px solid var(--line-soft); }
+td select, li select { font: inherit; font-size: 13px; padding: 2px 4px; border-radius: 6px; }
+.busy { color: var(--muted); font-size: 13px; margin-top: 10px; }
+.result { margin-top: 14px; }
+/* The type scale of a result, in three roles and nothing else. The model's answer is the
+   one thing a section exists to show: the largest and the only bold text in a result. Facts
+   about the run (its confidence, its cost, its timing, its counts) are one quiet line of
+   small text, the value set off from its label by weight, never by size. A heading inside a
+   result (a product, a group) is a small h3. Everything else in a result is table text. */
+.answer { position: relative; font-size: 20px; font-weight: 600; line-height: 1.4; color: var(--ink); margin: 18px 0 12px; padding: 16px 18px 14px; white-space: pre-wrap;
+  border: 2px solid var(--accent); border-radius: 10px; background: var(--card); }
+.answer::before { content: 'answer'; position: absolute; top: -9px; left: 14px; padding: 0 7px; font-size: 9px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--accent-ink); background: var(--accent); border-radius: 999px; line-height: 15px; }
+.facts { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 18px; margin: 4px 0 12px; font-size: 13px; color: var(--muted); }
+.facts b { font-weight: 500; color: var(--ink); font-variant-numeric: tabular-nums; margin-left: 5px; }
+.result h3 { margin: 16px 0 4px; font-size: 15px; font-weight: 600; color: var(--heading); }
+.label { font-size: 13px; color: var(--muted); margin: 6px 0 2px; }
+p.fine { font-size: 13px; color: var(--muted); margin: 8px 0 0; }
+ul.fine { font-size: 13px; color: var(--muted); margin: 8px 0 0; padding-left: 20px; }
+ul.fine li { margin: 3px 0; }
+/* names the runtime reports (tools, skills, a connection's facts, the models a discovery
+   touched): one per line, never run together into a sentence */
+ul.items { margin: 4px 0 8px; padding-left: 20px; font-size: 13px; color: var(--muted); }
+ul.items li { margin: 3px 0; }
+td ul.items { margin: 2px 0 0; }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line-soft); vertical-align: top; }
+th { color: var(--muted); font-weight: 600; white-space: nowrap; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.nowrap { white-space: nowrap; }
+.badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.b-ok { background: var(--ok-bg); color: var(--ok); }
+.b-warn { background: var(--warn-bg); color: var(--warn); }
+.b-bad { background: var(--bad-bg); color: var(--bad); }
+.b-muted { background: var(--code); color: var(--muted); }
+.b-run { background: var(--accent); color: var(--accent-ink); }
+/* The agent's timeline: one block per turn on a rail, the turn's tool calls as cards side by side */
+.rail { border-left: 2px solid var(--line-soft); margin-left: 9px; padding-left: 18px; }
+.turn { position: relative; margin: 0 0 14px; }
+.turn::before { content: ''; position: absolute; left: -25px; top: 5px; width: 12px; height: 12px; border-radius: 50%; background: var(--card); border: 2px solid var(--line); box-sizing: border-box; }
+.turn.run::before { border-color: var(--accent); background: var(--accent); animation: pulse 1.2s ease-in-out infinite; }
+.turn.ok::before { border-color: var(--ok); background: var(--ok); }
+.turn.bad::before { border-color: var(--bad); background: var(--bad); }
+.turn-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; font-size: 13px; color: var(--muted); }
+.turn-head b { color: var(--ink); font-weight: 600; }
+.turn-head .num { font-variant-numeric: tabular-nums; }
+.reasoning { margin: 6px 0 8px; padding: 8px 12px; border-left: 3px solid var(--accent); background: var(--code); border-radius: 0 8px 8px 0; font-size: 14px; white-space: pre-wrap; }
+.reasoning .who { display: block; font-size: 12px; color: var(--muted); margin-bottom: 2px; }
+.cards { display: flex; flex-wrap: wrap; gap: 10px; margin: 4px 0 8px; }
+.card { flex: 1 1 260px; max-width: 100%; border: 1px solid var(--line-soft); border-radius: 10px; padding: 8px 12px; font-size: 13px; background: var(--card); min-width: 0; }
+.card.run { border-color: var(--accent); box-shadow: 0 0 0 3px var(--shadow); }
+.card.ok { border-color: var(--ok); }
+.card.bad { border-color: var(--bad); }
+.card-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.card-head b { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-weight: 600; }
+.card .args, .card .out { margin-top: 5px; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; overflow-wrap: anywhere; }
+.card .out { color: var(--ink); }
+.card pre { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 320px; overflow: auto; background: var(--code); padding: 8px; border-radius: 6px; }
+.card details summary, .trace details summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+.spinner { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--line-soft); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; vertical-align: -2px; }
+.trace-note { font-size: 13px; margin: 4px 0; padding: 4px 10px; border-radius: 6px; background: var(--code); }
+.trace-note.WARNING { background: var(--warn-bg); color: var(--warn); }
+.trace-note.ERROR { background: var(--bad-bg); color: var(--bad); }
+.trace .answer { animation: fadein 0.4s ease-out; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 var(--shadow); } 50% { box-shadow: 0 0 0 6px var(--shadow); } }
+@keyframes fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.turn, .card { animation: fadein 0.3s ease-out; }
+/* The benchmark's race board: one row per run, its status and what it is doing right now */
+/* a block inside the cell, because a table in auto layout ignores max-width on the cell itself */
+.note { color: var(--muted); max-width: 16ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* the judge's reason or a failure's message: a toggle in the row, the text as a full-width row
+   beneath it, so no column ever grows to hold a paragraph */
+.why-toggle { color: var(--accent); cursor: pointer; white-space: nowrap; font-size: 13px; user-select: none; }
+tr.why-row td { background: var(--code); color: var(--muted); white-space: normal; padding: 8px 14px 10px; }
+/* a "why?" bubble: a small link beside the badge it explains, opening in place as a card that
+   points back at it; in the flow, so it is never clipped by a scrolling table */
+details.bubble { display: inline; margin: 0 0 0 6px; }
+details.bubble > summary { display: inline; font-size: 12px; color: var(--accent); cursor: pointer; list-style: none; }
+details.bubble > summary::-webkit-details-marker { display: none; }
+.bubble-body { position: relative; display: block; margin: 10px 0 4px; padding: 10px 12px; max-width: 34rem; background: var(--card);
+  border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 2px 8px var(--shadow); color: var(--ink); font-size: 13px; font-weight: 400; white-space: normal; }
+.bubble-body::before { content: ''; position: absolute; top: -6px; left: 14px; width: 10px; height: 10px; background: var(--card);
+  border-left: 1px solid var(--line); border-top: 1px solid var(--line); transform: rotate(45deg); }
+.bubble-body p { margin: 0 0 6px; }
+.bubble-body p:last-child { margin-bottom: 0; }
+details.note-fold { margin: 0; }
+details.note-fold > summary { color: var(--muted); font-size: inherit; }
+details { margin-top: 10px; }
+summary { cursor: pointer; color: var(--accent); font-size: 0.95em; }
+/* Two kinds of fold. A panel holds something the demo runs on (the connections, the models):
+   its summary is a heading with a badge. An explanation (details.explain) is optional
+   reading: its summary is small and quiet. */
+details.panel > summary { font-size: 15px; font-weight: 600; color: var(--heading); padding: 8px 12px; background: var(--code); border-radius: 8px; }
+details.panel > summary .badge { margin-left: 8px; vertical-align: 1px; }
+details.panel[open] > summary { border-radius: 8px 8px 0 0; }
+details.explain > summary { font-size: 13px; color: var(--muted); }
+/* One card per connection a human actually sets up: one credential, however many
+   runtime provider keys ride on it. */
+.conn { border: 1px solid var(--line-soft); border-radius: 10px; padding: 12px 16px; margin: 10px 0; }
+.conn.off { opacity: .65; }
+.conn h4 { margin: 0; font-size: 1em; color: var(--heading); display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.conn h4 .muted { font-weight: 400; font-size: 13px; }
+.conn p { margin: 6px 0 0; color: var(--muted); font-size: .95em; max-width: 72rem; }
+.conn p.keys { font-size: 13px; }
+/* a decision's distributions: one bar per option, the chosen one marked */
+.dist { display: flex; flex-direction: column; gap: 3px; margin: 6px 0; }
+.dist .bar { display: grid; grid-template-columns: minmax(0, 1fr) 52px; align-items: center; gap: 8px; position: relative; padding: 2px 6px; border-radius: 4px; overflow: hidden; font-size: 13px; }
+.dist .bar .fill { position: absolute; inset: 0; width: 0; background: var(--run-bg, rgba(59,130,246,.18)); border-radius: 4px; transition: width .3s; }
+.dist .bar.chosen .fill { background: var(--ok-bg, rgba(34,197,94,.22)); }
+.dist .bar .lbl { position: relative; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dist .bar.chosen .lbl { font-weight: 600; }
+.dist .bar .p { position: relative; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+.dist .more { font-size: 12px; color: var(--muted); padding-left: 6px; }
+.decision-state pre { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; max-height: 260px; overflow: auto; background: var(--code); padding: 8px; border-radius: 6px; font-size: 12px; }
+.conn ol.recipes { margin: 6px 0 0; padding-left: 1.4em; }
+.conn ol.recipes li { margin: 4px 0; }
+.conn pre { margin: 4px 0; white-space: pre-wrap; overflow-wrap: anywhere; background: var(--code); padding: 6px 8px; border-radius: 6px; }
+details.explain { margin: 0 0 8px; }
+details.explain p { margin: 8px 0 0; color: var(--muted); max-width: 72rem; }
+details.explain + form { margin-top: 14px; }
+/* Platform terminology, highlighted consistently; the script links each term to its page
+   of the embedded documentation (served at /docs from this jar). */
+.term { color: var(--accent); font-weight: 600; }
+a.term { text-decoration: none; }
+a.term:hover { text-decoration: underline; }
+.titlebar a.doc-link { color: var(--titlebar-muted); text-decoration: none; margin-left: auto; }
+.titlebar a.doc-link:hover { color: var(--titlebar-accent); }
+/* the second titlebar link, to the other version of the page, sits beside the first */
+.titlebar a.doc-link + a.doc-link { margin-left: 0; }
+.theme-switch { margin-left: 0; }
+ul.points { margin: 10px 0 4px; padding-left: 22px; }
+ul.points li { margin: 5px 0; }
+.explain ul { margin: 8px 0 2px; padding-left: 0; list-style: none; }
+.explain li { margin: 8px 0; color: var(--muted); max-width: 72rem; }
+.explain li .badge { margin-right: 8px; }
+.explain li b { color: var(--ink); }
+.explain ul.notes { padding-left: 20px; list-style: disc; }
+/* the parts of one expectation: a sequence of turns, the columns of a table */
+.explain li ul, .explain li ol { margin: 4px 0 0; padding-left: 40px; list-style: revert; }
+.explain li li { margin: 3px 0; }
+/* a list the script renders inside a fold keeps its bullets */
+.explain ul.items { margin: 4px 0 8px; padding-left: 20px; list-style: disc; }
+.explain ul.items li { margin: 3px 0; }
+.muted { color: var(--muted); }
+/* the script's explanatory notes: shown on the full page, hidden on the short one */
+body.lean .brief { display: none; }
+.quote { color: var(--muted); font-style: italic; }
+.heat { font-weight: 600; font-variant-numeric: tabular-nums; }

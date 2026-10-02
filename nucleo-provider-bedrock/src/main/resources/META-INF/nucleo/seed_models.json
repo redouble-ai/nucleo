@@ -1,0 +1,11 @@
+{
+  "provider_defaults": {
+    "bedrock-converse": { "cache_read_multiplier": 1.0, "cache_write_multiplier": 1.0, "currency": "USD" },
+    "bedrock-cohere-embeddings": { "cache_read_multiplier": 1.0, "cache_write_multiplier": 1.0, "currency": "USD" }
+  },
+  "models": [
+    { "id": "cohere-embed-v4-bedrock", "identity": "cohere-embed-v4", "provider_key": "bedrock-cohere-embeddings", "wire_model_id": "us.cohere.embed-v4:0", "max_context_tokens": 128000, "max_output_tokens": 128000, "supports_vision": false, "thinking_mode": "NONE", "tpm": 300000, "rpm": 2000, "input_price_per_million": 0.12, "embedding_dimensions": 1024 },
+    { "id": "nova-micro",   "identity": "nova-micro",   "grade": "MICRO",  "provider_key": "bedrock-converse", "wire_model_id": "amazon.nova-micro-v1:0",   "max_context_tokens": 128000,  "max_output_tokens": 10000, "supports_vision": false, "thinking_mode": "NONE", "tpm": 4000000,  "rpm": 2000,  "input_price_per_million": 0.035, "output_price_per_million": 0.14 },
+    { "id": "gpt-oss-120b", "identity": "gpt-oss-120b", "grade": "MEDIUM", "provider_key": "bedrock-converse", "wire_model_id": "openai.gpt-oss-120b-1:0",  "max_context_tokens": 128000,  "max_output_tokens": 16000, "supports_vision": false, "thinking_mode": "REASONING_EFFORT", "tpm": 100000000, "rpm": 10000, "input_price_per_million": 0.15, "output_price_per_million": 0.6 }
+  ]
+}

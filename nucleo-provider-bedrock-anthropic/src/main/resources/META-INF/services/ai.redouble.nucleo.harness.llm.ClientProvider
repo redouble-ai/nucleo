@@ -1,0 +1,2 @@
+ai.redouble.nucleo.providers.bedrock.anthropic.AnthropicBedrockProvider
+ai.redouble.nucleo.providers.bedrock.anthropic.AnthropicBedrockMantleProvider

@@ -1,0 +1,9 @@
+{
+  "provider_defaults": {
+    "openai": { "cache_read_multiplier": 0.5, "cache_write_multiplier": 1.0, "currency": "USD" }
+  },
+  "models": [
+    { "id": "priced", "identity": "priced", "provider_key": "openai", "wire_model_id": "priced", "max_context_tokens": 1000, "max_output_tokens": 100, "supports_vision": false, "thinking_mode": "NONE", "tpm": 5000, "rpm": 100, "input_price_per_million": 1.25, "output_price_per_million": 10.0, "cache_read_price_per_million": 0.125 },
+    { "id": "unpriced", "identity": "unpriced", "provider_key": "openai", "wire_model_id": "unpriced", "max_context_tokens": 1000, "max_output_tokens": 100, "supports_vision": false, "thinking_mode": "NONE", "tpm": 5000, "rpm": 100 }
+  ]
+}

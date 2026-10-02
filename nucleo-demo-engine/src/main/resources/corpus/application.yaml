@@ -1,0 +1,15 @@
+# Dealer portal, production
+server:
+  port: 8443
+  ssl:
+    enabled: true
+portal:
+  claims:
+    max-photo-mb: 10
+    answer-within-days: 5
+  margin:
+    list-percent: 30
+    stock-order-percent: 34
+    stock-order-min-units: 20
+  ledger:
+    frame-number-validation: strict

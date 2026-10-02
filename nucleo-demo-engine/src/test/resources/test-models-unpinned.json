@@ -1,0 +1,8 @@
+{
+  "provider_defaults": {
+    "bedrock-converse": { "cache_read_multiplier": 1.0, "cache_write_multiplier": 1.0, "currency": "USD" }
+  },
+  "models": [
+    { "id": "nova-micro", "identity": "nova-micro", "grade": "MICRO", "provider_key": "bedrock-converse", "wire_model_id": "us.amazon.nova-micro-v1:0", "max_context_tokens": 128000, "max_output_tokens": 10000, "supports_vision": false, "thinking_mode": "NONE", "tpm": 4000000, "rpm": 2000, "input_price_per_million": 0.035, "output_price_per_million": 0.14 }
+  ]
+}

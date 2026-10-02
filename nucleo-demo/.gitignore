@@ -1,0 +1,8 @@
+# The catalog is the account's: the models its credentials reach, their observed limits and
+# the pins the person chose. The discovery, run from this directory, writes it into the
+# resources, the build carries it onto the classpath where the runtime finds it like logging
+# configuration, and neither it nor the report ships with the demo, because no account's
+# shape is a default.
+src/main/resources/models.json
+/models.json
+/discovery.txt

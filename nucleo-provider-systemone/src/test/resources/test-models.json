@@ -1,0 +1,11 @@
+{
+  "provider_defaults": {
+    "systemone-decision": { "cache_read_multiplier": 1.0, "cache_write_multiplier": 1.0, "currency": "USD" }
+  },
+  "models": [
+    { "id": "kev-test", "identity": "kev-test", "provider_key": "systemone-decision", "wire_model_id": "kev-latest", "max_context_tokens": 4096, "max_output_tokens": 0, "supports_vision": false, "thinking_mode": "NONE", "max_concurrent": 1, "input_price_per_million": 0.0 }
+  ],
+  "pins": {
+    "decision": "kev-test"
+  }
+}

@@ -1,0 +1,9 @@
+2026-03-02 08:01:12 INFO  station=KIEL-01 stamped HBW-M3-2026-00841 model=M3 size=L
+2026-03-02 08:03:40 INFO  station=KIEL-01 stamped HBW-M3-2026-00842 model=M3 size=M
+2026-03-02 08:04:15 WARN  station=KIEL-01 ledger timeout after 5000 ms, retrying
+2026-03-02 08:04:21 INFO  station=KIEL-01 ledger ok, HBW-M3-2026-00842 recorded
+2026-03-02 09:15:03 INFO  claim=C-2026-0311 dealer=D-103 frame=HBW-M3-2025-00214 part=lower-headset-bearing status=approved
+2026-03-02 09:15:04 INFO  claim=C-2026-0311 letter queued to customer Aaltonen, Turku
+2026-03-02 11:40:57 ERROR portal upload rejected: photo 12.4 MB over the 10 MB limit, claim=C-2026-0312
+2026-03-02 11:42:10 INFO  claim=C-2026-0312 dealer=D-104 photo resubmitted 6.1 MB
+2026-03-02 16:58:00 INFO  station=KIEL-01 shift end, 14 frames stamped

@@ -1,0 +1,6 @@
+{
+  "models": [
+    { "id": "effort-tuned", "identity": "effort-tuned", "grade": "LARGE", "provider_key": "openai", "wire_model_id": "effort-tuned", "max_context_tokens": 272000, "max_output_tokens": 64000, "supports_vision": false, "thinking_mode": "REASONING_EFFORT", "tpm": 5000, "rpm": 100,
+      "thinking_budgets": { "IMMEDIATE": 1500, "QUICK": 2048, "STANDARD": 4096, "THOROUGH": 12000, "ULTRA_THOROUGH": 24000 } }
+  ]
+}

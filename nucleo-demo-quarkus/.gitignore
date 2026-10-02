@@ -1,0 +1,5 @@
+# The catalog is the account's: the models its credentials reach, their observed limits and
+# the orders the person chose. The demo writes it into this module's resources, the build carries
+# it onto the classpath where the runtime finds it like logging configuration, and it does not
+# ship with the demo, because no account's shape is a default.
+src/main/resources/models.json

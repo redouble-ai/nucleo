@@ -1,0 +1,49 @@
+server:
+  port: 8080
+  # The container stops accepting and drains in-flight requests before the runtime stops
+  shutdown: graceful
+
+spring:
+  application:
+    name: nucleo-demo
+  lifecycle:
+    # Above the longest job the demo runs (one quick question, six minutes at most)
+    timeout-per-shutdown-phase: 7m
+  web:
+    error:
+      # A refused job's message says what to provide (which credential, which pin); it is the
+      # demo's whole point, so it travels to the caller
+      include-message: always
+
+logging:
+  level:
+    ai.redouble: INFO
+    # A benchmark's progress is its runs-finished count, worth seeing; every other job's
+    # progress stays at DEBUG, where EventLogger writes it
+    ai.redouble.demo.DemoBenchmark.progress: DEBUG
+
+nucleo:
+  # Where the runtime's credentials come from, bound the way any Boot property is. A
+  # provider asks the runtime for the name it needs (anthropic-api-key) and the runtime
+  # reads nucleo.credentials.<name>, with .user and .host for a credential's other parts.
+  # The demo binds each from the environment variable AGENTS.md names; a deployment binds
+  # it from its profile, its vault or its Kubernetes secret, the way it binds
+  # spring.datasource.password. A second credential for the same endpoint is a second name
+  # bound here, with the catalog entry naming which one it rides.
+  # AWS is three values, the same three Spring AI binds under spring.ai.bedrock.aws: the
+  # region, and the key pair as user (the access key id) and secret. A pair bound here is
+  # used as bound; with either half empty the Bedrock provider hands the AWS SDK its own
+  # chain, so a profile or the role the process runs under works with nothing exported.
+  # The region has no default anywhere: a deployment's region is the deployment's decision.
+  credentials:
+    aws-region: ${AWS_REGION:}
+    "aws-access-key-id.user": ${AWS_ACCESS_KEY_ID:}
+    aws-access-key-id: ${AWS_SECRET_ACCESS_KEY:}
+    anthropic-api-key: ${ANTHROPIC_API_KEY:}
+    openai-api-key: ${OPENAI_API_KEY:}
+    openai-compatible-api-key: ${OPENAI_COMPATIBLE_API_KEY:}
+    "openai-compatible-api-key.host": ${OPENAI_COMPATIBLE_API_KEY_HOST:}
+    azure-foundry-api-key: ${AZURE_FOUNDRY_API_KEY:}
+    "azure-foundry-api-key.host": ${AZURE_FOUNDRY_API_KEY_HOST:}
+    systemone-api-key: ${SYSTEMONE_API_KEY:}
+    "systemone-api-key.host": ${SYSTEMONE_API_KEY_HOST:}

@@ -1,0 +1,6 @@
+[
+  {
+    "name": "ai.redouble.demo.extract.AwtFreeExtractionTools",
+    "methods": [ { "name": "<init>", "parameterTypes": [] } ]
+  }
+]

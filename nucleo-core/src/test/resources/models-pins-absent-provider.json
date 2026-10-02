@@ -1,0 +1,21 @@
+{
+  "provider_defaults": {
+    "fake-decision": { "currency": "USD" },
+    "gone-decision": { "currency": "USD" }
+  },
+  "models": [
+    { "id": "absent-medium", "identity": "absent-medium", "grade": "MEDIUM", "provider_key": "gone-llm", "wire_model_id": "absent-medium",
+      "max_context_tokens": 1000, "max_output_tokens": 100, "tpm": 5000, "rpm": 100 },
+    { "id": "live-medium", "identity": "live-medium", "grade": "MEDIUM", "provider_key": "fake-llm", "wire_model_id": "live-medium",
+      "max_context_tokens": 1000, "max_output_tokens": 100, "tpm": 5000, "rpm": 100 },
+    { "id": "absent-embed", "identity": "absent-embed", "provider_key": "gone-embeddings", "wire_model_id": "absent-embed",
+      "max_context_tokens": 1000, "max_output_tokens": 1000, "tpm": 5000, "rpm": 100 },
+    { "id": "live-embed", "identity": "live-embed", "provider_key": "fake-embeddings", "wire_model_id": "live-embed",
+      "max_context_tokens": 1000, "max_output_tokens": 1000, "tpm": 5000, "rpm": 100 },
+    { "id": "absent-decide", "identity": "absent-decide", "provider_key": "gone-decision", "wire_model_id": "absent-decide",
+      "max_context_tokens": 4096, "tpm": 5000, "rpm": 100, "input_price_per_million": 0.042 },
+    { "id": "live-decide", "identity": "live-decide", "provider_key": "fake-decision", "wire_model_id": "live-decide",
+      "max_context_tokens": 4096, "tpm": 5000, "rpm": 100, "input_price_per_million": 0.042 }
+  ],
+  "pins": { "MEDIUM": ["absent-medium"],"embeddings": "absent-embed", "decision": "absent-decide" }
+}

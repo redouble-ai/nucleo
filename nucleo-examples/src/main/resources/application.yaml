@@ -1,0 +1,3 @@
+# The MCP server example listens beside the demo, which uses 8080
+server:
+  port: 8901

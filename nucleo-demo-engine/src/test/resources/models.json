@@ -1,0 +1,26 @@
+{
+  "provider_defaults": {
+    "anthropic-bedrock": { "spec_type": "anthropic", "cache_read_multiplier": 0.1, "cache_write_multiplier": 1.25, "cache_breakpoints": 4, "currency": "USD" },
+    "bedrock-converse": { "cache_read_multiplier": 1.0, "cache_write_multiplier": 1.0, "currency": "USD" },
+    "bedrock-cohere-embeddings": { "cache_read_multiplier": 1.0, "cache_write_multiplier": 1.0, "currency": "USD" },
+    "systemone-decision": { "cache_read_multiplier": 1.0, "cache_write_multiplier": 1.0, "currency": "USD" },
+    "fake-decision": { "cache_read_multiplier": 1.0, "cache_write_multiplier": 1.0, "currency": "USD" }
+  },
+  "models": [
+    { "id": "cohere-embed-v4-bedrock", "identity": "cohere-embed-v4", "provider_key": "bedrock-cohere-embeddings", "wire_model_id": "us.cohere.embed-v4:0", "max_context_tokens": 128000, "max_output_tokens": 128000, "supports_vision": false, "thinking_mode": "NONE", "tpm": 300000, "rpm": 2000, "input_price_per_million": 0.12, "embedding_dimensions": 1024 },
+    { "id": "nova-micro", "identity": "nova-micro", "grade": "MICRO", "provider_key": "bedrock-converse", "wire_model_id": "us.amazon.nova-micro-v1:0", "max_context_tokens": 128000, "max_output_tokens": 10000, "supports_vision": false, "thinking_mode": "NONE", "tpm": 4000000, "rpm": 2000, "input_price_per_million": 0.035, "output_price_per_million": 0.14, "unverified": true },
+    { "id": "claude-haiku-4-5-bedrock", "identity": "haiku-4.5", "grade": "SMALL", "provider_key": "anthropic-bedrock", "wire_model_id": "global.anthropic.claude-haiku-4-5-20251001-v1:0", "max_context_tokens": 200000, "max_output_tokens": 64000, "supports_vision": true, "supports_documents": true, "thinking_mode": "EXTENDED", "tpm": 5000000, "rpm": 10000, "input_price_per_million": 1.0, "output_price_per_million": 5.0 },
+    { "id": "claude-sonnet-5-bedrock", "identity": "sonnet-5", "grade": "MEDIUM", "provider_key": "anthropic-bedrock", "wire_model_id": "us.anthropic.claude-sonnet-5", "max_context_tokens": 1000000, "max_output_tokens": 128000, "supports_vision": true, "supports_documents": true, "thinking_mode": "ADAPTIVE", "tpm": 6000000, "input_price_per_million": 2.0, "output_price_per_million": 10.0 },
+    { "id": "claude-opus-5-bedrock", "identity": "opus-5", "grade": "XL", "provider_key": "anthropic-bedrock", "wire_model_id": "us.anthropic.claude-opus-5", "max_context_tokens": 1000000, "max_output_tokens": 128000, "supports_vision": true, "supports_documents": true, "thinking_mode": "ADAPTIVE", "tpm": 30000000, "input_price_per_million": 5.0, "output_price_per_million": 25.0 },
+    { "id": "kev", "identity": "kev", "provider_key": "systemone-decision", "wire_model_id": "kev-latest", "max_context_tokens": 16384, "max_output_tokens": 0, "supports_vision": false, "thinking_mode": "NONE", "max_concurrent": 1, "input_price_per_million": 0.0 },
+    { "id": "fake-decider", "identity": "fake-decider", "provider_key": "fake-decision", "wire_model_id": "fake-decider", "max_context_tokens": 65536, "max_output_tokens": 0, "supports_vision": false, "thinking_mode": "NONE", "max_concurrent": 2, "input_price_per_million": 0.042 }
+  ],
+  "pins": {
+    "MICRO": ["nova-micro"],
+    "SMALL": ["claude-haiku-4-5-bedrock"],
+    "MEDIUM": ["claude-sonnet-5-bedrock"],
+    "LARGE": ["claude-opus-5-bedrock"],
+    "XL": ["claude-opus-5-bedrock"],
+    "embeddings": "cohere-embed-v4-bedrock"
+  }
+}

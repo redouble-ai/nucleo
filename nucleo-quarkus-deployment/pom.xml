@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>ai.redouble</groupId>
+        <artifactId>nucleo-parent</artifactId>
+        <version>0.1</version>
+    </parent>
+
+    <artifactId>nucleo-quarkus-deployment</artifactId>
+    <packaging>jar</packaging>
+
+    <name>Nucleo quarkus integration - deployment</name>
+    <description>
+        The build-time half of the Nucleo Quarkus extension. Its build steps run inside a
+        Quarkus application's build and make the runtime work in a GraalVM native image:
+        they register the tool, artifact and model POJOs the runtime reaches reflectively
+        (Jackson and the schema walker), initialize the runtime's threading singletons at
+        run time instead of build time, include the skill and catalog resources, honor the
+        ServiceLoader files, and fail the build if a concrete Artifact lacks its type alias.
+        Nothing here runs at application runtime; nucleo-core carries no Quarkus dependency.
+    </description>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>ai.redouble</groupId>
+                <artifactId>nucleo-bom</artifactId>
+                <version>${project.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>io.quarkus.platform</groupId>
+                <artifactId>quarkus-bom</artifactId>
+                <version>${quarkus.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <dependency>
+            <groupId>ai.redouble</groupId>
+            <artifactId>nucleo-quarkus</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-core-deployment</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-arc-deployment</artifactId>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- The Quarkus extension annotation processor generates the build-steps index
+                 (META-INF/quarkus-build-steps.list) that lets Quarkus discover the @BuildStep
+                 methods in this module; without it the build steps never run. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>io.quarkus</groupId>
+                            <artifactId>quarkus-extension-processor</artifactId>
+                            <version>${quarkus.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

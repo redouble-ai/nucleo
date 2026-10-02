@@ -1,0 +1,8 @@
+{
+  "provider_defaults": {
+    "openai": { "cache_read_multiplier": 0.5, "cache_write_multiplier": 1.0 }
+  },
+  "models": [
+    { "id": "broken", "identity": "broken", "provider_key": "openai", "wire_model_id": "broken", "max_context_tokens": 1000, "max_output_tokens": 100, "supports_vision": false, "thinking_mode": "NONE", "tokes_per_minute": 5000, "rpm": 100 }
+  ]
+}

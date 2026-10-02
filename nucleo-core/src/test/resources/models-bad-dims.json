@@ -1,0 +1,6 @@
+{
+  "provider_defaults": {},
+  "models": [
+    { "id": "bad-dims", "identity": "bad-dims", "provider_key": "openai-embeddings", "wire_model_id": "bad-dims", "max_context_tokens": 8191, "max_output_tokens": 8191, "tpm": 1000, "rpm": 100, "embedding_dimensions": 0 }
+  ]
+}

@@ -1,0 +1,458 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nucleo demo</title>
+<link rel="icon" href="redoubleAI.png">
+<link rel="stylesheet" href="demo.css">
+<script>
+// Before first paint: a stored theme choice must win over the system preference without a flash.
+(() => { const t = localStorage.getItem('nucleo-theme'); if (t) document.documentElement.dataset.theme = t; })();
+</script>
+</head>
+<body>
+<div class="titlebar"><a class="brand" href="https://redouble.ai" aria-label="Redouble AI"><img src="redoubleAI.svg" alt="Redouble AI" height="20"></a> <span class="app">Nucleo</span> <span class="dim">the runtime, demonstrated live</span>
+  <a class="doc-link" href="docs/index.html">documentation</a>
+  <a class="doc-link" href="index.html" title="the same demo with the explanations folded away">short page</a>
+  <div class="theme-switch" id="theme-switch">
+    <button type="button" data-mode="system">System</button>
+    <button type="button" data-mode="light">Light</button>
+    <button type="button" data-mode="dark">Dark</button>
+  </div>
+</div>
+<main>
+<header>
+  <h1>Nucleo demo</h1>
+  <p>This page is a live tour of Nucleo, the runtime for AI agents that live inside a Java
+    application. Everything on it runs in this process, right now, against the models of your own
+    account: nothing is mocked, every result is real, and every result shows what it cost.</p>
+  <p>The steps build on each other the way a real adoption would. Connect a provider and see
+    which models your account can actually serve (1). Prove that one call works end to end (2).
+    Watch an agent choose its own tools and skills (3). Fan a folder of documents out in parallel
+    under a budget (4), search what was read by meaning (5), and turn it into a business answer
+    where the model extracts facts and plain Java makes the decisions (6). Measure which
+    model the job actually needs before paying for a bigger one (7). Then put a third kind of
+    model to work, a <span class="term">decision model</span> that never writes a word and only
+    ranks options: run an agent on one (8), and hand it the one judgment in step 6 that is a
+    verdict rather than a sentence (9). Along the way, the page shows
+    the thing Nucleo exists for: model-driven work running as supervised, accounted, governed
+    <span class="term">Jobs</span> in an ordinary JVM.</p>
+</header>
+
+<section id="setup">
+  <h2><span class="n">1</span> Credentials and model catalog</h2>
+  <p class="lead">Before you run anything, this panel shows what this process has to work with: which AI
+    providers it can actually sign into, which models your account offers and at what price, and the
+    <span class="term">catalog</span>'s order for each <span class="term">Grade</span> of work, the models it
+    prefers from first to last. Every step below runs on what this panel shows, which is why it
+    comes first.</p>
+  <details class="explain"><summary>What to expect</summary>
+    <ul>
+      <li><span class="badge b-ok">GOOD</span>At least one connection shows a credential, the banner is green and
+        names your account's own <code>models.json</code>, and the Grades you plan to use are ordered.</li>
+      <li><span class="badge b-muted">NOTE</span>Each Grade's rows are numbered in the order the runtime tries them.
+        A bold number is a place you chose; an italic one is the runtime filling in by price. Drag a row, or
+        use its arrows, to set the order.</li>
+      <li><span class="badge b-muted">NOTE</span>Each Grade's header names the model that serves it now: for text,
+        for a request with images, and for one with documents.</li>
+      <li><span class="badge b-bad">BAD</span>A red banner: the runtime fell back to the providers' shipped
+        defaults, which know nothing of your account. Its instructions say how to fix it.</li>
+      <li><span class="badge b-muted">NOTE</span>Dimmed rows are models listed without a credential to call
+        them; the runtime will never serve those.</li>
+      <li><span class="badge b-warn">TRY</span>No credential in the environment? Paste one into a connection
+        card below - it is held in memory for this session only - then press
+        <b>Discover models</b> to build the catalog and use it live.</li>
+    </ul>
+  </details>
+  <details class="explain"><summary>What this demonstrates</summary>
+    <ul class="notes">
+      <li><b>Models are configuration, not code.</b> Application code declares <span class="term">Grades</span>
+        of capability; which vendor and model serves each lives in <code>models.json</code>, discovered on the
+        classpath the way logging configuration is, and owned by the deployment.</li>
+      <li><b>Swapping is an edit, not a migration.</b> A model, or a whole provider, changes by editing that
+        file: no recompile, and no vendor SDK types anywhere in application code.</li>
+    </ul>
+  </details>
+  <div id="setup-body" class="muted">Loading…</div>
+</section>
+
+<section id="ask">
+  <h2><span class="n">2</span> Ask a quick question</h2>
+  <p class="lead">Type a question and get an answer from a single model call. You choose a
+    <span class="term">Grade</span> of capability; the <span class="term">catalog</span> decides which model
+    that means. This is the quickest way to prove your credential, your catalog and a real model all work
+    together.</p>
+  <details class="explain"><summary>What to expect</summary>
+    <ul>
+      <li><span class="badge b-ok">GOOD</span>An answer in a few seconds, naming the model that gave it, for a fraction of a cent.</li>
+      <li><span class="badge b-warn">SLOW</span>A half-minute run usually means the dispatcher is retrying an
+        upstream 429 or 503 with backoff: a slower answer instead of an exception.</li>
+      <li><span class="badge b-bad">BAD</span>A refusal. A good refusal names exactly what to provide, a
+        credential or a <span class="term">pin</span>.</li>
+    </ul>
+  </details>
+  <details class="explain"><summary>What this demonstrates</summary>
+    <ul class="notes">
+      <li><b>The call is a supervised <span class="term">Job</span>.</b> <span class="term">Admission</span>
+        reserves tokens against the model's rate limit before the request goes out, so throttling is capacity
+        planning instead of a caught exception, and ten concurrent callers produce no retry storm.</li>
+      <li><b>The Grade dropdown is the whole model API surface.</b> Code asks for a rung of capability; the
+        catalog decides what serves it today, and may decide differently tomorrow with no code change.</li>
+    </ul>
+  </details>
+  <form id="ask-form">
+    <label class="grow">Question<input name="question" value="What is two plus two?" required></label>
+    <label title="the model answers from this text alone">Text to answer from<input name="context" value="arithmetic"></label>
+    <label>Grade<select name="grade"></select></label>
+    <button>Ask</button>
+    <div class="muted" id="ask-serves" style="flex-basis:100%"></div>
+  </form>
+  <div class="result" id="ask-result"></div>
+</section>
+
+<section id="agent">
+  <h2><span class="n">3</span> Run the agent</h2>
+  <p class="lead">This runs an agent - Nucleo calls it a <span class="term">Thinker</span>. Instead of answering
+    from memory, the model works in a loop: it plans, calls real Java <span class="term">Tools</span> (this one
+    carries tools that know today's date), and answers once it has what it needs. It also has a small
+    <span class="term">Skill</span> catalog it can draw on by itself: ask for something "briefly" and it will
+    request the <code>concise-answers</code> Skill on its own. The run is drawn below as it happens: every
+    turn the model takes, what it decided and what it cost, every Tool it called with the arguments it gave and
+    the result it got back, the calls of one turn side by side because they run side by side. You choose the
+    <span class="term">Grade</span> the agent runs at, as in step 2: the agent declares MEDIUM, and a lower rung
+    shows what a smaller model does with the same loop.</p>
+  <details class="explain"><summary>What to expect</summary>
+    <ul>
+      <li><span class="badge b-ok">GOOD</span>A one-line answer in five to fifteen seconds, with
+        <code>concise-answers</code> under skills used and the date coming from a Tool call rather than the
+        model's memory. The timeline shows two or three turns: the first admits the Skill and asks for the date,
+        the last answers.</li>
+      <li><span class="badge b-muted">TRY</span>Remove "briefly" from the query: a good run answers at length
+        with an empty skill list, because the Skill is admitted by the model on demand. Then run the same query
+        at MICRO: a small model often skips the Tool and guesses the date, and the timeline shows it, a turn with
+        no Tool call under it.</li>
+      <li><span class="badge b-bad">BAD</span>A refusal naming a missing credential, or a Tool card that reads
+        "failed" with the model never recovering in the next turn.</li>
+    </ul>
+  </details>
+  <details class="explain"><summary>What this demonstrates</summary>
+    <ul class="notes">
+      <li><b>The loop is the runtime's.</b> The while-loop most teams hand-roll around a chat API, with its
+        JSON parsing, tool dispatch and error handling, ships as the <span class="term">Thinker</span> base
+        class; a malformed model answer goes back as an in-loop correction instead of an exception.</li>
+      <li><b><span class="term">Tools</span> are typed.</b> Each is a <code>Tool&lt;I,O&gt;</code> class whose
+        wire schema is generated from the POJOs; the model never sees hand-written JSON schemas drifting from
+        the code.</li>
+      <li><b><span class="term">Skills</span> ship like dependencies.</b> Prompt packages the model requests by
+        name at runtime, versioned on the classpath, instead of string concatenation in code.</li>
+      <li><b>Every iteration is a <span class="term">Job</span></b> under the same
+        <span class="term">admission</span> and budget as everything else in the process, and so is every Tool
+        call and every model call: the timeline below is the runtime's own event stream, the same one a chat UI
+        or a log observer reads, drawn as a tree by each job's parent.</li>
+    </ul>
+  </details>
+  <form id="agent-form">
+    <label class="grow">Query<input name="query" value="How many days until the end of the year? Briefly." required></label>
+    <label>Grade<select name="grade"></select></label>
+    <button>Run</button>
+    <div class="muted" id="agent-serves" style="flex-basis:100%"></div>
+  </form>
+  <div class="result" id="agent-result"></div>
+  <details id="agent-palette"><summary>What the agent's model sees</summary><div class="muted">Loading…</div></details>
+</section>
+
+<section id="extract">
+  <h2><span class="n">4</span> Read a directory</h2>
+  <p class="lead">Point this at a folder and it reads everything inside - code, PDFs, Office files, scans,
+    images - storing every readable text in an in-memory index that steps 5 and 6 work from. Each file goes
+    to the cheapest reader that can handle it:</p>
+  <ul class="points">
+    <li><b>Deterministic:</b> plain code reads source, PDF text layers and Office files, at zero model cost.</li>
+    <li><b>Vision:</b> a SMALL model reads scans and images. Each call declares what it sends, an image or
+      a whole PDF, so it gets the first model of the SMALL order that accepts it.</li>
+    <li><b>Classifier:</b> a SMALL model names the files whose bytes decide nothing.</li>
+    <li><b>Budget:</b> a hard <span class="term">spend cap</span>, enforced per call before the call; blank runs
+      without one.</li>
+  </ul>
+  <details class="explain"><summary>What to expect</summary>
+    <ul>
+      <li><span class="badge b-ok">GOOD</span>On the shipped corpus: about 26 of 30 files read in seconds for a
+        few cents, most rows DETERMINISTIC at zero model cost, the scanned letter and the screenshots read by
+        the vision tier, and a few deliberately unreadable files SKIPPED with a note saying what a person would
+        have to do.</li>
+      <li><span class="badge b-muted">TRY</span>Set the budget to 0.01: the model-tier rows turn REFUSED at
+        <span class="term">admission</span>, before any money is spent, while code still reads what code can
+        read.</li>
+      <li><span class="badge b-bad">BAD</span>Every model-tier row FAILED points at the credential or the
+        catalog, and each row's note says which.</li>
+    </ul>
+  </details>
+  <details class="explain"><summary>What this demonstrates</summary>
+    <ul class="notes">
+      <li><b>Neither approach manages alone.</b> Deterministic parsing is free and exact but cannot read a
+        scanned letter; pushing all 30 files through a frontier model reads everything at a hundred times the
+        price and answers slower. Routing each file to the cheapest capable tier is the shape of every
+        document-ingestion pipeline.</li>
+      <li><b>Fan out without fear.</b> The files run in parallel under <span class="term">admission</span>
+        control: tokens are reserved against each model's rate limit before the call, so 30 concurrent files
+        produce zero 429s and no retry storm.</li>
+      <li><b>The cap acts before the money moves.</b> Enforcement happens at
+        <span class="term">admission</span>, per call, mid-run: model calls the budget cannot cover
+        never start, while the code-tier files keep flowing. A budget that reports after the
+        invoice is a different, easier thing.</li>
+      <li><b>It is one page of Java.</b> The orchestration is a <span class="term">Doer</span>, plain fan-out
+        code over <span class="term">Jobs</span>, and every row reports the model it used and the cents it
+        cost.</li>
+    </ul>
+  </details>
+  <form id="extract-form">
+    <label class="grow">Directory<input name="directory" id="extract-dir" placeholder="absolute path of a directory" required></label>
+    <label>Budget<input name="amount" type="number" step="0.01" min="0" value="1.00" style="width:90px" placeholder="no cap"></label>
+    <label>Currency<select name="currency" style="width:90px"></select></label>
+    <button>Read</button>
+  </form>
+  <div class="result" id="extract-result"></div>
+</section>
+
+<section id="search">
+  <h2><span class="n">5</span> Search what was read</h2>
+  <p class="lead">Ask a question about the files step 4 just read. The search works on meaning, not on words:
+    your query goes through the same <span class="term">embeddings</span> model that indexed the documents, and
+    the documents closest in meaning win. It costs one embedding call - no model writes anything. Run step 4
+    first.</p>
+  <details class="explain"><summary>What to expect</summary>
+    <ul>
+      <li><span class="badge b-ok">GOOD</span>On the shipped corpus: the headset-creak documents on top for the
+        default query, even though no document contains "helmet" or "squeak". The match happens on meaning, and
+        the top hit is the scanned letter, which only the vision tier could read into the index.</li>
+      <li><span class="badge b-bad">BAD</span>An empty result on a corpus this small, or a refusal saying to run
+        step 4 first.</li>
+    </ul>
+  </details>
+  <details class="explain"><summary>What this demonstrates</summary>
+    <ul class="notes">
+      <li><b>One pinned embeddings model per corpus, frozen by the runtime.</b> Vectors from two
+        models are silently incomparable - the classic way a vector search degrades with no error
+        to catch, usually months after someone "just upgraded the embeddings model". The runtime
+        makes that mistake structurally impossible: the pinned choice holds for the life of the
+        process.</li>
+      <li><b>Search rides the same rails as everything else.</b> The embedding call is a
+        <span class="term">Job</span>: priced from the catalog, capped by the budget, attributed to
+        its run.</li>
+    </ul>
+  </details>
+  <form id="search-form">
+    <label class="grow">Query<input name="query" value="why does the helmet squeak" required></label>
+    <label>Results<input name="k" type="number" min="1" max="20" value="3" style="width:70px" required></label>
+    <button>Search</button>
+  </form>
+  <div class="result" id="search-result"></div>
+</section>
+
+<section id="pricing">
+  <h2><span class="n">6</span> Find the current prices</h2>
+  <p class="lead">This digs through everything step 4 read and answers one business question: what does each
+    product cost right now? A <span class="term">Doer</span> - Nucleo's word for a fixed workflow that code,
+    not a model, drives - runs it in three stages (run step 4 first; the budget works as there):</p>
+  <ul class="points">
+    <li><b>Extract</b> (SMALL, parallel): every document read for the prices it states: who pays each, the dates
+      attached, and the sentence it came from.</li>
+    <li><b>Group</b> (MEDIUM, once): the distinct product names grouped into products.</li>
+    <li><b>Decide</b> (plain Java): per product, audience and currency, prices compete by date as of the day you
+      pick, and each lands as current, scheduled, superseded, confirmed or merely proposed. The day opens on
+      1 June 2026, when the last price the shipped corpus decides takes effect; move it back a month to watch
+      that rise turn into a scheduled price, or clear it to answer for today.</li>
+  </ul>
+  <details class="explain"><summary>What to expect</summary>
+    <ul>
+      <li><span class="badge b-ok">GOOD</span>On the shipped corpus: about a minute, roughly a third of a
+        dollar, a dozen products, and the Kestrel 1 gravel about twenty percent above its spring price, because
+        meeting minutes dated only by their file name decided a raise and the arithmetic applied it to the
+        price then in force. Every number expands to the quote that grounds it.</li>
+      <li><span class="badge b-bad">BAD</span>An empty product list, refusals under a too-small budget, or
+        prices with no source attached.</li>
+    </ul>
+  </details>
+  <details class="explain"><summary>What this demonstrates</summary>
+    <ul class="notes">
+      <li><b>The model extracts facts; code makes decisions.</b> Which of seven price statements is in force on
+        a given date is arithmetic, and arithmetic inside a prompt is neither reliable nor auditable. Here it
+        is a plain Java comparator you can unit-test.</li>
+      <li><b>Every conclusion keeps its evidence.</b> Each price carries the source document and the sentence
+        it came from, so a wrong answer is traceable instead of arguable.</li>
+      <li><b>Spend is shaped to the work.</b> The cheap <span class="term">Grade</span> fans out across 26
+        documents; one stronger call does the grouping.</li>
+      <li><b>The manual alternatives fail both ways.</b> Nobody writes a regex for "raise both by 20% from
+        June" buried in meeting minutes, and nobody should pay frontier prices per document to look for it.</li>
+    </ul>
+  </details>
+  <form id="pricing-form">
+    <label>As of<input name="asOf" type="date"></label>
+    <label>Budget<input name="amount" type="number" step="0.01" min="0" value="5.00" style="width:90px" placeholder="no cap"></label>
+    <label>Currency<select name="currency" style="width:90px"></select></label>    <button>Find prices</button>
+  </form>
+  <div class="result" id="pricing-result"></div>
+</section>
+
+<section id="bench">
+  <h2><span class="n">7</span> Benchmark the agent</h2>
+  <p class="lead">Would a cheaper model do this job just as well? The runtime's
+    <span class="term">Benchmark</span> takes the agent from step 3 and runs your query on every model your
+    account can call, from MICRO to the strongest - the same agent, the same tools, the same query,
+    only the model behind them differs. The strongest model answers first with the tools (the reference: the ground
+    truth), then every other model races, and a <span class="term">judge</span> compares each run - the tools it
+    called, what they returned, its answer - against the reference under one rubric: 7 points for accuracy, 3 for
+    shown work, a tool called wrongly or misread costing at least 3. Blind: the judge is never told which model ran.</p>
+  <details class="explain"><summary>What to expect</summary>
+    <ul>
+      <li><span class="badge b-ok">GOOD</span>A minute or two for two runs per model across the whole ladder and
+        some tens of cents, then a table where the judge's column separates the models that called the date Tool
+        and counted correctly from the ones that guessed, while the cost column shows a spread that is often
+        tenfold for the same score.</li>
+      <li><span class="badge b-ok">GOOD</span>A cheaper model holding the reference's score is a pin candidate;
+        the judge's per-run reasons sit under the table.</li>
+      <li><span class="badge b-bad">BAD</span>Rows marked failed, whose messages name the cause, or an unjudged
+        table because no model of the strongest Grade is callable.</li>
+    </ul>
+  </details>
+  <details class="explain"><summary>What this demonstrates</summary>
+    <ul class="notes">
+      <li><b>Model selection as measurement</b> rather than a default nobody revisits. Because code declares
+        <span class="term">Grades</span> and the catalog <span class="term">pins</span> models, any workload
+        wraps in a Benchmark unchanged.</li>
+      <li><b>One stick for every model.</b> Each run gets a <span class="term">judge</span> call of its own the
+        moment it lands, comparing its full transcript against the reference's under the same spelled-out rubric,
+        never carrying the model's name, so the judge cannot favor its own family - and a judge that fails costs
+        only its own row's score.</li>
+      <li><b>Cost lands on the right run.</b> The runtime attributes every call's tokens and cents to its run
+        through <span class="term">Job</span> lineage.</li>
+      <li><b>The race is watched, not waited for.</b> Every run, every model call it makes and every judge is a
+        <span class="term">Job</span> on the runtime's message bus; the board below is those events streamed to
+        this page as they happen, the same stream a chat renders, so you watch the whole ladder answer in
+        parallel - queued, running, retrying, answered, judged - instead of a spinner.</li>
+      <li><b>Switching costs one line</b> of <code>models.json</code>. Doing this by hand means one script per
+        vendor and a spreadsheet; here the table is the evidence for that one edit.</li>
+    </ul>
+  </details>
+  <form id="bench-form">
+    <label class="grow">Query<input name="query" value="How many days until the end of the year? Briefly." required></label>
+    <label>Runs per model<input name="runs" type="number" min="1" max="10" value="2" style="width:90px" required></label>
+    <button>Benchmark</button>
+  </form>
+  <div class="result" id="bench-result"></div>
+</section>
+
+<section id="decide">
+  <h2><span class="n">8</span> Run an agent on a decision model</h2>
+  <p class="lead">A <span class="term">decision model</span> never writes a word: given a state and typed questions
+    it returns a probability for every option and nothing else. Every agent framework you know assumes the model
+    can call a tool and fill its arguments; this one cannot, and this step runs an agent on it anyway, the first
+    agentic loop built for the model class. The runtime's
+    <span class="term">decision thinker</span> works an objective over three <span class="term">Tools</span> that
+    call no model at all: list a folder, read a file, split a document into its statements. Every turn, code works
+    out the legal moves from the types and the model ranks them: which tool runs next, or finish; which of the
+    files it should run on; and, for every statement produced so far, whether it belongs in the answer. The
+    objective here is to find the statements in the shipped corpus that decide a change of a price. The model has
+    to choose which of the thirty files are worth opening, when to stop, and which sentences answer, and nothing
+    it says can be malformed, invented or out of bounds: every answer is a number over options code put in front
+    of it. Every turn is
+    drawn below as it happens: the state the model was shown, the distributions it answered, the tool that ran and
+    what it produced. There is no reasoning to show, because none was produced; the distributions are its mind.</p>
+  <details class="explain"><summary>What to expect</summary>
+    <ul>
+      <li><span class="badge b-ok">GOOD</span>Under half a minute on a Mac serving Kev-9B, a few seconds on a GPU,
+        and no model cost at all when the model runs on your own machine. Four turns: the model lists the folder,
+        opens the one file whose first words name a price (on the shipped corpus, the dealer portal changelog), splits
+        it, finishes rather than reading on, and selects its April line about the Kestrel 1 prices, every other
+        statement ranked well below it.</li>
+      <li><span class="badge b-muted">TRY</span>Open "what the model saw" under a turn: the objective, one line per
+        artifact, the moves made; that is the whole of what the model decided on. Watch the argument bars on the read:
+        thirty files ranked by a model that only saw each file's name, kind, size and first words. The minutes and
+        the meeting notes, whose first words name a meeting and not a price, rank below the changelog, and the model
+        finishes before opening them: a decision the record shows, made the way a person skimming names would.</li>
+      <li><span class="badge b-bad">BAD</span>A refusal naming a missing decision model (connect one in step 1),
+        or a run that opens file after file until its turn budget ends it, with the selection then made from what
+        was produced: a small model on a thin digest, and the record shows exactly where it wandered.</li>
+    </ul>
+  </details>
+  <details class="explain"><summary>What this demonstrates</summary>
+    <ul class="notes">
+      <li><b>An agentic loop for a model that cannot call tools.</b> A decision model has no way to name a tool or
+        fill an argument; the <span class="term">decision thinker</span> computes every legal move from the
+        artifact types and asks the model only to rank them. The model never invents anything: what leaves the run
+        is what tools produced, byte for byte.</li>
+      <li><b>Termination by construction.</b> Each (tool, artifact) pair runs at most once, so the move set shrinks
+        every turn and the loop ends on its own; a turn budget is the belt to that suspender.</li>
+      <li><b>The same door for a third kind of model.</b> A decision entry sits in the <span class="term">catalog</span>
+        beside LLMs and embeddings, with its own <span class="term">pin</span>, and every decision goes through
+        <span class="term">admission</span> (one request at a time on a Mac server, a quota window on a hosted one), is
+        priced, metered and recorded like any model call. Nothing in the runtime was special-cased for it.</li>
+      <li><b>The record is the distributions.</b> With no reasoning text, what the model thought is what it
+        answered: every turn keeps every probability, on the thinker and on the job's record, so a run can be
+        audited move by move.</li>
+      <li><b>A cheap orchestrator.</b> A decision costs a few hundred input tokens at a fraction of an LLM's price,
+        or nothing on your own machine, so the model that decides what deserves a paid call can afford to be asked
+        on every turn.</li>
+      <li><b>Where it stops.</b> A decision model reads a thin state and writes nothing, so it judges what code
+        and tools produced and never extracts, drafts or computes; the runtime's
+        <span class="term">decision</span> documentation says which jobs belong to it and which to an LLM.</li>
+    </ul>
+  </details>
+  <form id="decide-form">
+    <label class="grow">Folder<input name="directory" id="decide-dir" required></label>
+    <button>Decide</button>
+    <div class="muted" id="decide-serves" style="flex-basis:100%"></div>
+  </form>
+  <div class="result" id="decide-result"></div>
+  <details id="decide-palette"><summary>What the decision model sees</summary><div class="muted">Loading…</div></details>
+</section>
+
+<section id="decide-prices">
+  <h2><span class="n">9</span> Find the current prices, grouped by a decision model</h2>
+  <p class="lead">Step 6 again, with one tier swapped: the product names the documents used are grouped by a
+    <span class="term">decision model</span> instead of a MEDIUM model. The same documents, the same SMALL reading
+    tier, the same plain-Java reconciliation, the same report, the same day to answer for (it opens on 1 June 2026,
+    as step 6 does). Step 6 has two model judgments in it, and only one of them is a verdict: reading a document
+    for the prices it states is writing, an LLM's work; deciding whether "Comet 2 city" and "Comet 2" are one
+    product is a yes or no over two names code already has. That is a decision model's shape: a verdict per
+    pair of names, "do these two mean the same product", with a calibrated probability each, then for every group
+    of several names a choice of which is the product's proper name. Every name in the result is one the documents
+    used; the model wrote none, and the pairing that costs a MEDIUM call in step 6 costs nothing here.</p>
+  <details class="explain"><summary>What to expect</summary>
+    <ul>
+      <li><span class="badge b-ok">GOOD</span>Step 6's table with the same prices, the grouping having cost no model
+        money on a decision model served from your own machine, and some tens of seconds more on a Mac, one verdict per
+        pair of names (a GPU is faster). The reading tier's spend is unchanged, since it is the same tier. The decision
+        model tends to join names the MEDIUM model left apart, such as "Comet 2 city" with "Comet 2".</li>
+      <li><span class="badge b-muted">TRY</span>Compare the products and their aliases with step 6's: where the two
+        models draw the line between one product and two is the whole of the difference, and each run's reading
+        tier names things a little differently, so run both twice.</li>
+      <li><span class="badge b-bad">BAD</span>A refusal naming a missing decision model (connect one in step 1 and
+        press Discover), or an empty index (run step 4 first).</li>
+    </ul>
+  </details>
+  <details class="explain"><summary>What this demonstrates</summary>
+    <ul class="notes">
+      <li><b>One workflow, a tier swapped by constructor.</b> The <span class="term">Doer</span> takes its two
+        model-facing tools as constructors; nothing else in the pipeline knows which kind of model judged. A team
+        can move a tier to a decision model the day it is good enough at that tier and keep everything
+        downstream.</li>
+      <li><b>The judgment that fits the model.</b> Pairing names is a yes-or-no question with a probability; that is
+        what a decision model produces, and nothing it produces can be malformed or invented.</li>
+      <li><b>Under the same door.</b> The two decisions are <span class="term">Jobs</span>, priced from the catalog
+        entry, admitted on the entry's own account, attributed to the run.</li>
+    </ul>
+  </details>
+  <form id="decide-prices-form">
+    <label>As of<input name="asOf" type="date"></label>
+    <label>Budget<input name="amount" type="number" step="0.01" min="0" value="5.00" style="width:90px" placeholder="no cap"></label>
+    <label>Currency<select name="currency" style="width:90px"></select></label>    <button>Find prices, decided</button>
+  </form>
+  <div class="result" id="decide-prices-result"></div>
+</section>
+</main>
+
+<script src="demo.js"></script>
+</body>
+</html>

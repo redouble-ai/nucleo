@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>ai.redouble</groupId>
+        <artifactId>nucleo-parent</artifactId>
+        <version>0.1</version>
+    </parent>
+
+    <artifactId>nucleo-demo-poi</artifactId>
+    <packaging>jar</packaging>
+
+    <name>Nucleo demo poi</name>
+    <description>
+        The Apache POI / PDFBox reader for the demo: a higher-priority ExtractionTools that reads
+        Office documents and PDFs locally, page by page. A host puts it on the classpath to read
+        those formats without a model, at the cost of the AWT those libraries pull. It is a JVM-only
+        alternative to the engine's toolkit-free reader; a native build leaves it off and falls back
+        to shipping PDFs to the model.
+    </description>
+
+    <properties>
+        <!-- The demo's reader, run from the checkout: never published to Maven Central -->
+        <skipPublishing>true</skipPublishing>
+        <poi.version>5.2.5</poi.version>
+        <pdfbox.version>2.0.30</pdfbox.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>ai.redouble</groupId>
+                <artifactId>nucleo-bom</artifactId>
+                <version>${project.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <dependency>
+            <groupId>ai.redouble</groupId>
+            <artifactId>nucleo-demo-engine</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi-ooxml</artifactId>
+            <version>${poi.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.pdfbox</groupId>
+            <artifactId>pdfbox</artifactId>
+            <version>${pdfbox.version}</version>
+        </dependency>
+    </dependencies>
+</project>

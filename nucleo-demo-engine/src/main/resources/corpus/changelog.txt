@@ -1,0 +1,8 @@
+Dealer portal changelog
+
+2026-04-01  v2.5  Kestrel 1 gravel prices updated to the April list: dealer 1,450 EUR, retail 2,099 EUR. Other models unchanged.
+2026-03-01  v2.4  Warranty claims can attach photos up to 10 MB. Claim status is emailed to the dealer.
+2026-01-15  v2.3  Stock orders show the 34% margin line when the order passes 20 units.
+2025-11-20  v2.2  Frame numbers are validated against the production ledger on entry.
+2025-09-02  v2.1  Dealers can download invoices as PDF.
+2025-06-10  v2.0  New portal. Old logins were migrated; passwords were not, reset on first use.

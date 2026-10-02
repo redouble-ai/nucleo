@@ -1,0 +1,11 @@
+{
+  "provider_defaults": {
+    "systemone-decision": { "cache_read_multiplier": 1.0, "cache_write_multiplier": 1.0, "currency": "USD" },
+    "systemone-local-decision": { "cache_read_multiplier": 1.0, "cache_write_multiplier": 1.0, "currency": "USD" }
+  },
+  "models": [
+    { "id": "jev-1.13.0", "identity": "jev-1.13", "provider_key": "systemone-decision", "wire_model_id": "jev-1.13.0", "max_context_tokens": 64000, "max_output_tokens": 0, "supports_vision": false, "thinking_mode": "NONE", "tpm": 15000000, "rpm": 1200, "input_price_per_million": 0.042, "note": "TypeSafe's hosted Jev: the credential's host is https://api.typesafe.ai; the published limits are 250,000 input tokens per second and 1,200 requests per minute, output free" },
+    { "id": "kev", "identity": "kev", "provider_key": "systemone-decision", "wire_model_id": "kev-latest", "max_context_tokens": 16384, "max_output_tokens": 0, "supports_vision": false, "thinking_mode": "NONE", "max_concurrent": 1, "input_price_per_million": 0.0, "note": "Jared Palmer's Kev (github.com/jaredpalmer/kev, Apache-2.0) served behind a key, such as the HTTPS endpoint kev-deploy puts on Modal: the credential's host is that endpoint, its key the one the deployment generated; whichever size the server loaded (its /v1/models says which; the wire always answers as kev-latest); one request at a time, raise max_concurrent for a GPU server that batches; the state ceiling is the server's 8,192 for the state plus 8,192 per question; the price is the endpoint's own bill, not a per-token one, hence zero" },
+    { "id": "kev-local", "identity": "kev", "provider_key": "systemone-local-decision", "wire_model_id": "kev-latest", "max_context_tokens": 16384, "max_output_tokens": 0, "supports_vision": false, "thinking_mode": "NONE", "max_concurrent": 1, "input_price_per_million": 0.0, "note": "Jared Palmer's Kev (github.com/jaredpalmer/kev, Apache-2.0) on this machine: the credential is only the server's address, e.g. http://127.0.0.1:8009; whichever size the kev.serve loaded (its /v1/models says which; the wire always answers as kev-latest); one request at a time because a Mac server computes one batch at a time; the state ceiling is the server's 8,192 for the state plus 8,192 per question; local compute is unmetered, hence the zero price" }
+  ]
+}

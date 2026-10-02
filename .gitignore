@@ -1,0 +1,132 @@
+### MCP (per-developer, not shared) ###
+.mcp.json
+.playwright-mcp/
+
+### JRebel Configuration ###
+rebel.xml
+
+### Build System ###
+# Maven - Build directories and wrapper exclusions
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+dependency-reduced-pom.xml
+.mvn/timing.properties
+/lib/*.jar
+
+# Gradle - Build system files and caches (if used alongside/instead of Maven)
+.gradle/
+gradle-app.setting
+!gradle-wrapper.jar
+.gradletasknamecache
+
+### Java and Runtime ###
+# Compiled files and runtime artifacts
+*.class
+*.jar
+*.war
+*.ear
+*.nar
+hs_err_pid*
+replay_pid*
+
+### IDE Configurations ###
+# IntelliJ IDEA - Project specific settings and caches
+.idea/
+.idea/modules.xml
+.idea/jarRepositories.xml
+.idea/compiler.xml
+.idea/libraries/
+/.idea/*
+*.iws
+*.iml
+*.ipr
+*/*.iml
+
+# Eclipse - Project files and settings
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+.metadata/
+bin/
+
+# NetBeans - Project directories and build artifacts
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+# VS Code - Editor directory
+.vscode/
+
+### Operating System Files ###
+# macOS specific files
+.DS_Store
+
+### Logs and Debug Files ###
+# Application runtime artifacts
+logs/
+*.log
+/*-null.log.*
+/*.log.?*
+*-null.log.*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.jpa.log
+
+### Temporary and Backup Files ###
+*.bak
+tmp/
+*.tmp
+*.swp
+*~.nib
+# MS Office owner/lock files created while a document is open
+~$*
+.~lock.*#
+
+### Output and Distribution ###
+/out/
+/out/*
+
+### Frontend and React ###
+.sass-cache/
+.eslintcache
+.npm
+.cache/
+
+### Security and Credentials ###
+*.pem
+*.key
+*.keystore
+*.jks
+*.p12
+*.pfx
+.env
+.env.local
+*.local.properties
+
+### Application Configuration ###
+# Excluding sensitive properties files
+application-*.properties
+application-*.yml
+!application-example.properties
+!application-example.yml
+hibernate.properties
+
+### Documentation and Reports ###
+/docs/
+/javadoc/
+*/test-output/
+*.test.skip
+**/settings.local.json
+settings.local.json

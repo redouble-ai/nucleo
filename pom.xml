@@ -1,0 +1,383 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>ai.redouble</groupId>
+    <artifactId>nucleo-parent</artifactId>
+    <version>0.1</version>
+    <packaging>pom</packaging>
+
+    <name>Nucleo</name>
+    <description>
+        The runtime: jobs on virtual threads, capacity admission, LLM clients, tools, thinkers,
+        doers and guardrails for JVM applications that run agents in-process. This reactor holds
+        the runtime's own build; nothing here inherits from the platform's build.
+    </description>
+
+    <url>https://github.com/redouble-ai/nucleo</url>
+    <inceptionYear>2024</inceptionYear>
+
+    <organization>
+        <name>Redouble AI, Inc.</name>
+        <url>https://redouble.ai</url>
+    </organization>
+
+    <licenses>
+        <license>
+            <name>Apache-2.0</name>
+            <url>https://www.apache.org/licenses/LICENSE-2.0</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <!-- Maven Central requires every published pom to name its developers and its source
+         repository; the role address is the one the project answers from -->
+    <developers>
+        <developer>
+            <id>redouble</id>
+            <name>Redouble AI</name>
+            <email>oss@redouble.ai</email>
+            <organization>Redouble AI, Inc.</organization>
+            <organizationUrl>https://redouble.ai</organizationUrl>
+        </developer>
+    </developers>
+
+    <scm>
+        <connection>scm:git:https://github.com/redouble-ai/nucleo.git</connection>
+        <developerConnection>scm:git:git@github.com:redouble-ai/nucleo.git</developerConnection>
+        <url>https://github.com/redouble-ai/nucleo</url>
+        <tag>HEAD</tag>
+    </scm>
+
+    <modules>
+        <module>nucleo-bom</module>
+        <module>nucleo-core</module>
+        <module>nucleo-provider-openai</module>
+        <module>nucleo-provider-anthropic</module>
+        <module>nucleo-provider-bedrock</module>
+        <module>nucleo-provider-bedrock-anthropic</module>
+        <module>nucleo-provider-systemone</module>
+        <module>nucleo-ext-lit</module>
+        <module>nucleo-ext-patent</module>
+        <module>nucleo-hibernate</module>
+        <module>nucleo-skills</module>
+        <module>nucleo-spring-boot-starter</module>
+        <module>nucleo-quarkus</module>
+        <module>nucleo-quarkus-deployment</module>
+        <module>nucleo-docs</module>
+        <module>nucleo-examples</module>
+        <module>nucleo-demo-engine</module>
+        <module>nucleo-demo-poi</module>
+        <module>nucleo-demo</module>
+        <module>nucleo-demo-quarkus</module>
+    </modules>
+
+    <properties>
+        <maven.compiler.release>25</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+        <!-- Test-only versions. Everything a consumer can see is pinned in nucleo-bom. -->
+        <junit-jupiter.version>6.0.3</junit-jupiter.version>
+        <logback.version>1.5.38</logback.version>
+        <!-- The database providers' tests: an in-process database behind a real pool -->
+        <hsqldb.version>2.7.4</hsqldb.version>
+        <hikaricp.version>5.1.0</hikaricp.version>
+        <!-- One Boot line for the two Boot modules, the starter and the demo; neither the
+             runtime nor its consumers see it -->
+        <spring-boot.version>4.0.3</spring-boot.version>
+        <!-- One Quarkus line for the Quarkus integration and its demo, the second host the
+             runtime runs under unchanged; neither the runtime nor its consumers see it -->
+        <quarkus.version>3.39.4</quarkus.version>
+        <!-- Build tooling only: the markdown renderer of nucleo-docs -->
+        <flexmark.version>0.64.8</flexmark.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>ai.redouble</groupId>
+                <artifactId>nucleo-bom</artifactId>
+                <version>${project.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.junit</groupId>
+                <artifactId>junit-bom</artifactId>
+                <version>${junit-jupiter.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <!-- classic and core are a matched pair: a module that also imports a BOM managing
+                 core at another line (Boot's, in the demo) would otherwise split them -->
+            <dependency>
+                <groupId>ch.qos.logback</groupId>
+                <artifactId>logback-classic</artifactId>
+                <version>${logback.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>ch.qos.logback</groupId>
+                <artifactId>logback-core</artifactId>
+                <version>${logback.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.hsqldb</groupId>
+                <artifactId>hsqldb</artifactId>
+                <version>${hsqldb.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.zaxxer</groupId>
+                <artifactId>HikariCP</artifactId>
+                <version>${hikaricp.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <version>3.13.0</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <!-- JUnit Platform 6 needs this line; older surefire reports "0 tests, green" -->
+                    <version>3.5.4</version>
+                    <configuration>
+                        <!-- One forked JVM per core, each running whole classes: the suite's
+                             singletons (the dispatcher, the catalog, the pool) are per JVM, so
+                             classes never share them across forks, and a suite that is a few
+                             thousand fast tests plus a handful of timing tests spreads the
+                             timing tests across cores instead of queueing them. -->
+                        <forkCount>1C</forkCount>
+                        <reuseForks>true</reuseForks>
+                    </configuration>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-jar-plugin</artifactId>
+                    <version>3.4.2</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-source-plugin</artifactId>
+                    <version>3.2.1</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-clean-plugin</artifactId>
+                    <version>3.2.0</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-javadoc-plugin</artifactId>
+                    <version>3.6.0</version>
+                    <!-- The line at the foot of every javadoc page, in the site and in the
+                         javadoc jars alike: the NOTICE's copyright line and the license. The
+                         plugin's own default ends in "All rights reserved", which an
+                         Apache-2.0 work does not say. No page carries the time it was
+                         generated: with it, generating the same sources twice changes every
+                         page, and republishing a version would rewrite its whole javadoc. -->
+                    <configuration>
+                        <notimestamp>true</notimestamp>
+                        <bottom><![CDATA[Copyright 2024-present Redouble AI, Inc. Authors. Licensed under the <a href="https://www.apache.org/licenses/LICENSE-2.0">Apache License, Version 2.0</a>.]]></bottom>
+                    </configuration>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-gpg-plugin</artifactId>
+                    <version>3.2.8</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.sonatype.central</groupId>
+                    <artifactId>central-publishing-maven-plugin</artifactId>
+                    <version>0.11.0</version>
+                </plugin>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-site-plugin</artifactId>
+                    <version>3.21.0</version>
+                    <!-- The documentation site is generated by the executions below, not by
+                         the site mojo; skipping it keeps `mvn site` from producing a default
+                         report site in every module. -->
+                    <configuration>
+                        <skip>true</skip>
+                    </configuration>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+        <!-- `mvn site` after a build produces the documentation site under src/main/docs:
+             the aggregate javadoc over every module at pre-site here at the root (the
+             aggregate goal needs the whole reactor in the session, so run without -N),
+             then the markdown site (the documents nucleo-docs/CONTENTS.md lists, in its
+             reading order) from the nucleo-docs module. Maven and a JDK are the only
+             requirements. -->
+        <plugins>
+            <!-- Publishing goes through the Central Portal: `mvn deploy -Prelease` bundles every
+                 artifact of the reactor that does not skip publishing, uploads the bundle once
+                 under the credentials settings.xml holds for the server id `central`, and stops.
+                 The bundle is then a pending deployment in the Portal, validated but unpublished,
+                 until a person presses Publish there; a version published to Central can never be
+                 replaced or removed, so no build publishes on its own. -->
+            <plugin>
+                <groupId>org.sonatype.central</groupId>
+                <artifactId>central-publishing-maven-plugin</artifactId>
+                <extensions>true</extensions>
+                <configuration>
+                    <publishingServerId>central</publishingServerId>
+                    <autoPublish>false</autoPublish>
+                    <deploymentName>Nucleo ${project.version}</deploymentName>
+                </configuration>
+            </plugin>
+            <!-- Consumers resolve Nucleo as jars; the sources jar rides along so their IDEs
+                 read the code, not decompiled bytecode -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>attach-sources</id>
+                        <goals>
+                            <goal>jar-no-fork</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- The javadoc tool writes pages and removes none, so the page of a class that
+                 has since moved or gone would stay in the site, and be published with it.
+                 The javadoc tree is emptied before each run; this plugin is declared above
+                 the javadoc plugin so that, in the same phase, it runs first. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-clean-plugin</artifactId>
+                <inherited>false</inherited>
+                <executions>
+                    <execution>
+                        <id>empty-javadoc</id>
+                        <phase>pre-site</phase>
+                        <goals>
+                            <goal>clean</goal>
+                        </goals>
+                        <configuration>
+                            <excludeDefaultDirectories>true</excludeDefaultDirectories>
+                            <filesets>
+                                <fileset>
+                                    <directory>${project.basedir}/src/main/docs/javadoc</directory>
+                                </fileset>
+                            </filesets>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <inherited>false</inherited>
+                <executions>
+                    <execution>
+                        <id>generate-javadoc</id>
+                        <phase>pre-site</phase>
+                        <goals>
+                            <goal>aggregate</goal>
+                        </goals>
+                        <configuration>
+                            <reportOutputDirectory>${project.basedir}/src/main/docs</reportOutputDirectory>
+                            <destDir>javadoc</destDir>
+                            <quiet>true</quiet>
+                            <doclint>none</doclint>
+                            <failOnError>false</failOnError>
+                            <!-- The add-script javadoc option passed raw: this plugin version
+                                 has addStylesheets but no addScripts parameter -->
+                            <additionalOptions>
+                                <additionalOption>-Xdoclint:none</additionalOption>
+                                <additionalOption>--add-script</additionalOption>
+                                <additionalOption>"${project.basedir}/src/main/javadoc/javadoc-theme.js"</additionalOption>
+                            </additionalOptions>
+                            <detectOfflineLinks>false</detectOfflineLinks>
+                            <source>25</source>
+                            <!-- The Redouble theme over the JDK stylesheet, and the theme switch
+                                 script; both live in the plugin's default javadocDirectory,
+                                 src/main/javadoc -->
+                            <addStylesheets>
+                                <addStylesheet>javadoc-theme.css</addStylesheet>
+                            </addStylesheets>
+                            <tags>
+                                <tag>
+                                    <name>TODO</name>
+                                    <placement>a</placement>
+                                    <head>TODO:</head>
+                                </tag>
+                            </tags>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+    <profiles>
+        <!-- What Central requires of every published artifact beyond the jar and its sources:
+             a javadoc jar of its own, and a signature on every file. Both cost time and the
+             signature needs the Redouble AI key on this machine, so they run only on a release:
+             `mvn deploy -Prelease`. The key is the project's, 763CDEBCB6FB9E8B, published on
+             keys.openpgp.org; its passphrase is asked for through gpg-agent, never configured. -->
+        <profile>
+            <id>release</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-javadoc-plugin</artifactId>
+                        <!-- Inherited by every module, unlike the aggregate execution above,
+                             whose non-inherited flag would otherwise cover this one too -->
+                        <inherited>true</inherited>
+                        <executions>
+                            <execution>
+                                <id>attach-javadocs</id>
+                                <goals>
+                                    <goal>jar</goal>
+                                </goals>
+                                <configuration>
+                                    <quiet>true</quiet>
+                                    <doclint>none</doclint>
+                                    <failOnError>false</failOnError>
+                                    <detectOfflineLinks>false</detectOfflineLinks>
+                                    <source>25</source>
+                                    <tags>
+                                        <tag>
+                                            <name>TODO</name>
+                                            <placement>a</placement>
+                                            <head>TODO:</head>
+                                        </tag>
+                                    </tags>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-gpg-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>sign-artifacts</id>
+                                <phase>verify</phase>
+                                <goals>
+                                    <goal>sign</goal>
+                                </goals>
+                                <configuration>
+                                    <keyname>763CDEBCB6FB9E8B</keyname>
+                                    <bestPractices>true</bestPractices>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+</project>

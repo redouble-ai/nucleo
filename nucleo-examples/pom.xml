@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>ai.redouble</groupId>
+        <artifactId>nucleo-parent</artifactId>
+        <version>0.1</version>
+    </parent>
+
+    <artifactId>nucleo-examples</artifactId>
+    <packaging>jar</packaging>
+
+    <name>Nucleo examples</name>
+    <description>
+        Small programs, one per package, each a main to run from the IDE against your own
+        provider and copy from: a first question to a model, a first tool, agent and doer,
+        and one program per topic of the documentation. The documentation pages show their
+        code as checked samples, so a page and the program it describes cannot drift. Not a
+        runtime artifact and not in the BOM.
+    </description>
+
+    <properties>
+        <!-- Programs to run from the checkout: never published to Maven Central -->
+        <skipPublishing>true</skipPublishing>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>ai.redouble</groupId>
+                <artifactId>nucleo-bom</artifactId>
+                <version>${project.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-dependencies</artifactId>
+                <version>${spring-boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <dependencies>
+        <dependency>
+            <groupId>ai.redouble</groupId>
+            <artifactId>nucleo-core</artifactId>
+        </dependency>
+        <!-- Every provider this repository ships, so a program runs on whichever one the
+             person holds a credential for -->
+        <dependency>
+            <groupId>ai.redouble</groupId>
+            <artifactId>nucleo-provider-anthropic</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ai.redouble</groupId>
+            <artifactId>nucleo-provider-openai</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ai.redouble</groupId>
+            <artifactId>nucleo-provider-bedrock</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ai.redouble</groupId>
+            <artifactId>nucleo-provider-systemone</artifactId>
+        </dependency>
+        <!-- The MCP server example is a small Spring Boot application. Deliberately NOT
+             nucleo-spring-boot-starter: the starter's auto-registered configurator would
+             reach every main of this module, and the other examples are plain mains that
+             read credentials from the environment. A real Spring Boot application uses the
+             starter; the example wires the dispatcher's lifecycle itself. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <!-- The examples print their results; logback shows the runtime's own lines beside them -->
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <!-- Tests -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-engine</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>

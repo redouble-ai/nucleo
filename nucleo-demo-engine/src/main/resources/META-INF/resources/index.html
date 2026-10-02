@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nucleo demo</title>
+<link rel="icon" href="redoubleAI.png">
+<link rel="stylesheet" href="demo.css">
+<script>
+// Before first paint: a stored theme choice must win over the system preference without a flash.
+(() => { const t = localStorage.getItem('nucleo-theme'); if (t) document.documentElement.dataset.theme = t; })();
+</script>
+</head>
+<body class="lean">
+<!-- The same demo as detailed.html, driven by the same demo.js: every form, id and result is the
+     same. What differs is the text: one line per step, what to expect under a fold, and the
+     script's own explanatory notes (class "brief") hidden by this page's body class. -->
+<div class="titlebar"><a class="brand" href="https://redouble.ai" aria-label="Redouble AI"><img src="redoubleAI.svg" alt="Redouble AI" height="20"></a> <span class="app">Nucleo</span> <span class="dim">the runtime, demonstrated live</span>
+  <a class="doc-link" href="docs/index.html">documentation</a>
+  <a class="doc-link" href="detailed.html" title="the same demo with every step explained">detailed page</a>
+  <div class="theme-switch" id="theme-switch">
+    <button type="button" data-mode="system">System</button>
+    <button type="button" data-mode="light">Light</button>
+    <button type="button" data-mode="dark">Dark</button>
+  </div>
+</div>
+<main>
+<header>
+  <h1>Nucleo demo</h1>
+  <p>Agents inside a Java application. Everything below runs in this process against your own
+    account's models, and every result shows what it cost.</p>
+</header>
+
+<section id="setup">
+  <h2><span class="n">1</span> Credentials and models</h2>
+  <p class="lead">Connect providers and order the models of each <span class="term">Grade</span>.</p>
+  <details class="explain"><summary>What to expect</summary>
+    <ul>
+      <li><span class="badge b-ok">GOOD</span>A green catalog line naming the first model of each Grade you use.</li>
+      <li><span class="badge b-muted">NOTE</span>Drag a model's row, or use its arrows, to reorder its Grade.</li>
+      <li><span class="badge b-warn">TRY</span>No credential exported? Paste one into a connection, then press <b>Discover models</b>.</li>
+    </ul>
+  </details>
+  <div id="setup-body" class="muted">Loading…</div>
+</section>
+
+<section id="ask">
+  <h2><span class="n">2</span> Ask a quick question</h2>
+  <p class="lead">One model call at the <span class="term">Grade</span> you choose.</p>
+  <details class="explain"><summary>What to expect</summary>
+    <ul>
+      <li><span class="badge b-ok">GOOD</span>An answer in a few seconds for a fraction of a cent.</li>
+      <li><span class="badge b-bad">BAD</span>A refusal naming what to provide: a credential or a default model.</li>
+    </ul>
+  </details>
+  <form id="ask-form">
+    <label class="grow">Question<input name="question" value="What is two plus two?" required></label>
+    <label title="the model answers from this text alone">Text to answer from<input name="context" value="arithmetic"></label>
+    <label>Grade<select name="grade"></select></label>
+    <button>Ask</button>
+    <div class="muted" id="ask-serves" style="flex-basis:100%"></div>
+  </form>
+  <div class="result" id="ask-result"></div>
+</section>
+
+<section id="agent">
+  <h2><span class="n">3</span> Run the agent</h2>
+  <p class="lead">An agent that calls <span class="term">Tools</span> and admits <span class="term">Skills</span> on its own, drawn live as it runs.</p>
+  <details class="explain"><summary>What to expect</summary>
+    <ul>
+      <li><span class="badge b-ok">GOOD</span>Two or three turns:
+        <ol>
+          <li>the date comes from a Tool</li>
+          <li>"briefly" admits the <code>concise-answers</code> Skill</li>
+          <li>a one-line answer</li>
+        </ol></li>
+      <li><span class="badge b-muted">TRY</span>Drop "briefly" for a long answer with no Skill.</li>
+      <li><span class="badge b-muted">TRY</span>Run at MICRO to watch a small model skip the Tool.</li>
+    </ul>
+  </details>
+  <form id="agent-form">
+    <label class="grow">Query<input name="query" value="How many days until the end of the year? Briefly." required></label>
+    <label>Grade<select name="grade"></select></label>
+    <button>Run</button>
+    <div class="muted" id="agent-serves" style="flex-basis:100%"></div>
+  </form>
+  <div class="result" id="agent-result"></div>
+  <details id="agent-palette" class="explain"><summary>What the agent's model sees</summary><div class="muted">Loading…</div></details>
+</section>
+
+<section id="extract">
+  <h2><span class="n">4</span> Read a directory</h2>
+  <p class="lead">Read a folder into an index, all under a <span class="term">spend cap</span>:</p>
+  <ul class="points">
+    <li>code and text layers for free</li>
+    <li>scans by a vision model</li>
+  </ul>
+  <details class="explain"><summary>What to expect</summary>
+    <ul>
+      <li><span class="badge b-ok">GOOD</span>On the shipped corpus, about 26 of 30 files in seconds for a few cents.</li>
+      <li><span class="badge b-ok">GOOD</span>The scans are read by the vision tier.</li>
+      <li><span class="badge b-muted">TRY</span>Budget 0.01:
+        <ul>
+          <li>model-tier rows are REFUSED before any money moves</li>
+          <li>code-tier rows still read</li>
+        </ul></li>
+    </ul>
+  </details>
+  <form id="extract-form">
+    <label class="grow">Directory<input name="directory" id="extract-dir" placeholder="absolute path of a directory" required></label>
+    <label>Budget<input name="amount" type="number" step="0.01" min="0" value="1.00" style="width:90px" placeholder="no cap"></label>
+    <label>Currency<select name="currency" style="width:90px"></select></label>
+    <button>Read</button>
+  </form>
+  <div class="result" id="extract-result"></div>
+</section>
+
+<section id="search">
+  <h2><span class="n">5</span> Search what was read</h2>
+  <p class="lead">Search the index by meaning. Run step 4 first.</p>
+  <details class="explain"><summary>What to expect</summary>
+    <ul>
+      <li><span class="badge b-ok">GOOD</span>The headset-creak documents on top, although none says "helmet" or "squeak".</li>
+      <li><span class="badge b-ok">GOOD</span>The top hit is the scanned letter.</li>
+    </ul>
+  </details>
+  <form id="search-form">
+    <label class="grow">Query<input name="query" value="why does the helmet squeak" required></label>
+    <label>Results<input name="k" type="number" min="1" max="20" value="3" style="width:70px" required></label>
+    <button>Search</button>
+  </form>
+  <div class="result" id="search-result"></div>
+</section>
+
+<section id="pricing">
+  <h2><span class="n">6</span> Find the current prices</h2>
+  <p class="lead">What does each product cost right now, from the documents step 4 read:</p>
+  <ol class="points">
+    <li>a SMALL model extracts</li>
+    <li>a MEDIUM model groups</li>
+    <li>plain Java decides</li>
+  </ol>
+  <details class="explain"><summary>What to expect</summary>
+    <ul>
+      <li><span class="badge b-ok">GOOD</span>About a minute and a third of a dollar for a dozen products.</li>
+      <li><span class="badge b-ok">GOOD</span>Every price with the sentence it came from.</li>
+      <li><span class="badge b-muted">TRY</span>Move the day back a month to see a rise turn into a scheduled price.</li>
+    </ul>
+  </details>
+  <form id="pricing-form">
+    <label>As of<input name="asOf" type="date"></label>
+    <label>Budget<input name="amount" type="number" step="0.01" min="0" value="5.00" style="width:90px" placeholder="no cap"></label>
+    <label>Currency<select name="currency" style="width:90px"></select></label>    <button>Find prices</button>
+  </form>
+  <div class="result" id="pricing-result"></div>
+</section>
+
+<section id="bench">
+  <h2><span class="n">7</span> Benchmark the agent</h2>
+  <p class="lead">Run step 3's query on every model you can call; a blind <span class="term">judge</span> scores each against the strongest.</p>
+  <details class="explain"><summary>What to expect</summary>
+    <ul>
+      <li><span class="badge b-ok">GOOD</span>A minute or two and some tens of cents, then a table:
+        <ul>
+          <li>the judge's column tells the models that used the Tool from the ones that guessed</li>
+          <li>the cost column spreads tenfold</li>
+        </ul></li>
+    </ul>
+  </details>
+  <form id="bench-form">
+    <label class="grow">Query<input name="query" value="How many days until the end of the year? Briefly." required></label>
+    <label>Runs per model<input name="runs" type="number" min="1" max="10" value="2" style="width:90px" required></label>
+    <button>Benchmark</button>
+  </form>
+  <div class="result" id="bench-result"></div>
+</section>
+
+<section id="decide">
+  <h2><span class="n">8</span> Run an agent on a decision model</h2>
+  <p class="lead">An agent on a <span class="term">decision model</span>, which writes nothing and only ranks the options code puts in front of it.</p>
+  <details class="explain"><summary>What to expect</summary>
+    <ul>
+      <li><span class="badge b-ok">GOOD</span>Four turns:
+        <ol>
+          <li>list the folder</li>
+          <li>open the one file whose first words name a price</li>
+          <li>split it</li>
+          <li>pick the statement that decides a price change</li>
+        </ol></li>
+      <li><span class="badge b-bad">BAD</span>A refusal naming a missing decision model: connect one in step 1.</li>
+    </ul>
+  </details>
+  <form id="decide-form">
+    <label class="grow">Folder<input name="directory" id="decide-dir" required></label>
+    <button>Decide</button>
+    <div class="muted" id="decide-serves" style="flex-basis:100%"></div>
+  </form>
+  <div class="result" id="decide-result"></div>
+  <details id="decide-palette" class="explain"><summary>What the decision model sees</summary><div class="muted">Loading…</div></details>
+</section>
+
+<section id="decide-prices">
+  <h2><span class="n">9</span> Find the current prices, grouped by a decision model</h2>
+  <p class="lead">Step 6 with the product grouping decided by a <span class="term">decision model</span> instead of a MEDIUM model.</p>
+  <details class="explain"><summary>What to expect</summary>
+    <ul>
+      <li><span class="badge b-ok">GOOD</span>Step 6's prices.</li>
+      <li><span class="badge b-ok">GOOD</span>The grouping free, on a model on your own machine.</li>
+      <li><span class="badge b-ok">GOOD</span>A few names joined that the MEDIUM model kept apart.</li>
+    </ul>
+  </details>
+  <form id="decide-prices-form">
+    <label>As of<input name="asOf" type="date"></label>
+    <label>Budget<input name="amount" type="number" step="0.01" min="0" value="5.00" style="width:90px" placeholder="no cap"></label>
+    <label>Currency<select name="currency" style="width:90px"></select></label>    <button>Find prices, decided</button>
+  </form>
+  <div class="result" id="decide-prices-result"></div>
+</section>
+</main>
+
+<script src="demo.js"></script>
+</body>
+</html>

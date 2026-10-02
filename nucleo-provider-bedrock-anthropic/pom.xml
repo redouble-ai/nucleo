@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>ai.redouble</groupId>
+        <artifactId>nucleo-parent</artifactId>
+        <version>0.1</version>
+    </parent>
+
+    <artifactId>nucleo-provider-bedrock-anthropic</artifactId>
+    <packaging>jar</packaging>
+
+    <name>Nucleo provider: Anthropic on AWS Bedrock</name>
+    <description>
+        Claude on AWS Bedrock through the Anthropic SDK: the Anthropic-on-Bedrock and Mantle
+        clients, which extend the direct Anthropic client and sign with the Bedrock base's AWS
+        credentials, for what the SDK carries that the Converse API does not (extended thinking,
+        prompt caching, Mantle's routing). Adds to nucleo-provider-bedrock, which serves Claude
+        through Converse on its own. The Anthropic SDK has no native-image support, so a native
+        build leaves this artifact out and reaches Claude through the base.
+    </description>
+
+    <dependencies>
+        <dependency>
+            <groupId>ai.redouble</groupId>
+            <artifactId>nucleo-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ai.redouble</groupId>
+            <artifactId>nucleo-provider-bedrock</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>ai.redouble</groupId>
+            <artifactId>nucleo-provider-anthropic</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.anthropic</groupId>
+            <artifactId>anthropic-java-bedrock</artifactId>
+        </dependency>
+
+        <!-- Tests -->
+        <dependency>
+            <groupId>ai.redouble</groupId>
+            <artifactId>nucleo-core</artifactId>
+            <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-engine</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <!-- The tests run with NO credentials, as the base's do: AWS's own chain is
+                         pointed at files that do not exist and away from instance metadata, so the
+                         run is the same on every machine. -->
+                    <systemPropertyVariables>
+                        <aws.configFile>${project.build.directory}/no-aws-config</aws.configFile>
+                        <aws.sharedCredentialsFile>${project.build.directory}/no-aws-credentials</aws.sharedCredentialsFile>
+                        <aws.disableEc2Metadata>true</aws.disableEc2Metadata>
+                        <!-- The suite runs on the shared test fixture catalog, the same one
+                             nucleo-core's tests and TestModelPicker are written against. -->
+                        <nucleo.models>${project.basedir}/../nucleo-core/src/test/resources/test-models.json</nucleo.models>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

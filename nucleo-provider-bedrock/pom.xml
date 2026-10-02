@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>ai.redouble</groupId>
+        <artifactId>nucleo-parent</artifactId>
+        <version>0.1</version>
+    </parent>
+
+    <artifactId>nucleo-provider-bedrock</artifactId>
+    <packaging>jar</packaging>
+
+    <name>Nucleo provider: AWS Bedrock</name>
+    <description>
+        The base for everything served through AWS Bedrock, on the AWS SDK alone: the Converse
+        client (every vendor Bedrock serves, Claude included), Cohere embeddings, the shared AWS
+        credential and transport wiring, the account's model listings, and the Bedrock-only and
+        zero-retention pickers. Carries the catalog fragment of the models it serves. A client
+        family with an SDK of its own adds to this artifact rather than living in it: the
+        Anthropic-on-Bedrock and Mantle clients are nucleo-provider-bedrock-anthropic. Ships on
+        AWS's cadence.
+    </description>
+
+    <dependencies>
+        <dependency>
+            <groupId>ai.redouble</groupId>
+            <artifactId>nucleo-core</artifactId>
+        </dependency>
+        <dependency>
+            <!-- The sync client on the Apache transport (BedrockClients); the SDK's default async
+                 transport would put netty on every consumer's classpath -->
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>bedrockruntime</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>software.amazon.awssdk</groupId>
+                    <artifactId>netty-nio-client</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>apache5-client</artifactId>
+        </dependency>
+        <dependency>
+            <!-- The control plane (foundation models, inference profiles) and Service Quotas:
+                 what the account can reach and at what rate, read by the catalog discovery
+                 because the runtime endpoint sends no rate-limit headers -->
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>bedrock</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>software.amazon.awssdk</groupId>
+                    <artifactId>netty-nio-client</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>servicequotas</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>software.amazon.awssdk</groupId>
+                    <artifactId>netty-nio-client</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+        <dependency>
+            <!-- SigV4 for the one Mantle call no SDK client makes: the model listing that carries allowed_modes -->
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>http-auth-aws</artifactId>
+        </dependency>
+
+        <!-- Tests -->
+        <dependency>
+            <groupId>ai.redouble</groupId>
+            <artifactId>nucleo-core</artifactId>
+            <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-engine</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <!-- The tests run with NO credentials. Bedrock resolves through AWS's own chain,
+                         which would otherwise find the developer's ~/.aws profile; the chain is
+                         pointed at files that do not exist and away from instance metadata, so the
+                         run is the same on every machine. -->
+                    <systemPropertyVariables>
+                        <aws.configFile>${project.build.directory}/no-aws-config</aws.configFile>
+                        <aws.sharedCredentialsFile>${project.build.directory}/no-aws-credentials</aws.sharedCredentialsFile>
+                        <aws.disableEc2Metadata>true</aws.disableEc2Metadata>
+                        <!-- The suite runs on the shared test fixture catalog, the same one
+                             nucleo-core's tests and TestModelPicker are written against; the
+                             shipped fragment is a bootstrap kernel for deployments, not a test
+                             surface, and tests must not pin its contents. -->
+                        <nucleo.models>${project.basedir}/../nucleo-core/src/test/resources/test-models.json</nucleo.models>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

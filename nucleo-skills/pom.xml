@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>ai.redouble</groupId>
+        <artifactId>nucleo-parent</artifactId>
+        <version>0.1</version>
+    </parent>
+
+    <artifactId>nucleo-skills</artifactId>
+    <packaging>jar</packaging>
+
+    <name>Nucleo skills</name>
+    <description>
+        Public agent skills shipped under the SkillsJars META-INF/skills/ convention.
+        Drop this jar onto the classpath of any application that runs Nucleo
+        and SkillJarsLoader will discover and register the skills automatically.
+
+        Currently bundled:
+          - capability-tree: recursive enumeration of an agent's tools/skills with
+            cycle detection. Generic introspection, no domain coupling.
+    </description>
+
+    <!-- This module ships only resources (no Java sources). The compiler and surefire
+         no-op on a module with nothing to compile or run, and the compile phase MUST
+         run: Maven substitutes a reactor module's output for its jar on downstream
+         test classpaths only once the module has compiled, so unbinding the compiler
+         breaks a from-scratch `mvn test` at the first module that depends on this one. -->
+
+    <build>
+        <plugins>
+            <!-- Maven Central requires a javadoc jar on every jar artifact, and the javadoc
+                 plugin builds none for a module with no Java sources; this one holds the
+                 README under src/main/javadoc, which says what the artifact is instead. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>javadoc-jar</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                        <configuration>
+                            <classifier>javadoc</classifier>
+                            <classesDirectory>${project.basedir}/src/main/javadoc</classesDirectory>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

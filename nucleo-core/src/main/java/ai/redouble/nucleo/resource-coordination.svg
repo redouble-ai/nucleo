@@ -1,0 +1,94 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 360" width="100%">
+  <style>
+    text { font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace; }
+  </style>
+
+  <!-- Background -->
+  <rect width="940" height="360" fill="#282c34" rx="6"/>
+
+  <!-- ==================== Agent A ==================== -->
+  <text x="16" y="52" fill="#6699cc" font-size="16" font-weight="bold">Agent A</text>
+
+  <rect x="105" y="32" width="156" height="36" fill="#2c4a6e" stroke="#6699cc" stroke-width="1.5" rx="5"/>
+  <text x="183" y="55" fill="#c8ddf0" font-size="13" text-anchor="middle">LLM call</text>
+
+  <rect x="274" y="32" width="52" height="36" fill="#2c4a6e" stroke="#6699cc" stroke-width="1.5" rx="5"/>
+  <text x="300" y="55" fill="#c8ddf0" font-size="13" text-anchor="middle">tool</text>
+
+  <rect x="339" y="32" width="156" height="36" fill="#2c4a6e" stroke="#6699cc" stroke-width="1.5" rx="5"/>
+  <text x="417" y="55" fill="#c8ddf0" font-size="13" text-anchor="middle">LLM call</text>
+
+  <rect x="508" y="32" width="52" height="36" fill="#2c4a6e" stroke="#6699cc" stroke-width="1.5" rx="5"/>
+  <text x="534" y="55" fill="#c8ddf0" font-size="13" text-anchor="middle">tool</text>
+
+  <rect x="573" y="32" width="156" height="36" fill="#2c4a6e" stroke="#6699cc" stroke-width="1.5" rx="5"/>
+  <text x="651" y="55" fill="#c8ddf0" font-size="13" text-anchor="middle">LLM call</text>
+
+  <text x="183" y="86" fill="#e5c07b" font-size="11" text-anchor="middle">tokens</text>
+  <text x="300" y="86" fill="#e5c07b" font-size="11" text-anchor="middle">conn</text>
+  <text x="417" y="86" fill="#e5c07b" font-size="11" text-anchor="middle">tokens</text>
+  <text x="534" y="86" fill="#e5c07b" font-size="11" text-anchor="middle">conn</text>
+  <text x="651" y="86" fill="#e5c07b" font-size="11" text-anchor="middle">tokens</text>
+
+  <!-- ==================== Agent B ==================== -->
+  <text x="16" y="142" fill="#6699cc" font-size="16" font-weight="bold">Agent B</text>
+
+  <rect x="105" y="122" width="52" height="36" fill="#2c4a6e" stroke="#6699cc" stroke-width="1.5" rx="5"/>
+  <text x="131" y="145" fill="#c8ddf0" font-size="13" text-anchor="middle">tool</text>
+
+  <rect x="170" y="122" width="156" height="36" fill="#2c4a6e" stroke="#6699cc" stroke-width="1.5" rx="5"/>
+  <text x="248" y="145" fill="#c8ddf0" font-size="13" text-anchor="middle">LLM call</text>
+
+  <rect x="339" y="122" width="52" height="36" fill="#2c4a6e" stroke="#6699cc" stroke-width="1.5" rx="5"/>
+  <text x="365" y="145" fill="#c8ddf0" font-size="13" text-anchor="middle">tool</text>
+
+  <rect x="404" y="122" width="156" height="36" fill="#2c4a6e" stroke="#6699cc" stroke-width="1.5" rx="5"/>
+  <text x="482" y="145" fill="#c8ddf0" font-size="13" text-anchor="middle">LLM call</text>
+
+  <rect x="573" y="122" width="52" height="36" fill="#2c4a6e" stroke="#6699cc" stroke-width="1.5" rx="5"/>
+  <text x="599" y="145" fill="#c8ddf0" font-size="13" text-anchor="middle">tool</text>
+
+  <text x="131" y="176" fill="#e5c07b" font-size="11" text-anchor="middle">conn</text>
+  <text x="248" y="176" fill="#e5c07b" font-size="11" text-anchor="middle">tokens</text>
+  <text x="365" y="176" fill="#e5c07b" font-size="11" text-anchor="middle">conn</text>
+  <text x="482" y="176" fill="#e5c07b" font-size="11" text-anchor="middle">tokens</text>
+  <text x="599" y="176" fill="#e5c07b" font-size="11" text-anchor="middle">conn</text>
+
+  <!-- ==================== Agent C ==================== -->
+  <text x="16" y="232" fill="#6699cc" font-size="16" font-weight="bold">Agent C</text>
+
+  <rect x="105" y="212" width="156" height="36" fill="#2c4a6e" stroke="#6699cc" stroke-width="1.5" rx="5"/>
+  <text x="183" y="235" fill="#c8ddf0" font-size="13" text-anchor="middle">LLM call</text>
+
+  <rect x="274" y="212" width="52" height="36" fill="#2c4a6e" stroke="#6699cc" stroke-width="1.5" rx="5"/>
+  <text x="300" y="235" fill="#c8ddf0" font-size="13" text-anchor="middle">tool</text>
+
+  <rect x="339" y="212" width="104" height="36" fill="none" stroke="#e06c75" stroke-width="1.5" stroke-dasharray="6,4" rx="5"/>
+  <text x="391" y="231" fill="#e06c75" font-size="12" text-anchor="middle">yield</text>
+  <text x="391" y="245" fill="#7a4048" font-size="9" text-anchor="middle">budget full</text>
+
+  <rect x="456" y="212" width="156" height="36" fill="#2c4a6e" stroke="#6699cc" stroke-width="1.5" rx="5"/>
+  <text x="534" y="235" fill="#c8ddf0" font-size="13" text-anchor="middle">LLM call</text>
+
+  <rect x="625" y="212" width="52" height="36" fill="#2c4a6e" stroke="#6699cc" stroke-width="1.5" rx="5"/>
+  <text x="651" y="235" fill="#c8ddf0" font-size="13" text-anchor="middle">tool</text>
+
+  <text x="183" y="266" fill="#e5c07b" font-size="11" text-anchor="middle">tokens</text>
+  <text x="300" y="266" fill="#e5c07b" font-size="11" text-anchor="middle">conn</text>
+  <text x="534" y="266" fill="#e5c07b" font-size="11" text-anchor="middle">tokens</text>
+  <text x="651" y="266" fill="#e5c07b" font-size="11" text-anchor="middle">conn</text>
+
+  <!-- ==================== Time axis ==================== -->
+  <line x1="103" y1="290" x2="870" y2="290" stroke="#636d83" stroke-width="1.5"/>
+  <polygon points="870,290 863,286 863,294" fill="#636d83"/>
+  <text x="876" y="294" fill="#636d83" font-size="13">time</text>
+  <line x1="105" y1="286" x2="105" y2="294" stroke="#636d83" stroke-width="1"/>
+  <line x1="261" y1="287" x2="261" y2="293" stroke="#4b5263" stroke-width="1"/>
+  <line x1="417" y1="287" x2="417" y2="293" stroke="#4b5263" stroke-width="1"/>
+  <line x1="573" y1="287" x2="573" y2="293" stroke="#4b5263" stroke-width="1"/>
+  <line x1="729" y1="287" x2="729" y2="293" stroke="#4b5263" stroke-width="1"/>
+
+  <!-- ==================== Summary ==================== -->
+  <text x="16" y="325" fill="#abb2bf" font-size="12">10 DB connections serve 300 agents and 10,000 tool calls (each held ~200ms)</text>
+  <text x="16" y="347" fill="#abb2bf" font-size="12">Token budget shared across all agents. Yield = virtual thread parks, zero cost.</text>
+</svg>

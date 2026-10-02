@@ -1,0 +1,2 @@
+ai.redouble.nucleo.providers.bedrock.BedrockConverseProvider
+ai.redouble.nucleo.providers.bedrock.BedrockCohereEmbeddingsProvider

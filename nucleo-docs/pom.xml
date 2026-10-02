@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>ai.redouble</groupId>
+        <artifactId>nucleo-parent</artifactId>
+        <version>0.1</version>
+    </parent>
+
+    <artifactId>nucleo-docs</artifactId>
+    <packaging>jar</packaging>
+
+    <name>Nucleo docs</name>
+    <description>
+        Build tooling: generates the documentation site under src/main/docs from the
+        documents CONTENTS.md lists, in its reading order. Runs at the site phase of a
+        `mvn site` from the reactor root, after the aggregate javadoc; needs nothing
+        beyond Maven and a JDK. Not a runtime artifact and not in the BOM.
+    </description>
+
+    <properties>
+        <!-- Build tooling of this repository: never published to Maven Central -->
+        <skipPublishing>true</skipPublishing>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.vladsch.flexmark</groupId>
+            <artifactId>flexmark</artifactId>
+            <version>${flexmark.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.vladsch.flexmark</groupId>
+            <artifactId>flexmark-ext-tables</artifactId>
+            <version>${flexmark.version}</version>
+        </dependency>
+
+        <!-- Tests -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-engine</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                    <execution>
+                        <id>generate-docs</id>
+                        <phase>site</phase>
+                        <goals>
+                            <goal>java</goal>
+                        </goals>
+                        <configuration>
+                            <mainClass>ai.redouble.docs.GenerateDocs</mainClass>
+                            <arguments>
+                                <!-- The reactor root; the generator scans every module under it -->
+                                <argument>${project.basedir}/..</argument>
+                                <!-- The version every page carries in its badge -->
+                                <argument>${project.version}</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                    <!-- `mvn site-deploy -Ddocs.repo=<checkout of the documentation repository>`
+                         generates the site as `mvn site` does, then puts it into that checkout
+                         as this version: a new directory for a version not published before, a
+                         replaced one for a version that was. The checkout is left uncommitted;
+                         a person reviews, commits and pushes it, and the push publishes. -->
+                    <execution>
+                        <id>publish-docs</id>
+                        <phase>site-deploy</phase>
+                        <goals>
+                            <goal>java</goal>
+                        </goals>
+                        <configuration>
+                            <mainClass>ai.redouble.docs.PublishDocs</mainClass>
+                            <arguments>
+                                <argument>${project.basedir}/../src/main/docs</argument>
+                                <argument>${docs.repo}</argument>
+                                <argument>${project.version}</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>

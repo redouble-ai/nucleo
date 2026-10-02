@@ -1,0 +1,899 @@
+/* The Redouble theme, as the Nucleo demo page carries it: light with an indigo tint,
+   violet accent, deep navy titlebar; the dark scheme is the same violet identity on an
+   indigo-black canvas, never a generic blue dark mode. */
+:root {
+    --bg: #f6f5fb;
+    --card: #ffffff;
+    --ink: #334155;
+    --heading: #1e1b4b;
+    --muted: #64748b;
+    --line: #c4b5fd;
+    --line-soft: #e8e2f4;
+    --shadow: rgba(99,102,241,0.12);
+    --accent: #7c3aed;
+    --accent-hover: #6d28d9;
+    --accent-ink: #ffffff;
+    --ring: #8b5cf6;
+    --control: #f0ecfa;
+    --control-border: #a78bfa;
+    --code: #f0ecfa;
+    --titlebar-bg: #020617;
+    --titlebar-text: #f1f5f9;
+    --titlebar-muted: #94a3b8;
+    --titlebar-accent: #b251f3;
+    --titlebar-accent-bg: rgba(178,81,243,0.15);
+    --titlebar-accent-border: rgba(178,81,243,0.4);
+}
+
+/* The dark palette twice: once for a system in dark mode without a forced light choice,
+   once for an explicitly chosen dark. The blocks must stay identical. */
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+        --bg: #0d0b14;
+        --card: #171225;
+        --ink: #d8d4e8;
+        --heading: #ede9fe;
+        --muted: #948fae;
+        --line: #4c3d78;
+        --line-soft: #2b2342;
+        --shadow: rgba(0,0,0,0.5);
+        --accent: #a78bfa;
+        --accent-hover: #c4b5fd;
+        --accent-ink: #1e1035;
+        --ring: #a78bfa;
+        --control: #201a33;
+        --control-border: #5b4a8a;
+        --code: #241d38;
+        --titlebar-bg: #020617;
+        --titlebar-text: #f1f5f9;
+        --titlebar-muted: #94a3b8;
+        --titlebar-accent: #b251f3;
+        --titlebar-accent-bg: rgba(178,81,243,0.15);
+        --titlebar-accent-border: rgba(178,81,243,0.4);
+    }
+}
+
+:root[data-theme="dark"] {
+    --bg: #0d0b14;
+    --card: #171225;
+    --ink: #d8d4e8;
+    --heading: #ede9fe;
+    --muted: #948fae;
+    --line: #4c3d78;
+    --line-soft: #2b2342;
+    --shadow: rgba(0,0,0,0.5);
+    --accent: #a78bfa;
+    --accent-hover: #c4b5fd;
+    --accent-ink: #1e1035;
+    --ring: #a78bfa;
+    --control: #201a33;
+    --control-border: #5b4a8a;
+    --code: #241d38;
+    --titlebar-bg: #020617;
+    --titlebar-text: #f1f5f9;
+    --titlebar-muted: #94a3b8;
+    --titlebar-accent: #b251f3;
+    --titlebar-accent-bg: rgba(178,81,243,0.15);
+    --titlebar-accent-border: rgba(178,81,243,0.4);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    line-height: 1.6;
+    color: var(--ink);
+    background: var(--bg);
+    padding: 0;
+    margin: 0;
+}
+
+.titlebar {
+    background: var(--titlebar-bg);
+    color: var(--titlebar-text);
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    position: sticky;
+    top: 0;
+    z-index: 40;
+}
+
+.titlebar .app {
+    color: var(--titlebar-accent);
+    background: var(--titlebar-accent-bg);
+    border: 1px solid var(--titlebar-accent-border);
+    border-radius: 6px;
+    padding: 1px 9px;
+    font-weight: 600;
+}
+
+.titlebar .dim {
+    color: var(--titlebar-muted);
+    font-weight: 400;
+}
+
+/* The brand lockup links home; the rest of the titlebar is this site's identity */
+.titlebar a.brand {
+    display: flex;
+    align-items: center;
+}
+
+.titlebar a.brand:hover {
+    opacity: 0.85;
+}
+
+.titlebar a.brand img {
+    display: block;
+}
+
+.theme-switch {
+    margin-left: auto;
+    display: flex;
+    gap: 2px;
+    border: 1px solid var(--titlebar-accent-border);
+    border-radius: 8px;
+    padding: 2px;
+}
+
+.theme-switch button, .theme-switch button:hover {
+    font-size: 12px;
+    font-weight: 500;
+    padding: 2px 10px;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--titlebar-muted);
+    border: 0;
+    cursor: pointer;
+}
+
+.theme-switch button:hover {
+    color: var(--titlebar-text);
+}
+
+.theme-switch button.active, .theme-switch button.active:hover {
+    background: var(--titlebar-accent-bg);
+    color: var(--titlebar-accent);
+}
+
+/* The search box takes the free end of the titlebar; the theme switch sits beside it */
+.search {
+    margin-left: auto;
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.search + .theme-switch {
+    margin-left: 0;
+}
+
+.search input {
+    width: 240px;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 400;
+    letter-spacing: 0;
+    color: var(--titlebar-text);
+    background: rgba(255,255,255,0.06);
+    border: 1px solid var(--titlebar-accent-border);
+    border-radius: 8px;
+    padding: 4px 30px 4px 10px;
+    outline: none;
+}
+
+.search input::placeholder {
+    color: var(--titlebar-muted);
+}
+
+.search input:focus {
+    border-color: var(--titlebar-accent);
+    background: rgba(255,255,255,0.1);
+}
+
+.search input::-webkit-search-cancel-button {
+    display: none;
+}
+
+/* The key that focuses the box, shown inside it until it has the focus */
+.search kbd {
+    position: absolute;
+    right: 8px;
+    font: inherit;
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1;
+    color: var(--titlebar-muted);
+    border: 1px solid var(--titlebar-accent-border);
+    border-radius: 4px;
+    padding: 2px 5px;
+    pointer-events: none;
+}
+
+.search input:focus + kbd {
+    display: none;
+}
+
+/* The results are a card of the page, not of the titlebar: page colors, page type */
+.search-results {
+    position: absolute;
+    top: calc(100% + 10px);
+    right: 0;
+    width: min(560px, calc(100vw - 40px));
+    max-height: 70vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    background: var(--card);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: 0 8px 24px var(--shadow);
+    font-weight: 400;
+    letter-spacing: 0;
+    z-index: 50;
+}
+
+.search-results a {
+    display: block;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--line-soft);
+    color: var(--ink);
+}
+
+.search-results a:last-child {
+    border-bottom: 0;
+}
+
+.search-results a:hover, .search-results a.active {
+    background: var(--control);
+    color: var(--ink);
+    text-decoration: none;
+}
+
+.search-results .hit-title {
+    display: block;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--heading);
+}
+
+.search-results .hit-part {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--accent);
+}
+
+.search-results .hit-text {
+    display: block;
+    margin-top: 2px;
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--muted);
+    overflow-wrap: anywhere;
+}
+
+.search-results mark {
+    background: transparent;
+    color: var(--accent);
+    font-weight: 600;
+}
+
+.search-note {
+    padding: 12px 14px;
+    font-size: 13px;
+    color: var(--muted);
+}
+
+.container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 20px;
+    display: flex;
+    gap: 30px;
+}
+
+nav {
+    background: var(--card);
+    padding: 20px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: 0 1px 4px var(--shadow);
+    position: sticky;
+    /* Below the sticky titlebar (~41px) with the page's own 20px breathing room */
+    top: 61px;
+    /* Sticky keeps the nav in view, so it must never grow past the viewport:
+       with several sections expanded the tail would otherwise be unreachable. */
+    max-height: calc(100vh - 81px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    min-width: 280px;
+    max-width: 320px;
+    flex-shrink: 0;
+}
+
+nav::-webkit-scrollbar {
+    width: 8px;
+}
+
+nav::-webkit-scrollbar-thumb {
+    background: var(--line);
+    border-radius: 4px;
+}
+
+nav::-webkit-scrollbar-thumb:hover {
+    background: var(--control-border);
+}
+
+/* Nav header with title and version */
+.nav-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 15px;
+    padding-bottom: 12px;
+    border-bottom: 2px solid var(--accent);
+}
+
+.nav-header h3 {
+    color: var(--heading);
+    font-size: 18px;
+    margin: 0;
+    border: none;
+    padding: 0;
+}
+
+.nav-version {
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 10px;
+}
+
+/* Where the site is published beside other versions the badge holds a choice of them:
+   the same badge, a caret at its end, the browser's own list when opened */
+.nav-version.choice {
+    position: relative;
+    padding: 0;
+}
+
+.nav-version select {
+    appearance: none;
+    -webkit-appearance: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    border: 0;
+    border-radius: 10px;
+    padding: 2px 20px 2px 8px;
+    cursor: pointer;
+}
+
+.nav-version option {
+    background: var(--card);
+    color: var(--ink);
+}
+
+.nav-version.choice::after {
+    content: "";
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    width: 4px;
+    height: 4px;
+    border-right: 1.5px solid currentColor;
+    border-bottom: 1.5px solid currentColor;
+    transform: translateY(-75%) rotate(45deg);
+    pointer-events: none;
+}
+
+/* Top-level nav list */
+.nav-top {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 10px 0;
+}
+
+nav ul {
+    list-style: none;
+    padding: 0;
+}
+
+nav li {
+    margin: 6px 0;
+}
+
+nav a {
+    color: var(--muted);
+    text-decoration: none;
+    display: block;
+    padding: 6px 10px;
+    border-radius: 6px;
+    transition: all 0.2s;
+    font-size: 13px;
+}
+
+nav a:hover {
+    background: var(--control);
+    color: var(--accent);
+}
+
+nav a.active {
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-weight: 600;
+}
+
+/* Collapsible section styles */
+.nav-section {
+    margin-bottom: 8px;
+    border: 1px solid var(--line-soft);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--card);
+}
+
+.nav-section-header {
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+    margin: 0;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.2s;
+    background: var(--control);
+    border-bottom: 1px solid var(--line-soft);
+}
+
+.nav-section-header:hover {
+    background: var(--line-soft);
+}
+
+.section-icon {
+    font-size: 12px;
+    margin-right: 8px;
+    color: var(--accent);
+    width: 16px;
+    text-align: center;
+}
+
+.section-title {
+    flex: 1;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--heading);
+}
+
+.collapse-icon {
+    font-size: 14px;
+    font-weight: bold;
+    color: var(--muted);
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--card);
+    border-radius: 4px;
+    box-shadow: 0 1px 2px var(--shadow);
+}
+
+.nav-section-content {
+    padding: 8px 0;
+    margin: 0;
+    background: var(--card);
+    transition: max-height 0.3s ease, padding 0.3s ease, opacity 0.2s ease;
+    max-height: 1000px;
+    opacity: 1;
+}
+
+.nav-section.collapsed .nav-section-content {
+    max-height: 0;
+    padding: 0;
+    opacity: 0;
+    overflow: hidden;
+}
+
+/* Nested nav items */
+.nav-nested {
+    padding-left: 20px;
+    margin: 0;
+    border-left: 2px solid var(--line-soft);
+    margin-left: 24px;
+}
+
+.nav-nested li {
+    margin: 3px 0;
+}
+
+.nav-nested a {
+    font-size: 12px;
+    padding: 4px 10px;
+    color: var(--muted);
+}
+
+main {
+    background: var(--card);
+    padding: 40px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    box-shadow: 0 1px 4px var(--shadow);
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    flex: 1;
+    min-width: 0;
+}
+
+h1 {
+    color: var(--heading);
+    font-size: 2.2em;
+    letter-spacing: -0.02em;
+    margin-bottom: 10px;
+    border-bottom: 3px solid var(--accent);
+    padding-bottom: 15px;
+}
+
+h2 {
+    color: var(--heading);
+    font-size: 1.7em;
+    margin-top: 40px;
+    margin-bottom: 15px;
+    border-bottom: 2px solid var(--line-soft);
+    padding-bottom: 10px;
+}
+
+h3 {
+    color: var(--heading);
+    font-size: 1.35em;
+    margin-top: 30px;
+    margin-bottom: 12px;
+}
+
+h4 {
+    color: var(--heading);
+    font-size: 1.15em;
+    margin-top: 25px;
+    margin-bottom: 10px;
+}
+
+/* A heading reached by its anchor stops below the sticky titlebar, not under it */
+h2, h3, h4, h5, h6 {
+    scroll-margin-top: 61px;
+}
+
+p {
+    margin: 15px 0;
+    line-height: 1.7;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+}
+
+code {
+    background: var(--code);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.9em;
+}
+
+/* Code blocks stay on the dark canvas in both schemes: the hljs palette below
+   is written for it, and it reads as the same surface the demo's terminal
+   snippets use. */
+pre {
+    background: #171225;
+    padding: 20px;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 20px 0;
+    border: 1px solid var(--line-soft);
+}
+
+pre code {
+    background: none;
+    padding: 0;
+    color: #d8d4e8;
+}
+
+/* Javadoc links inside highlighted code keep their token's color; the dotted line is
+   the only tell, so a linked example still reads as code. */
+pre a {
+    color: inherit;
+    text-decoration: none;
+    border-bottom: 1px dotted #a78bfa;
+}
+
+pre a:hover {
+    color: #c4b5fd;
+    text-decoration: none;
+    border-bottom-style: solid;
+}
+
+/* Syntax highlighting - violet-leaning tones on the shared dark block */
+.hljs-comment,
+.hljs-quote {
+    color: #7d7695;
+    font-style: italic;
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-type {
+    color: #c084fc;
+}
+
+.hljs-string,
+.hljs-attr {
+    color: #86efac;
+}
+
+.hljs-number,
+.hljs-literal,
+.hljs-variable,
+.hljs-template-variable {
+    color: #f0b04a;
+}
+
+.hljs-function,
+.hljs-title {
+    color: #93c5fd;
+}
+
+.hljs-class .hljs-title {
+    color: #fde68a;
+}
+
+.hljs-tag,
+.hljs-name,
+.hljs-attribute {
+    color: #fda4af;
+}
+
+.hljs-built_in,
+.hljs-builtin-name {
+    color: #fde68a;
+}
+
+.hljs-meta {
+    color: #93c5fd;
+}
+
+.hljs-deletion {
+    color: #fda4af;
+}
+
+.hljs-addition {
+    color: #86efac;
+}
+
+.hljs-emphasis {
+    font-style: italic;
+}
+
+.hljs-strong {
+    font-weight: bold;
+}
+
+a {
+    color: var(--accent);
+    text-decoration: none;
+}
+
+a:hover {
+    color: var(--accent-hover);
+    text-decoration: underline;
+}
+
+ul, ol {
+    margin: 15px 0;
+    padding-left: 30px;
+}
+
+li {
+    margin: 8px 0;
+}
+
+blockquote {
+    background: var(--control);
+    border-left: 5px solid var(--accent);
+    padding: 20px 25px;
+    margin: 25px 0;
+    color: var(--ink);
+    font-style: italic;
+    font-weight: 500;
+    border-radius: 0 8px 8px 0;
+    box-shadow: 0 2px 8px var(--shadow);
+}
+
+/* The page frame: the part a page belongs to above its title, the package it documents below */
+.page-head {
+    margin-bottom: 25px;
+}
+
+.page-head .crumb {
+    color: var(--accent);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+}
+
+.page-head .origin {
+    color: var(--muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+}
+
+/* A topic's pointer to its example: a highlighted card, upright, set apart from quotes */
+blockquote.example {
+    font-style: normal;
+    font-weight: 400;
+    background: var(--card);
+    border: 1px solid var(--control-border);
+    border-left: 5px solid var(--accent);
+}
+
+blockquote.example p {
+    margin: 0;
+}
+
+/* The reading order, previous and next, at the foot of every page */
+.pager {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    margin-top: 50px;
+    padding-top: 20px;
+    border-top: 2px solid var(--line-soft);
+}
+
+.pager a {
+    display: flex;
+    flex-direction: column;
+    max-width: 48%;
+    padding: 12px 16px;
+    border: 1px solid var(--line-soft);
+    border-radius: 8px;
+}
+
+.pager a:hover {
+    border-color: var(--accent);
+    text-decoration: none;
+}
+
+.pager a.next {
+    margin-left: auto;
+    text-align: right;
+}
+
+.pager .dir {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.pager .to {
+    font-weight: 600;
+}
+
+/* Whose work the page is and under what license, below everything else */
+.page-foot {
+    margin-top: 40px;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+    font-size: 0.95em;
+}
+
+th, td {
+    padding: 10px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--line-soft);
+    vertical-align: top;
+}
+
+th {
+    color: var(--muted);
+    font-weight: 600;
+}
+
+tr:hover {
+    background: var(--control);
+}
+
+hr {
+    border: none;
+    border-top: 2px solid var(--line-soft);
+    margin: 40px 0;
+}
+
+.back-to-top {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    padding: 12px 18px;
+    border-radius: 50%;
+    text-decoration: none;
+    box-shadow: 0 4px 8px var(--shadow);
+    display: none;
+}
+
+.back-to-top:hover {
+    background: var(--accent-hover);
+    transform: translateY(-2px);
+}
+
+@media (max-width: 768px) {
+    .container {
+        flex-direction: column;
+    }
+    nav {
+        position: static;
+        min-width: 100%;
+        /* Not sticky here, so it scrolls with the page and needs no cap. */
+        max-height: none;
+        overflow-y: visible;
+    }
+    main {
+        padding: 20px;
+    }
+    /* The titlebar wraps: the search box takes a row of its own under the identity */
+    .titlebar {
+        flex-wrap: wrap;
+    }
+    .search {
+        order: 1;
+        flex-basis: 100%;
+    }
+    .search input {
+        width: 100%;
+    }
+    .search + .theme-switch {
+        margin-left: auto;
+    }
+}
+
+@media print {
+    .titlebar, nav, .back-to-top, .pager { display: none !important; }
+    body { background: white; font-size: 12pt; }
+    main { padding: 0 !important; box-shadow: none !important; border: none !important; border-radius: 0 !important; }
+    .container { max-width: 100%; box-shadow: none !important; border: none !important; }
+    pre { background: white !important; border: 1px solid #ccc !important; box-shadow: none !important; }
+    pre code { color: #333 !important; }
+    code { background: white !important; color: #333; border: none !important; }
+    blockquote { background: white !important; border-left: 2px solid #999; box-shadow: none !important; }
+    th { background: white; }
+    tr:hover { background: white; }
+    th, td { border-color: #ccc; }
+    h1 { font-size: 18pt !important; border-bottom: none !important; }
+    h2 { font-size: 15pt !important; border-bottom: none !important; }
+    h3 { font-size: 13pt !important; }
+    h4 { font-size: 12pt !important; }
+    .hljs-keyword, .hljs-selector-tag, .hljs-type { color: #333; font-weight: bold; }
+    .hljs-string, .hljs-attr { color: #555; }
+    .hljs-comment, .hljs-quote { color: #888; }
+    .hljs-number, .hljs-literal, .hljs-variable { color: #444; }
+    .hljs-function, .hljs-title { color: #333; }
+    .hljs-tag, .hljs-name, .hljs-attribute { color: #444; }
+    .hljs-built_in, .hljs-builtin-name { color: #333; }
+}

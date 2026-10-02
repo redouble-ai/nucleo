@@ -1,0 +1,8 @@
+ai.redouble.nucleo.providers.openai.OpenAIProvider
+ai.redouble.nucleo.providers.openai.OpenAIChatCompletionsProvider
+ai.redouble.nucleo.providers.openai.OpenAICompatibleProvider
+ai.redouble.nucleo.providers.openai.OpenAICompatibleResponsesProvider
+ai.redouble.nucleo.providers.openai.OpenAIEmbeddingsProvider
+ai.redouble.nucleo.providers.openai.OpenAICompatibleEmbeddingsProvider
+ai.redouble.nucleo.providers.openai.AzureOpenAIEmbeddingsProvider
+ai.redouble.nucleo.providers.openai.AzureFoundryOpenAIProvider

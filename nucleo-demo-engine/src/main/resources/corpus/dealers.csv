@@ -1,0 +1,9 @@
+dealer_id,name,city,country,since,demo_bikes,mechanic_trained
+D-101,Nordlicht Radsport,Kiel,DE,2019,2,yes
+D-102,Velo Kontor,Hamburg,DE,2020,2,yes
+D-103,Cykelhuset Aalto,Turku,FI,2021,1,yes
+D-104,Pedalen,Copenhagen,DK,2021,2,no
+D-105,Rad & Tat,Bremen,DE,2022,1,yes
+D-106,Bikes on Bergen,Bergen,NO,2023,2,no
+D-107,Fietsplein Zuid,Rotterdam,NL,2024,2,yes
+D-108,Ostsee Bikes,Rostock,DE,2025,1,no

@@ -1,0 +1,3 @@
+ai.redouble.nucleo.harness.llm.FakeLLMProvider
+ai.redouble.nucleo.harness.llm.FakeEmbeddingsProvider
+ai.redouble.nucleo.harness.llm.FakeDecisionProvider

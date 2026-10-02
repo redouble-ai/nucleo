@@ -1,0 +1,4 @@
+# The corpus is content, not build output: two of its files wear extensions the root
+# ignore file treats as junk, on purpose, and they ship.
+!src/main/resources/corpus/old-prices.bak
+!src/main/resources/corpus/workshop.log

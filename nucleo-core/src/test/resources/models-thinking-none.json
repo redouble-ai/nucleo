@@ -1,0 +1,9 @@
+{
+  "provider_defaults": {
+    "openai": { "cache_read_multiplier": 0.5, "cache_write_multiplier": 1.0 }
+  },
+  "models": [
+    { "id": "contradiction", "identity": "contradiction", "grade": "MEDIUM", "provider_key": "openai", "wire_model_id": "contradiction", "max_context_tokens": 200000, "max_output_tokens": 64000, "supports_vision": false, "thinking_mode": "NONE", "tpm": 5000, "rpm": 100,
+      "thinking_budgets": { "QUICK": 2048, "STANDARD": 4096, "THOROUGH": 12000, "ULTRA_THOROUGH": 24000 } }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "provider_defaults": {
+    "anthropic-direct": { "spec_type": "anthropic", "cache_read_multiplier": 0.10, "cache_write_multiplier": 1.25, "cache_breakpoints": 4, "currency": "USD" }
+  },
+  "models": [
+    { "id": "claude-opus-5-direct",  "identity": "opus-5", "grade": "XL", "provider_key": "anthropic-direct",  "wire_model_id": "claude-opus-5", "max_context_tokens": 1000000, "max_output_tokens": 128000, "supports_vision": true, "supports_documents": true, "thinking_mode": "ADAPTIVE", "tpm": 2000000, "rpm": 1000, "input_price_per_million": 5.0, "output_price_per_million": 25.0 },
+    { "id": "claude-sonnet-5-direct",  "identity": "sonnet-5", "grade": "MEDIUM", "provider_key": "anthropic-direct",  "wire_model_id": "claude-sonnet-5", "max_context_tokens": 1000000, "max_output_tokens": 128000, "supports_vision": true, "supports_documents": true, "thinking_mode": "ADAPTIVE", "tpm": 2000000, "rpm": 1000, "input_price_per_million": 2.0, "output_price_per_million": 10.0 },
+    { "id": "claude-haiku-4-5-direct",  "identity": "haiku-4.5", "grade": "SMALL", "provider_key": "anthropic-direct",  "wire_model_id": "claude-haiku-4-5-20251001", "max_context_tokens": 200000, "max_output_tokens": 64000, "supports_vision": true, "supports_documents": true, "thinking_mode": "EXTENDED", "tpm": 2000000, "rpm": 1000, "input_price_per_million": 1.0, "output_price_per_million": 5.0 }
+  ]
+}

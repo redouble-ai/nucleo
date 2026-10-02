@@ -1,0 +1,17 @@
+{
+  "warehouse": "Kiel",
+  "counted": "2026-03-01",
+  "items": [
+    { "sku": "HBW-M3-S", "model": "Meridian 3", "size": "S", "frames": 12, "complete": 4 },
+    { "sku": "HBW-M3-M", "model": "Meridian 3", "size": "M", "frames": 31, "complete": 9 },
+    { "sku": "HBW-M3-L", "model": "Meridian 3", "size": "L", "frames": 27, "complete": 7 },
+    { "sku": "HBW-M3-XL", "model": "Meridian 3", "size": "XL", "frames": 8, "complete": 2 },
+    { "sku": "HBW-K1-M", "model": "Kestrel 1", "size": "M", "frames": 19, "complete": 11 },
+    { "sku": "HBW-K1-L", "model": "Kestrel 1", "size": "L", "frames": 14, "complete": 6 },
+    { "sku": "HBW-C2-U", "model": "Comet 2", "size": "one size", "frames": 55, "complete": 40 }
+  ],
+  "parts_short": [
+    { "part": "lower headset bearing, new seal", "on_hand": 140, "reserved_for_claims": 31 },
+    { "part": "12-speed clutch derailleur", "on_hand": 22, "on_order": 60, "eta": "2026-03-20" }
+  ]
+}
