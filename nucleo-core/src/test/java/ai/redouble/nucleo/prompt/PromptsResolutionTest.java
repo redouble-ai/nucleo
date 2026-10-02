@@ -28,6 +28,12 @@ public class PromptsResolutionTest {
         Prompts.resetAll();
     }
 
+    /** The registries are process-wide and the fork runs other classes after this one: nothing registered here outlives the test. */
+    @AfterEach
+    void restore() {
+        Prompts.resetAll();
+    }
+
     @Test
     void defaultLayerResolves() throws Exception {
         Prompts.of("k1", "default-text");

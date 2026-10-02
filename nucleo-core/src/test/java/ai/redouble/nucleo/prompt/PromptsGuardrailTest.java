@@ -62,6 +62,16 @@ public class PromptsGuardrailTest {
         Prompts.resetAll();
     }
 
+    /**
+     * The registries are process-wide and the fork runs other classes after this one: a
+     * baseline cap left behind by the last test here would refuse every later prompt of
+     * that fork, the skill bundles' bodies first.
+     */
+    @AfterEach
+    void restore() {
+        Prompts.resetAll();
+    }
+
     @Test
     void sizeCapPasses() throws Exception {
         Prompts.addBaselineGuardrail(() -> new SizeCapGuardrail(TEST_ROOT, 100));

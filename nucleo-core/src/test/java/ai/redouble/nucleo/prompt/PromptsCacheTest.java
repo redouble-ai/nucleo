@@ -33,6 +33,12 @@ public class PromptsCacheTest {
         Prompts.resetAll();
     }
 
+    /** The registries are process-wide and the fork runs other classes after this one: nothing registered here outlives the test. */
+    @AfterEach
+    void restore() {
+        Prompts.resetAll();
+    }
+
     @Test
     void staticSourceProducedOnce() throws Exception {
         AtomicInteger calls = new AtomicInteger();
