@@ -55,7 +55,7 @@
         <anthropic.version>2.62.0</anthropic.version>
         <openai.version>4.54.0</openai.version>
         <!-- The Anthropic Bedrock backend requires the AWS SDK BOM at 2.46.8 or later -->
-        <awssdk.version>2.54.16</awssdk.version>
+        <awssdk.version>2.55.7</awssdk.version>
         <!-- Tokenizer for pre-emptive token accounting -->
         <jtokkit.version>1.1.0</jtokkit.version>
         <!-- MCP client and server -->
