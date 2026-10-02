@@ -678,8 +678,10 @@ class MemoryGateDrainTest {
         });
         admission.start();
         Line line = queuedUnderLatch(2);
+        // a job is parked by the thread that submitted it and marked held by the evaluator's
+        // pass over the queue, so the mark trails the parking: awaited, as each arrival's is below
+        assertTrue(await(() -> memoryHolds.get() == 2, 2_000), "both parked jobs are marked held on memory by the evaluator's pass");
         int heldUnderLatch = memoryHolds.get();
-        assertEquals(2, heldUnderLatch);
         heap(1);
         tick(0);
         awaitGranted(line, 1);
