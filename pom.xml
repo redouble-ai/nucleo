@@ -199,6 +199,11 @@
                     <version>0.11.0</version>
                 </plugin>
                 <plugin>
+                    <groupId>org.cyclonedx</groupId>
+                    <artifactId>cyclonedx-maven-plugin</artifactId>
+                    <version>2.9.1</version>
+                </plugin>
+                <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-site-plugin</artifactId>
                     <version>3.21.0</version>
@@ -292,9 +297,13 @@
                             <doclint>none</doclint>
                             <failOnError>false</failOnError>
                             <!-- The add-script javadoc option passed raw: this plugin version
-                                 has addStylesheets but no addScripts parameter -->
+                                 has addStylesheets but no addScripts parameter. No fonts: the
+                                 Redouble theme sets every font family to system fonts, so the
+                                 4 MB of DejaVu web fonts the JDK copies in by default are never
+                                 loaded -->
                             <additionalOptions>
                                 <additionalOption>-Xdoclint:none</additionalOption>
+                                <additionalOption>--no-fonts</additionalOption>
                                 <additionalOption>--add-script</additionalOption>
                                 <additionalOption>"${project.basedir}/src/main/javadoc/javadoc-theme.js"</additionalOption>
                             </additionalOptions>
@@ -346,6 +355,13 @@
                                     <quiet>true</quiet>
                                     <doclint>none</doclint>
                                     <failOnError>false</failOnError>
+                                    <!-- Without the JDK's 4 MB of DejaVu web fonts, which it
+                                         copies into every javadoc jar however small the module:
+                                         pages fall back to system fonts, and each release stays
+                                         well inside Central's monthly size allowance -->
+                                    <additionalOptions>
+                                        <additionalOption>--no-fonts</additionalOption>
+                                    </additionalOptions>
                                     <detectOfflineLinks>false</detectOfflineLinks>
                                     <source>25</source>
                                     <tags>
@@ -355,6 +371,28 @@
                                             <head>TODO:</head>
                                         </tag>
                                     </tags>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <!-- A software bill of materials per artifact, CycloneDX JSON, attached
+                         with the classifier `cyclonedx` so it is signed and published with
+                         the artifact it describes. The plugin's own deploy check is turned
+                         off because the Central publishing plugin replaces the deploy
+                         plugin, which the check reads as "never deployed". -->
+                    <plugin>
+                        <groupId>org.cyclonedx</groupId>
+                        <artifactId>cyclonedx-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>sbom</id>
+                                <phase>package</phase>
+                                <goals>
+                                    <goal>makeBom</goal>
+                                </goals>
+                                <configuration>
+                                    <outputFormat>json</outputFormat>
+                                    <skipNotDeployed>false</skipNotDeployed>
                                 </configuration>
                             </execution>
                         </executions>
