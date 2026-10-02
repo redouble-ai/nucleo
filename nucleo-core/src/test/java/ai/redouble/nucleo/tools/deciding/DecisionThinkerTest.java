@@ -239,7 +239,10 @@ class DecisionThinkerTest {
     void theRunSplitsJudgesAndFinishesWithTheSelectedVerdicts() throws Exception {
         FakeDecisionClient.policy = DecisionThinkerTest::splitThenJudge;
         Identifiable workflow = Job.workflow("test-user", "decision-thinker");
+        // the bus delivers to each subscriber on its own queue, after the job's own completion:
+        // what a subscriber is owed is the event, not its arrival before get() returns
         Map<String, Object> recorded = new ConcurrentHashMap<>();
+        CountDownLatch completed = new CountDownLatch(1);
         MessageBus.Subscription subscription = JobDispatcher.getInstance().subscribe(new JobObserver<JobCompletedEvent>() {
             @Override
             public java.util.function.Predicate<JobCompletedEvent> getPredicate() {
@@ -250,10 +253,12 @@ class DecisionThinkerTest {
             @Override
             public void observe(JobCompletedEvent event) {
                 recorded.putAll(event.snapshot().getMetadata());
+                completed.countDown();
             }
         }, JobCompletedEvent.class);
         // the record is published after every turn: the progress the second turn reports already carries the first
         Map<String, Object> midRun = new ConcurrentHashMap<>();
+        CountDownLatch secondTurn = new CountDownLatch(1);
         MessageBus.Subscription progress = JobDispatcher.getInstance().subscribe(new JobObserver<JobEvent>() {
             @Override
             public java.util.function.Predicate<JobEvent> getPredicate() {
@@ -264,6 +269,7 @@ class DecisionThinkerTest {
             @Override
             public void observe(JobEvent event) {
                 midRun.putAll(event.snapshot().getMetadata());
+                secondTurn.countDown();
             }
         }, JobEvent.class);
         try {
@@ -301,8 +307,10 @@ class DecisionThinkerTest {
             assertNotNull(turns.get(1).argument());
             assertEquals(turns.get(1).artifact(), turns.get(1).argument().choice());
             assertNotNull(turns.get(1).result());
+            assertTrue(completed.await(10, TimeUnit.SECONDS), "the completion event reaches its subscriber");
             String record = String.valueOf(recorded.get(DecisionThinker.OBS_TURNS));
             assertTrue(record.contains("split_note") && record.contains("\"finish\""), record);
+            assertTrue(secondTurn.await(10, TimeUnit.SECONDS), "the second turn's progress event reaches its subscriber");
             String partial = String.valueOf(midRun.get(DecisionThinker.OBS_TURNS));
             assertTrue(partial.contains("\"turn\":1") && !partial.contains("\"finish\""), "the first turn on the record before the run ends: " + partial);
             // the first state says nothing has been done yet
@@ -409,7 +417,9 @@ class DecisionThinkerTest {
             return answers;
         };
         Identifiable workflow = Job.workflow("test-user", "decision-thinker-empty");
+        // the bus delivers to each subscriber on its own queue, after the job's own completion
         Map<String, Object> recorded = new ConcurrentHashMap<>();
+        CountDownLatch completed = new CountDownLatch(1);
         MessageBus.Subscription subscription = JobDispatcher.getInstance().subscribe(new JobObserver<JobCompletedEvent>() {
             @Override
             public java.util.function.Predicate<JobCompletedEvent> getPredicate() {
@@ -420,6 +430,7 @@ class DecisionThinkerTest {
             @Override
             public void observe(JobCompletedEvent event) {
                 recorded.putAll(event.snapshot().getMetadata());
+                completed.countDown();
             }
         }, JobCompletedEvent.class);
         try {
@@ -429,6 +440,7 @@ class DecisionThinkerTest {
             assertTrue(answer.getIterands().isEmpty());
             assertEquals(List.of("picky_judge", DecisionTurn.FINISH), triage.turns().stream().map(DecisionTurn::tool).toList());
             assertEquals(1, FakeDecisionClient.seen.size(), "no decision is asked when there is nothing to decide");
+            assertTrue(completed.await(10, TimeUnit.SECONDS), "the completion event reaches its subscriber");
             String record = String.valueOf(recorded.get(DecisionThinker.OBS_TURNS));
             assertTrue(record.contains("\"finish\""), "the record is published on this path too, its terminal turn included: " + record);
         }
