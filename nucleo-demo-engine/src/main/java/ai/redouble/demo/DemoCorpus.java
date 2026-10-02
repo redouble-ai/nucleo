@@ -14,13 +14,14 @@ import java.nio.file.*;
 import java.util.*;
 
 /**
- * Locates the shipped demo corpus for the page's "read a directory" form, wherever and on
- * whatever OS the process runs. A checkout serves it straight from the source tree; anywhere
- * else the corpus rides the classpath ({@code src/main/resources/corpus} in the build) and is
- * extracted once per process into a temporary directory, because the extractor reads files on
- * a disk, not resources. Either way the form opens with a real absolute path in this
- * machine's own spelling - the server resolves it, so separators and roots are never the
- * page's guess.
+ * Locates the shipped demo corpus, the folder the extract and decide runs read and the page
+ * shows, wherever and on whatever OS the process runs. A checkout serves it straight from the
+ * source tree; anywhere else the corpus rides the classpath ({@code src/main/resources/corpus}
+ * in the build) and is extracted once per process into a temporary directory, because the
+ * extractor reads files on a disk, not resources. Either way the page shows a real absolute
+ * path in this machine's own spelling - the server resolves it, so separators and roots are
+ * never the page's guess. No request names a folder: a different one is read by changing
+ * {@link #locate()} here, in the engine both hosts share.
  *
  * <p>The extraction copies the files a manifest names ({@code corpus.manifest}, one relative path
  * per line) rather than walking the {@code corpus} classpath directory, because a native image
@@ -54,13 +55,26 @@ public class DemoCorpus {
      * {@code src/main/resources/corpus}, else the classpath copy extracted into a fresh
      * temporary directory. Null when the classpath carries no corpus, or when the extraction
      * failed - this feeds a status surface, so the failure is logged in full and the page
-     * simply opens without a prefilled directory.
+     * says there is no folder.
      */
     public synchronized String path() {
         if (path == null) {
             path = locate();
         }
         return path;
+    }
+
+    /**
+     * The corpus as the directory a run reads. A classpath that carries no corpus, or whose
+     * extraction failed, has nothing to read, and a run on it is a deployment's defect rather
+     * than a caller's: it throws instead of refusing.
+     */
+    public Path directory() {
+        String located = path();
+        if (located == null) {
+            throw new IllegalStateException("The shipped corpus is not on this classpath, so there is no folder to read");
+        }
+        return Path.of(located);
     }
 
     private String locate() {

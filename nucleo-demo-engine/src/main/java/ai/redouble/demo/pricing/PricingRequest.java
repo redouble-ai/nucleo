@@ -10,23 +10,17 @@ import ai.redouble.demo.extract.*;
 import java.util.*;
 
 /**
- * A run of the pricing demo over the last extraction: where to write the result and the
- * spend the run may commit, one cap per currency, the same way the extractor is capped,
- * and the day the run answers for. No output path means the report is returned and
- * nothing is written; no {@code asOf} means today, and a price dated after that day is
+ * A run of the pricing demo over the last extraction: the spend the run may commit, one cap
+ * per currency, the same way the extractor is capped, and the day the run answers for. The
+ * report is the response; no {@code asOf} means today, and a price dated after that day is
  * scheduled, not current.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-09-15)
  */
 public class PricingRequest {
-    private String output;
     private String asOf;
     private List<ExtractRequest.Budget> budgets;
-
-    public String getOutput() {return output;}
-
-    public void setOutput(String output) {this.output = output;}
 
     public String getAsOf() {return asOf;}
 

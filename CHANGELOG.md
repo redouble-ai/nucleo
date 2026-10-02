@@ -9,6 +9,9 @@ group `ai.redouble`; a published version is never changed in place.
   `<artifact>-<version>-cyclonedx.json` and signed with it.
 - `NOTICE` carries the copyright and licence only. The statement on Redouble AI's patents
   is in the README's License section, where it can be explained.
+- The demo's extract, pricing and decision runs read the corpus the demo ships, located by
+  the engine; no request names a folder to read or a file to write, and the pricing report
+  is the response alone. The page shows the folder in place of an input.
 
 ## 0.1 (2026-10-01)
 

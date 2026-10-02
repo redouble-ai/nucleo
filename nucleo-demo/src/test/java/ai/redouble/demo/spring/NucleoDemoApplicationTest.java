@@ -66,7 +66,7 @@ class NucleoDemoApplicationTest {
     }
 
     @Test
-    void theDecisionAgentReportsItsPaletteAndRefusesARunWithoutAFolder() throws Exception {
+    void theDecisionAgentReportsItsPalette() throws Exception {
         mvc.perform(get("/decide"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.objective").value(PriceChangeFinder.OBJECTIVE))
@@ -74,9 +74,6 @@ class NucleoDemoApplicationTest {
                 .andExpect(jsonPath("$.answers").value("statement"))
                 .andExpect(jsonPath("$.tools[0].name").value("list_folder"))
                 .andExpect(jsonPath("$.tools[2].name").value("split_statements"));
-        mvc.perform(post("/decide").contentType(MediaType.APPLICATION_JSON).content("{\"directory\":\" \"}"))
-                .andExpect(status().isBadRequest())
-                .andExpect(status().reason(containsString("folder")));
     }
 
     @Test

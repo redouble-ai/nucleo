@@ -289,11 +289,10 @@ input; `nucleo-core/src/main/java/ai/redouble/nucleo/tools/PACKAGE.md` has the c
 With a decision model connected (either decision-model row of step 1), the demo runs an agent on it:
 
 ```
-CORPUS=$(curl -s localhost:8080/status | jq -r .corpus)
-curl -sN localhost:8080/decide -H 'content-type: application/json' -d "{\"directory\":\"$CORPUS\"}"
+curl -sN -X POST localhost:8080/decide
 ```
 
-streams a run of the runtime's decision thinker over the corpus, one JSON line per event: the
+streams a run of the runtime's decision thinker over the shipped corpus, one JSON line per event: the
 objective is to find the statements that decide a change of a price, the palette is three
 tools that call no model (list the folder, read a file, split a document into statements),
 and every turn the model ranks the legal moves code computed from the artifact types: which
@@ -312,13 +311,14 @@ The demo's workload is the extractor: every file under a directory goes through 
 tier that can read it, in parallel, under a budget. Code reads text, PDF text layers and
 Office files itself; a scanned page or an image goes to a SMALL model that can see; a file
 whose bytes decide nothing goes to a SMALL classifier; every text is embedded into an
-in-memory index. The demo ships a corpus for it and `GET /status` reports the corpus's
-absolute path on this machine as `corpus` (the page prefills its form from the same field):
+in-memory index. The directory is the corpus the demo ships, located by `DemoCorpus` in
+nucleo-demo-engine wherever the process runs; `GET /status` reports its absolute path on
+this machine as `corpus`, the page shows it, and no request names a folder. To read another
+folder, change `DemoCorpus`:
 
 ```
-CORPUS=$(curl -s localhost:8080/status | jq -r .corpus)
 curl -s localhost:8080/extract -H 'content-type: application/json' \
-  -d '{"directory":"'"$CORPUS"'","budgets":[{"amount":1.0,"currency":"USD"}]}'
+  -d '{"budgets":[{"amount":1.0,"currency":"USD"}]}'
 ```
 
 The report has one row per file (`tier`, `chars`, the model and what its calls cost, a
@@ -353,10 +353,10 @@ answering for today sees the same prices as long as nothing in the corpus is dat
 
 ```
 curl -s localhost:8080/pricing -H 'content-type: application/json' \
-  -d '{"asOf":"2026-06-01","output":"pricing.json","budgets":[{"amount":5.0,"currency":"USD"}]}'
+  -d '{"asOf":"2026-06-01","budgets":[{"amount":5.0,"currency":"USD"}]}'
 ```
 
-writes the result to `nucleo-demo/pricing.json` and returns it: `products`, each with its `series`
+returns the result: `products`, each with its `series`
 (one per audience and currency, with `current` and every `point` labelled `CURRENT`,
 `SCHEDULED`, `CONFIRMED`, `SUPERSEDED`, `CONFLICT`, `FORMER`, `PROPOSED` or `UNDATED`, each with its
 source and the words it came from, a change with the percentage and what it was applied to,

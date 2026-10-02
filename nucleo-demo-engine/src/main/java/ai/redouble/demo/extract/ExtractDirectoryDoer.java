@@ -45,13 +45,24 @@ public class ExtractDirectoryDoer extends AbstractDoer<ExtractRequest, ExtractRe
     static final int HEAD_BYTES = 2048;
     private final CostLedger ledger;
     private final FileIndex index;
+    /** The directory the run reads: the host's choice, never the request's. */
+    private final Path directory;
     /** The reader for text/Office/PDF, chosen by which implementation is on the classpath (POI when present, else toolkit-free). */
     private final ExtractionTools tools = ExtractionTools.resolve();
 
-    public ExtractDirectoryDoer(Identifiable parent, CostLedger ledger, FileIndex index) {
+    /**
+     * @param directory the directory to read, an existing, readable one; the host names it,
+     *                  which is why a bad one is a programming error here rather than an
+     *                  input the caller can correct
+     */
+    public ExtractDirectoryDoer(Identifiable parent, CostLedger ledger, FileIndex index, Path directory) {
         super(parent);
+        if (!Files.isDirectory(directory) || !Files.isReadable(directory)) {
+            throw new IllegalArgumentException(directory + " is not an existing, readable directory");
+        }
         this.ledger = ledger;
         this.index = index;
+        this.directory = directory;
     }
 
     /** A child job to build once its round comes; building reads the file, so it waits for the round. */
@@ -65,10 +76,6 @@ public class ExtractDirectoryDoer extends AbstractDoer<ExtractRequest, ExtractRe
     @Override
     public ExtractReport execute(JobContext<ExtractReport> context) throws LLMReadableCheckedException {
         Instant started = Instant.now();
-        Path directory = Path.of(input.getDirectory());
-        if (!Files.isDirectory(directory) || !Files.isReadable(directory)) {
-            throw new InvalidInputException("directory", input.getDirectory(), "an existing, readable directory");
-        }
         if (input.getBudgets() != null) {
             for (ExtractRequest.Budget budget : input.getBudgets()) {
                 ledger.cap(context.getWorkflowId(), new Cost(budget.getAmount(), budget.getCurrency()));

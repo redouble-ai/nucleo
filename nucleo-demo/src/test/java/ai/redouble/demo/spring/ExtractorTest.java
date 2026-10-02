@@ -39,9 +39,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 class ExtractorTest {
-    /** The shipped corpus wherever this checkout carries it - resolved the way the page prefills it. */
-    @Autowired
-    private DemoCorpus corpus;
     @Autowired
     private MockMvc mvc;
     @Autowired
@@ -53,8 +50,8 @@ class ExtractorTest {
     void codeReadsEverythingItCanAndTheRestSaysWhyItWaits() throws Exception {
         index.clear();
         mvc.perform(post("/extract").contentType(MediaType.APPLICATION_JSON)
-                        // serialized, never concatenated: a Windows path's backslashes are invalid JSON escapes
-                        .content(NucleoJsonSerializer.write(Map.of("directory", corpus.path()))))
+                        // no folder in the request: the host reads the shipped corpus
+                        .content("{}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.filesSeen").value(30))
                 // read by code, with text
@@ -96,7 +93,6 @@ class ExtractorTest {
         try {
             mvc.perform(post("/extract").contentType(MediaType.APPLICATION_JSON)
                             .content(NucleoJsonSerializer.write(Map.of(
-                                    "directory", corpus.path(),
                                     "budgets", List.of(Map.of("amount", 0.000001, "currency", "USD"))))))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.caps.USD").value(0.000001))
@@ -173,9 +169,7 @@ class ExtractorTest {
         embedding.setModelId("test-embeddings");
         embedding.setVector(new float[]{1f, 0f});
         index.put("price-list.xlsx", "SKU | Model | Retail price (EUR)\nHBW-K1-M | Kestrel 1 gravel | 2049", embedding);
-        Path output = Files.createTempFile("pricing", ".json");
-        mvc.perform(post("/pricing").contentType(MediaType.APPLICATION_JSON)
-                        .content(NucleoJsonSerializer.write(Map.of("output", output.toString()))))
+        mvc.perform(post("/pricing").contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.documentsRead").value(0))
                 .andExpect(jsonPath("$.mentionsFound").value(0))
@@ -183,10 +177,7 @@ class ExtractorTest {
                 .andExpect(jsonPath("$.documents[0].path").value("price-list.xlsx"))
                 .andExpect(jsonPath("$.documents[0].status").value("FAILED"))
                 .andExpect(jsonPath("$.documents[0].note").value(containsString("AWS_REGION")))
-                .andExpect(jsonPath("$.outputFile").value(output.toString()))
                 .andExpect(jsonPath("$.spend.llmCalls").value(0));
-        Assertions.assertTrue(Files.readString(output).contains("\"documentsRead\""), "the report was written where asked");
-        Files.delete(output);
     }
 
     @Test

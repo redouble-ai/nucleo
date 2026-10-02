@@ -53,13 +53,16 @@ public class DemoResource {
     private final CatalogAdmin admin;
     /** The container's own Jackson mapper, so a streamed run's fields are named as the page reads them (camelCase), as the Spring host's are. */
     private final ObjectMapper json;
+    /** The folder the extract and decide runs read: the shipped corpus, never a path a request names. */
+    private final DemoCorpus corpus;
 
     @Inject
-    public DemoResource(NucleoRuntime runtime, FileIndex index, CatalogAdmin admin, ObjectMapper json) {
+    public DemoResource(NucleoRuntime runtime, FileIndex index, CatalogAdmin admin, ObjectMapper json, DemoCorpus corpus) {
         this.runtime = runtime;
         this.index = index;
         this.admin = admin;
         this.json = json;
+        this.corpus = corpus;
     }
 
     @GET
@@ -319,7 +322,7 @@ public class DemoResource {
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public ExtractReport extract(ExtractRequest input) {
-        ExtractDirectoryDoer doer = new ExtractDirectoryDoer(Job.workflow("anonymous", "extract"), runtime.ledger(), index);
+        ExtractDirectoryDoer doer = new ExtractDirectoryDoer(Job.workflow("anonymous", "extract"), runtime.ledger(), index, corpus.directory());
         doer.setInput(input);
         return await(runtime.dispatcher().submit(doer));
     }
@@ -390,15 +393,11 @@ public class DemoResource {
      */
     @POST
     @Path("decide")
-    @Consumes(MediaType.APPLICATION_JSON)
     @Produces("application/x-ndjson")
-    public Response decide(DecideRequest input) {
-        if (input.directory() == null || input.directory().isBlank()) {
-            throw refusal(Response.Status.BAD_REQUEST, "A folder to work on: an absolute path on this machine (the shipped corpus's is on the status)");
-        }
+    public Response decideRun() {
         Identifiable workflow = Job.workflow("anonymous", "decide");
         PriceChangeFinder finder = new PriceChangeFinder(workflow);
-        finder.setInput(new Folder(input.directory()));
+        finder.setInput(new Folder(corpus.directory().toString()));
         BlockingQueue<String> lines = new LinkedBlockingQueue<>();
         DecisionTrace trace = new DecisionTrace(workflow.getWorkflowId(), finder.getId(), lines::add, () -> lines.add(END));
         MessageBus.Subscription subscription = runtime.dispatcher().subscribe(trace, JobEvent.class);

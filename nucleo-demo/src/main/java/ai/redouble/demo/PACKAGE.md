@@ -92,8 +92,10 @@ Set the budget to one cent to watch it happen.
 
 The demo ships a folder to read: the shared drive of Halcyon Bicycle Works, an invented
 company, some thirty files in every format a small company accumulates, from price lists and
-meeting minutes to a scanned letter and a photographed whiteboard. The page fills in its path
-wherever the demo runs.
+meeting minutes to a scanned letter and a photographed whiteboard. The page shows its path
+wherever the demo runs, and that folder is the one the run reads: no request names a folder,
+so nothing reachable over HTTP chooses what the process opens. To read a different folder,
+change `DemoCorpus` in nucleo-demo-engine.
 
 ### 5. Search what was read
 

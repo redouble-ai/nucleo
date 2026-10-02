@@ -161,8 +161,9 @@ role the process runs under: whatever the AWS default chains resolve).
   this machine (`DemoCorpus`: a `corpus` directory under the working directory, else the
   checkout's `src/main/resources/corpus`, else the classpath copy extracted once per process
   into a temporary directory, file by file as `corpus.manifest` lists them, so a native
-  image, which cannot list a classpath directory, carries the same corpus - the page's
-  "read a directory" form opens prefilled wherever and on whatever OS the process runs), and `corpusAsOf`, the day the corpus's price story is
+  image, which cannot list a classpath directory, carries the same corpus - the page shows
+  the path on its steps 4 and 8, and the extract and decide runs read that folder; no
+  request names one), and `corpusAsOf`, the day the corpus's price story is
   answered for (`DemoCorpus.AS_OF`, 1 June 2026, when the last price the documents decide
   takes effect), which the page prefills both pricing steps' as-of inputs with.
 - `POST /connect` - credentials pasted into the page, held for this process only: the body is
@@ -273,9 +274,8 @@ role the process runs under: whatever the AWS default chains resolve).
   tick so nothing flickers.
 - `GET /decide` - the decision agent's objective and palette (`DecideCapabilities`): each tool's
   name, what it does, the artifact type it takes and the one it produces.
-- `POST /decide` - the decision agent run, `ai.redouble.demo.decide`: the body is a
-  `DecideRequest` (`directory`, an absolute path; the shipped corpus's is on the status). The
-  response is the run as it happens, newline-delimited JSON through the engine's
+- `POST /decide` - the decision agent run, `ai.redouble.demo.decide`, over the shipped
+  corpus (`DemoCorpus`); the request has no body. The response is the run as it happens, newline-delimited JSON through the engine's
   `DecisionTrace`, scoped and filtered the way the agent's stream is: one `job` line per
   event, its job carrying `decision` (true on a decision call) beside the fields the agent's
   lines carry, and a `kind` as there; a decision call's completed line carries `decision`,
@@ -296,9 +296,10 @@ role the process runs under: whatever the AWS default chains resolve).
   body and response as `POST /pricing`, the same doer, reading tier, reconciliation and
   report; only the grouping tier differs (see the pricing demo below). 409 when the index is
   empty.
-- `POST /extract` - the demo's workload, `ai.redouble.demo.extract`: the body is an
-  `ExtractRequest` (`directory`, optional `maxFiles`, `budgets` as `[{amount, currency}]`, one
-  cap per currency); the response is an `ExtractReport`: one row per file with its tier
+- `POST /extract` - the demo's workload, `ai.redouble.demo.extract`, over the shipped corpus
+  (`DemoCorpus`; no request names a folder): the body is an `ExtractRequest` (optional
+  `maxFiles`, `budgets` as `[{amount, currency}]`, one cap per currency); the response is an
+  `ExtractReport`: one row per file with its tier
   (`DETERMINISTIC`, `VISION`, `CLASSIFIER`, `SKIPPED`, `NEEDS_PERSON`, `REFUSED`, `FAILED`),
   chars, the model and what its calls cost, and a note; the spend per model; the caps; the
   totals. A row's cost folds in the embedding of its text, priced like every call, while the
@@ -311,9 +312,8 @@ role the process runs under: whatever the AWS default chains resolve).
 - `POST /search` - the body is `{query, k}`; the response is the top `k` index entries by
   cosine, with an excerpt. Refused with 409 before any extraction.
 - `POST /pricing` - the second demo, `ai.redouble.demo.pricing`, on the first one's result:
-  the body is a `PricingRequest` (`output` path, optional; `budgets` as for the extractor); the
-  response is a `PricingReport`, written to `output` with Boot's own mapper so the file is
-  the response. Refused with 409 before any extraction.
+  the body is a `PricingRequest` (`asOf`, optional; `budgets` as for the extractor); the
+  response is a `PricingReport`. Refused with 409 before any extraction.
 - `POST /benchmark` - the demo agent wrapped in `DemoBenchmark`, the runtime's `Benchmark`
   whose judges wait behind the same person the raced agents do: the body is
   `{query, runs}`; the agent answers the query once on the strongest model the deployment

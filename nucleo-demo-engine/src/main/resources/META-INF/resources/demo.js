@@ -474,13 +474,14 @@ KEV_API_KEY=$(openssl rand -hex 24) modal deploy kev_serve.py</pre>
     form.currency.closest('label').hidden = offeredCurrencies.length === 1;
     form.amount.closest('label').firstChild.textContent = offeredCurrencies.length === 1 ? `Budget (${offeredCurrencies[0]})` : 'Budget';
   }
-  if (s.corpus && !$('extract-dir').value) $('extract-dir').value = s.corpus;
+  // the folder is the server's: shown, never typed
+  $('extract-dir').textContent = s.corpus || 'not on this classpath';
   // the pricing steps answer for the day the corpus's price story is written for, not for
   // whatever day the demo happens to run; the person moves it to see the story from another day
   if (s.corpusAsOf && !$('pricing-form').asOf.value) $('pricing-form').asOf.value = s.corpusAsOf;
   if (s.corpusAsOf && !$('decide-prices-form').asOf.value) $('decide-prices-form').asOf.value = s.corpusAsOf;
   // the decision step: the folder is the corpus too, and under it which decision entry answers
-  if (s.corpus && !$('decide-dir').value) $('decide-dir').value = s.corpus;
+  $('decide-dir').textContent = s.corpus || 'not on this classpath';
   const deciders = callable.filter(e => e.kind === 'DECISION');
   const decisionConnected = configured.some(p => p.key.endsWith('-decision'));
   $('decide-serves').innerHTML = pins.decision ? esc(pinnedLine('decision', 'decisions'))
@@ -888,7 +889,7 @@ call('GET', '/agent').then(c => {
 const longNote = note => !note ? '' : note.length <= 90 ? esc(note)
   : `<details class="note-fold"><summary>${esc(clip(note, 70))}</summary>${esc(note)}</details>`;
 const tierBadge = t => `<span class="badge ${({DETERMINISTIC: 'b-ok', VISION: 'b-ok', CLASSIFIER: 'b-ok', SKIPPED: 'b-muted', REFUSED: 'b-warn', FAILED: 'b-bad'})[t] || 'b-muted'}">${esc(t)}</span>`;
-wire('extract-form', 'extract-result', f => call('POST', '/extract', {directory: f.directory,
+wire('extract-form', 'extract-result', f => call('POST', '/extract', {
     budgets: f.amount === '' ? null : [{amount: Number(f.amount), currency: f.currency}]}),
   r => `<div class="facts">
       <div>Files<b>${int(r.filesSeen)}</b></div><div>Indexed<b>${int(r.indexed)}</b></div><div>Model calls<b>${int(r.llmCalls)}</b></div>
@@ -918,11 +919,10 @@ function pointLine(p) {
     <td>${p.quote ? `<span class="quote">“${esc(p.quote)}”</span>` : ''}${p.note ? `<div class="muted">${esc(p.note)}</div>` : ''}${p.appliedTo ? `<div class="muted">applied to ${esc(p.appliedTo)}</div>` : ''}</td></tr>`;
 }
 // one report, one rendering: step 6 and step 9 answer in the same shape
-const pricingBody = f => ({asOf: f.asOf || null, output: f.output || null, budgets: f.amount === '' ? null : [{amount: Number(f.amount), currency: f.currency}]});
+const pricingBody = f => ({asOf: f.asOf || null, budgets: f.amount === '' ? null : [{amount: Number(f.amount), currency: f.currency}]});
 const pricingResult = r => `<div class="facts">
       <div>As of<b>${esc(r.asOf)}</b></div><div>Documents read<b>${int(r.documentsRead)}</b></div><div>Prices found<b>${int(r.mentionsFound)}</b></div>
       <div>Products<b>${int(r.products.length)}</b></div><div>Spent<b>${spent(r.spend && r.spend.spent)}</b></div><div>Took<b>${int(r.elapsedMs)} ms</b></div></div>
-    ${r.outputFile ? `<div class="muted">Written to <code>${esc(r.outputFile)}</code></div>` : ''}
     ${r.canonicalizationNote ? `<div class="callout warn">${esc(r.canonicalizationNote)}</div>` : ''}
     <div class="scroll"><table><tr><th>Product</th><th>Audience</th><th class="num">Current price</th><th>Since</th><th>Status</th><th>Source</th></tr>
     ${r.products.map(p => p.series.map((s, i) => `<tr>
@@ -1383,7 +1383,7 @@ $('decide-form').addEventListener('submit', async event => {
   paint();
   const timer = setInterval(paint, 150);
   try {
-    const response = await fetch('/decide', {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify({directory: f.directory})});
+    const response = await fetch('/decide', {method: 'POST'});
     if (!response.ok) {
       const text = await response.text();
       let data = null;

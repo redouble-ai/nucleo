@@ -107,7 +107,7 @@
     </ul>
   </details>
   <form id="extract-form">
-    <label class="grow">Directory<input name="directory" id="extract-dir" placeholder="absolute path of a directory" required></label>
+    <div class="muted" style="flex-basis:100%">The folder is the one the demo ships, <code id="extract-dir"></code>. To read a different folder, change <code>DemoCorpus</code> in nucleo-demo-engine.</div>
     <label>Budget<input name="amount" type="number" step="0.01" min="0" value="1.00" style="width:90px" placeholder="no cap"></label>
     <label>Currency<select name="currency" style="width:90px"></select></label>
     <button>Read</button>
@@ -191,7 +191,7 @@
     </ul>
   </details>
   <form id="decide-form">
-    <label class="grow">Folder<input name="directory" id="decide-dir" required></label>
+    <div class="muted" style="flex-basis:100%">The folder is the one the demo ships, <code id="decide-dir"></code>. To read a different folder, change <code>DemoCorpus</code> in nucleo-demo-engine.</div>
     <button>Decide</button>
     <div class="muted" id="decide-serves" style="flex-basis:100%"></div>
   </form>

@@ -29,8 +29,6 @@ import tools.jackson.databind.*;
 
 import java.io.*;
 import java.net.*;
-import java.nio.charset.*;
-import java.nio.file.*;
 import java.security.*;
 import java.time.*;
 import java.util.*;
@@ -62,14 +60,17 @@ public class DemoController {
     private final NucleoRuntime runtime;
     private final FileIndex index;
     private final CatalogAdmin admin;
-    /** Boot's own mapper, so a report written to a file has the shape the same report has on the wire. */
+    /** Boot's own mapper, so a streamed run's lines have the shape the same objects have on the wire. */
     private final ObjectMapper json;
+    /** The folder the extract and decide runs read: the shipped corpus, never a path a request names. */
+    private final DemoCorpus corpus;
 
-    public DemoController(NucleoRuntime runtime, FileIndex index, CatalogAdmin admin, ObjectMapper json) {
+    public DemoController(NucleoRuntime runtime, FileIndex index, CatalogAdmin admin, ObjectMapper json, DemoCorpus corpus) {
         this.runtime = runtime;
         this.index = index;
         this.admin = admin;
         this.json = json;
+        this.corpus = corpus;
     }
 
     /**
@@ -259,7 +260,7 @@ public class DemoController {
      */
     @PostMapping("/extract")
     public ExtractReport extract(@RequestBody ExtractRequest input, Principal principal) {
-        ExtractDirectoryDoer doer = new ExtractDirectoryDoer(Job.workflow(user(principal), "extract"), runtime.ledger(), index);
+        ExtractDirectoryDoer doer = new ExtractDirectoryDoer(Job.workflow(user(principal), "extract"), runtime.ledger(), index, corpus.directory());
         doer.setInput(input);
         return await(runtime.dispatcher().submit(doer));
     }
@@ -283,8 +284,7 @@ public class DemoController {
     /**
      * The second demo, on the first one's result: every indexed document read for the prices
      * it states, the product names grouped by a model a grade up, and code deciding which
-     * price is current and which is superseded. The report is written to the path the caller
-     * names, when one is named, and returned either way.
+     * price is current and which is superseded. The report is the response.
      */
     @PostMapping("/pricing")
     public PricingReport pricing(@RequestBody PricingRequest input, Principal principal) {
@@ -293,8 +293,7 @@ public class DemoController {
         }
         ExtractPricingDoer doer = new ExtractPricingDoer(Job.workflow(user(principal), "pricing"), runtime.ledger(), index);
         doer.setInput(input);
-        PricingReport report = await(runtime.dispatcher().submit(doer));
-        return written(report, input.getOutput());
+        return await(runtime.dispatcher().submit(doer));
     }
 
     /**
@@ -311,8 +310,7 @@ public class DemoController {
         ExtractPricingDoer doer = new ExtractPricingDoer(Job.workflow(user(principal), "decide-prices"), runtime.ledger(), index,
                 ExtractPricesTool::new, DecideProductGroupsTool::new);
         doer.setInput(input);
-        PricingReport report = await(runtime.dispatcher().submit(doer));
-        return written(report, input.getOutput());
+        return await(runtime.dispatcher().submit(doer));
     }
 
     /** The decision agent's objective and palette, for the page's panel. */
@@ -331,13 +329,10 @@ public class DemoController {
      * reached the stream.
      */
     @PostMapping(value = "/decide", produces = MediaType.APPLICATION_NDJSON_VALUE)
-    public ResponseBodyEmitter decide(@RequestBody DecideRequest input, Principal principal) {
-        if (input.directory() == null || input.directory().isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A folder to work on: an absolute path on this machine (the shipped corpus's is on the status)");
-        }
+    public ResponseBodyEmitter decide(Principal principal) {
         Identifiable workflow = Job.workflow(user(principal), "decide");
         PriceChangeFinder finder = new PriceChangeFinder(workflow);
-        finder.setInput(new Folder(input.directory()));
+        finder.setInput(new Folder(corpus.directory().toString()));
         ResponseBodyEmitter emitter = new ResponseBodyEmitter(0L);
         DecisionTrace trace = new DecisionTrace(workflow.getWorkflowId(), finder.getId(), line -> {
             try {
@@ -441,21 +436,6 @@ public class DemoController {
             }
         });
         return emitter;
-    }
-
-    /** The pricing report written where the caller asked, with Boot's own mapper so the file is the response. */
-    private PricingReport written(PricingReport report, String outputPath) {
-        if (outputPath != null && !outputPath.isBlank()) {
-            Path output = Path.of(outputPath).toAbsolutePath();
-            report.setOutputFile(output.toString());
-            try {
-                Files.writeString(output, json.writerWithDefaultPrettyPrinter().writeValueAsString(report), StandardCharsets.UTF_8);
-            }
-            catch (IOException e) {
-                throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "The report was produced but could not be written to " + output + ": " + e.getMessage(), e);
-            }
-        }
-        return report;
     }
 
     private static <T> T await(JobHandle<T> handle) {

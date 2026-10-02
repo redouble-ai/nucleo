@@ -95,7 +95,6 @@ public class PricingReport {
     private String generatedAt;
     /** The day the run answered for: a price dated after it is scheduled, not current. */
     private String asOf;
-    private String outputFile;
     private long elapsedMs;
     private int documentsRead;
     private int mentionsFound;
@@ -116,10 +115,6 @@ public class PricingReport {
     public String getAsOf() {return asOf;}
 
     public void setAsOf(String asOf) {this.asOf = asOf;}
-
-    public String getOutputFile() {return outputFile;}
-
-    public void setOutputFile(String outputFile) {this.outputFile = outputFile;}
 
     public long getElapsedMs() {return elapsedMs;}
 
