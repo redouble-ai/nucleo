@@ -68,7 +68,7 @@
         <!-- Logging facade -->
         <slf4j.version>2.0.17</slf4j.version>
         <!-- Optional observability bridges -->
-        <opentelemetry.version>1.55.0</opentelemetry.version>
+        <opentelemetry.version>1.66.0</opentelemetry.version>
         <micrometer.version>1.16.3</micrometer.version>
         <!-- The Hibernate database provider, and the JPA branch of the Spring transaction provider -->
         <hibernate.version>7.1.0.Final</hibernate.version>
