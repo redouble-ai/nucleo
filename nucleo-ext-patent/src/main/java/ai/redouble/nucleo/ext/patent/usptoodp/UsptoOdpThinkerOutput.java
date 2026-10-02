@@ -23,7 +23,7 @@ public class UsptoOdpThinkerOutput extends ThinkerOutput<ChainOfThoughtReasoning
     @LLMDescription("Summary of what was found and analysis of results")
     private String summary;
     @LLMRequired
-    @LLMDescription("List of patent artifacts with full details")
+    @LLMDescription("The patents found, each referred to by the reference of its artifact in the registry")
     private List<PatentArtifact> patents;
     @LLMDescription("Total number of patents found matching the query")
     private Integer patentsFound;

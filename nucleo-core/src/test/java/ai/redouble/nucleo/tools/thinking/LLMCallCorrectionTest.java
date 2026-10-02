@@ -8,6 +8,7 @@ package ai.redouble.nucleo.tools.thinking;
 
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.admission.*;
+import ai.redouble.nucleo.harness.artifacts.*;
 import ai.redouble.nucleo.harness.conversation.*;
 import ai.redouble.nucleo.harness.errors.retry.*;
 import ai.redouble.nucleo.harness.llm.*;
@@ -23,8 +24,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * a response that fails to parse (or parses but fails required-field validation) is fed
  * back to the model as a user-role correction message carrying the error explanation and
  * the ORIGINAL response handler, under a budget of {@link LLMCall#MAX_CORRECTIONS} per
- * job. On exhaustion, a parse failure surfaces as {@link JsonParseException} while a
- * validation failure returns the response as-is. A truncation signal grows the outgoing
+ * job. On exhaustion the failure surfaces, a parse failure as {@link JsonParseException}
+ * and a missing required field as {@link ResponseValidationException}. An artifact in the
+ * reply is the conversation registry's own, by the reference the model chose, and one the
+ * registry does not hold is corrected the way a missing required field is. A truncation signal grows the outgoing
  * message's budget and rethrows for the dispatcher's one-shot retry.
  *
  * <p>The client is a stub behind {@code LLMCall}'s package-private seam; the loop's own
@@ -132,15 +135,67 @@ public class LLMCallCorrectionTest {
     /** The output the seat declares; below the small tier's ceiling so an escalation has room to grow. */
     private static final int DECLARED_OUTPUT = 16_000;
 
-    private static ConversationContext conversationExpecting(PojoResponseHandler<StrictAnswer> handler) {
+    private static <T> ConversationContext conversationExpecting(PojoResponseHandler<T> handler) {
         ConversationContext conversation = TestModels.conversation(TestModels.small());
         conversation.setDepth(Depth.IMMEDIATE);
         conversation.setOutputDeclaration(OutputDeclaration.of(DECLARED_OUTPUT));
-        OutgoingMessage<StrictAnswer> message = new OutgoingMessage<>(handler);
+        OutgoingMessage<T> message = new OutgoingMessage<>(handler);
         message.setRole("user");
         message.addText("answer strictly");
         conversation.getMessages().add(message);
         return conversation;
+    }
+
+    /** An answer that hands back one citation the model chose. */
+    public static class CitingAnswer {
+        private CitationArtifact best;
+
+        public CitationArtifact getBest() { return best; }
+        public void setBest(CitationArtifact best) { this.best = best; }
+    }
+
+    /** LLMCall for the citing answer, wired to the canned client through the same seam. */
+    static final class CitingCall extends LLMCall<CitingAnswer> {
+        private final CannedClient client;
+
+        CitingCall(ConversationContext conversation, CannedClient client) {
+            super(root(), conversation);
+            this.client = client;
+            client.setModel(TestModels.small());
+        }
+
+        @Override
+        LLMClient client(JobResources resources) {
+            return client;
+        }
+    }
+
+    @Test
+    void anArtifactInTheAnswerIsTheRegistrysOwn_whateverTheModelWroteBesideItsReference() throws Exception {
+        ConversationContext conversation = conversationExpecting(new PojoResponseHandler<>(CitingAnswer.class));
+        CitationArtifact held = new CitationArtifact();
+        held.setDoi("10.1038/s41586-024-07386-0");
+        String ref = conversation.getArtifactRegistry().register(held);
+        CitingCall call = new CitingCall(conversation, new CannedClient("{\"best\": {\"artifact_ref\": \"" + ref + "\", \"doi\": \"10.9999/invented\"}}"));
+
+        CitingAnswer answer = call.execute(null, null);
+        assertSame(held, answer.getBest(), "the answer carries the object the registry holds under the reference the model chose");
+        assertEquals("10.1038/s41586-024-07386-0", answer.getBest().getDoi(), "a DOI the model wrote beside the reference never reaches the caller");
+    }
+
+    @Test
+    void anArtifactTheRegistryDoesNotHoldIsCorrected_thenSurfaces() {
+        ConversationContext conversation = conversationExpecting(new PojoResponseHandler<>(CitingAnswer.class));
+        CitingCall call = new CitingCall(conversation, new CannedClient("{\"best\": {\"artifact_ref\": \"«artifact:link:cite~never1»\", \"doi\": \"10.9999/invented\"}}"));
+
+        for (int attempt = 1; attempt <= LLMCall.MAX_CORRECTIONS; attempt++) {
+            assertThrows(ResponseCorrectionRetryException.class, () -> call.execute(null, null),
+                    "an artifact the registry cannot supply is fed back to the model like a missing required field");
+        }
+        ResponseValidationException surfaced = assertThrows(ResponseValidationException.class, () -> call.execute(null, null),
+                "past the budget the call fails: a fabricated artifact is never returned");
+        assertTrue(surfaced.explainToLLM().contains("best"), "the failure names the place: " + surfaced.explainToLLM());
+        assertFalse(surfaced.explainToLLM().contains("invented"), "and never what the model wrote there: " + surfaced.explainToLLM());
     }
 
     @Test
@@ -169,7 +224,7 @@ public class LLMCallCorrectionTest {
     }
 
     @Test
-    void validationFailureCorrects_thenReturnsAsIsOnExhaustion() throws Exception {
+    void validationFailureCorrects_thenSurfacesOnExhaustion() {
         ConversationContext conversation = conversationExpecting(new PojoResponseHandler<>(StrictAnswer.class));
         TestableCall call = new TestableCall(conversation, new CannedClient("{}"));
 
@@ -177,9 +232,9 @@ public class LLMCallCorrectionTest {
             assertThrows(ResponseCorrectionRetryException.class, () -> call.execute(null, null),
                     "a parsed-but-invalid answer is corrected like a parse failure");
         }
-        StrictAnswer asIs = call.execute(null, null);
-        assertNotNull(asIs, "on exhaustion, validation degrades to a WARN and the response is returned as-is");
-        assertNull(asIs.getVerdict(), "the required field really was missing - hard enforcement is the caller's boundary");
+        ResponseValidationException surfaced = assertThrows(ResponseValidationException.class, () -> call.execute(null, null),
+                "on exhaustion the missing required field fails the call, the way a parse failure does");
+        assertTrue(surfaced.explainToLLM().contains("verdict"), "and the failure names the field that was required: " + surfaced.explainToLLM());
     }
 
     @Test

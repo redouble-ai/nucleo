@@ -58,6 +58,53 @@ public final class NucleoSchemaKeywords {
         return NucleoJsonSerializer.writeCompact(root);
     }
 
+    /**
+     * Returns the schema as a model is offered it: every artifact-typed field reduced to its
+     * reference, then every {@code x-nucleo-*} keyword removed. A model never authors an
+     * artifact, so it is never asked for one's content: where an input takes an artifact,
+     * the model writes the reference of one the registry lists.
+     *
+     * @param schemaJson a JSON Schema document, or null or empty
+     * @return the model-facing schema; null for a null input and empty for an empty one
+     * @throws IOException if the input is not JSON
+     */
+    public static String forModel(String schemaJson) throws IOException {
+        if (schemaJson == null || schemaJson.isEmpty()) {
+            return schemaJson;
+        }
+        JsonNode root = NucleoJsonSerializer.readTree(schemaJson);
+        referencesForArtifacts(root);
+        strip(root);
+        return NucleoJsonSerializer.writeCompact(root);
+    }
+
+    /**
+     * Reduces every schema node that carries {@link #TYPE_ALIAS}, the mark of an
+     * artifact-typed field, to an object whose one property is the artifact's reference.
+     * An array of artifacts is reduced in its items.
+     */
+    private static void referencesForArtifacts(JsonNode node) {
+        if (node instanceof ObjectNode object) {
+            if (object.has(TYPE_ALIAS)) {
+                JsonNode shape = "array".equals(object.path("type").asText()) ? object.path("items") : object;
+                if (shape instanceof ObjectNode artifact && artifact.path("properties") instanceof ObjectNode properties
+                        && properties.has(PojoDefinition.REF_FIELD)) {
+                    properties.retain(PojoDefinition.REF_FIELD);
+                    artifact.set("required", NucleoJsonSerializer.createArrayNode().add(PojoDefinition.REF_FIELD));
+                    return;
+                }
+            }
+            for (JsonNode child : object) {
+                referencesForArtifacts(child);
+            }
+        }
+        else if (node instanceof ArrayNode array) {
+            for (JsonNode child : array) {
+                referencesForArtifacts(child);
+            }
+        }
+    }
+
     private static void strip(JsonNode node) {
         if (node instanceof ObjectNode object) {
             List<String> doomed = new ArrayList<>();

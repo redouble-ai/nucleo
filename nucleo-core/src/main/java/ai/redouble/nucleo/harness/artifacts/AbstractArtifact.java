@@ -32,6 +32,9 @@ import java.util.concurrent.*;
  * @since 0.1 (2025-11-13)
  */
 public abstract class AbstractArtifact implements Artifact {
+    // "@ref" is the key an artifact is shown to a model under, so a model referring to one in a
+    // tool call's input may write it back the same way
+    @JsonAlias(NucleoJsonSerializer.ARTIFACT_REF_AS_SHOWN)
     @LLMDescription("Unique reference identifier for this artifact in format artifact:type~uuid")
     private String artifactRef;
 

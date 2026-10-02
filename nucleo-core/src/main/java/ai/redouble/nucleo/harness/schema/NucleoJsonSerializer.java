@@ -57,6 +57,8 @@ import java.util.concurrent.*;
  */
 public class NucleoJsonSerializer {
     private static final Logger log = LoggerFactory.getLogger(NucleoJsonSerializer.class);
+    /** The key under which an artifact is shown to a model in place of its content: {@code {"@ref": "..."}}. */
+    public static final String ARTIFACT_REF_AS_SHOWN = "@ref";
     static final String ATTR_MODE = "nucleo.mode";
     static final String ATTR_SUMMARIZER = "nucleo.summarizer";
     static final String ATTR_REGISTRY = "nucleo.registry";
@@ -499,7 +501,7 @@ public class NucleoJsonSerializer {
                         "This is a framework bug - the artifact was created but could not be registered.");
                 }
                 gen.writeStartObject();
-                gen.writeStringField("@ref", ref);
+                gen.writeStringField(ARTIFACT_REF_AS_SHOWN, ref);
                 gen.writeEndObject();
                 return;
             }
@@ -973,8 +975,13 @@ public class NucleoJsonSerializer {
         }
         ObjectNode out = MAPPER.createObjectNode();
         for (Map.Entry<String, JsonNode> member : node.properties()) {
-            // @-prefixed keys are schema notation, never POJO fields
-            if (!member.getKey().startsWith("@")) {
+            // "@ref" is how the model is shown an artifact, so a model referring to one may
+            // write it back the same way: it is the artifact's reference under its shown name
+            if (member.getKey().equals(ARTIFACT_REF_AS_SHOWN)) {
+                out.set(ArtifactRegistry.REF_FIELD, member.getValue());
+            }
+            // every other @-prefixed key is schema notation, never a POJO field
+            else if (!member.getKey().startsWith("@")) {
                 out.set(member.getKey(), normalizeSchemaEcho(member.getValue()));
             }
         }

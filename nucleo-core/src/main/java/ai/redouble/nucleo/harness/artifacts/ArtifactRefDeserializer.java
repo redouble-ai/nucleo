@@ -30,6 +30,12 @@ import java.io.*;
  * an artifact silently missing from a result is worse than a result that says it could not
  * be read.
  *
+ * <p>This reader rebuilds the artifact from the payload it is given, which is what a
+ * payload written by a tool or by another process calls for. It is no judge of who wrote
+ * the payload: in a model's reply the object it builds is replaced by the registry's own
+ * before anything reads it ({@link ArtifactRegistry#held}), since a model refers to an
+ * artifact and never writes one.
+ *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-09-06)
  */

@@ -213,7 +213,7 @@ public class FieldDescriptor {
         }
         if (definition != null && !definition.getFields().isEmpty()) {
             ObjectNode fieldsNode = NucleoJsonSerializer.createObjectNode();
-            for (Map.Entry<String, FieldDescriptor> entry : definition.getFields().entrySet()) {
+            for (Map.Entry<String, FieldDescriptor> entry : definition.modelWrittenFields().entrySet()) {
                 fieldsNode.set(entry.getKey(), entry.getValue().toLLMSchemaNode());
             }
             node.set("@fields", fieldsNode);

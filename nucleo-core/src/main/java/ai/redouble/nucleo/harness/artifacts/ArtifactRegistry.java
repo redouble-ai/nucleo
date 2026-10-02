@@ -414,6 +414,176 @@ public class ArtifactRegistry {
     }
 
     /**
+     * GHSA-m8pq-5898-5q8j. Makes an object a model wrote carry this registry's artifacts and no others. A model
+     * never authors an artifact: wherever its answer or a tool call's input holds one, in a
+     * field, a list, a map or as the object itself, what the model wrote is a choice of
+     * reference, and the artifact put in its place is the one held here under that
+     * reference. Whatever content the model wrote beside the reference is dropped with the
+     * object that carried it.
+     *
+     * <p>A written artifact that carries no reference, names one this registry does not
+     * hold, or names an artifact of another type than the place declares is a violation:
+     * it is described in {@code violations}, addressed to the model that can correct it,
+     * and left where it was. A caller that finds violations does not use the object.
+     *
+     * @param written    the object as parsed from the model's reply, or null
+     * @param violations receives one line per artifact that could not be taken from here
+     * @return {@code written} with its artifacts replaced, or the held artifact itself when
+     *         {@code written} is one
+     */
+    @SuppressWarnings("unchecked")
+    public <T> T held(T written, List<String> violations) {
+        return (T) heldValue(written, Artifact.class, "", violations, Collections.newSetFromMap(new IdentityHashMap<>()));
+    }
+
+    private Object heldValue(Object value, Type declared, String path, List<String> violations, Set<Object> visited) {
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Artifact written) {
+            return heldFor(written, declared, path, violations);
+        }
+        replaceWithin(value, declared, path, violations, visited);
+        return value;
+    }
+
+    private Artifact heldFor(Artifact written, Type declared, String path, List<String> violations) {
+        String where = path.isEmpty() ? "The reply" : "'" + path + "'";
+        String ref = written.getArtifactRef();
+        if (ref == null || ref.isBlank()) {
+            violations.add(where + " must refer to an artifact the registry lists, by its " + REF_FIELD + ": an artifact is referred to, never written");
+            return written;
+        }
+        Artifact held = get(ref);
+        if (held == null) {
+            violations.add(where + " carries an " + REF_FIELD + " that names no artifact the registry lists");
+            return written;
+        }
+        Class<?> expected = rawClass(declared);
+        if (expected != null && Artifact.class.isAssignableFrom(expected) && !expected.isInstance(held)) {
+            violations.add(where + " refers to an artifact of type " + held.getClass().getSimpleName()
+                    + ", where " + expected.getSimpleName() + " is expected");
+            return written;
+        }
+        return held;
+    }
+
+    private static String child(String path, String name) {
+        return path.isEmpty() ? name : path + "." + name;
+    }
+
+    /**
+     * Replaces the artifacts below a node that is not itself one. Descends through composite
+     * POJOs, lists, other collections, maps and arrays, as {@link #walkReachable} does, and
+     * never into an artifact: a held one is taken whole.
+     */
+    private void replaceWithin(Object node, Type declared, String path, List<String> violations, Set<Object> visited) {
+        // a raw JSON tree is input no provider parsed into objects, so it holds no artifact
+        if (node instanceof com.fasterxml.jackson.databind.JsonNode || !visited.add(node)) {
+            return;
+        }
+        if (node instanceof List<?>) {
+            @SuppressWarnings("unchecked")
+            ListIterator<Object> elements = ((List<Object>) node).listIterator();
+            Type elementType = typeArgument(declared, 0);
+            for (int i = 0; elements.hasNext(); i++) {
+                Object element = elements.next();
+                Object held = heldValue(element, elementType, path + "[" + i + "]", violations, visited);
+                if (held != element) {
+                    elements.set(held);
+                }
+            }
+            return;
+        }
+        if (node instanceof Collection<?>) {
+            @SuppressWarnings("unchecked")
+            Collection<Object> collection = (Collection<Object>) node;
+            Type elementType = typeArgument(declared, 0);
+            List<Object> replaced = new ArrayList<>(collection.size());
+            boolean changed = false;
+            for (Object element : collection) {
+                Object held = heldValue(element, elementType, path + "[]", violations, visited);
+                changed |= held != element;
+                replaced.add(held);
+            }
+            if (changed) {
+                collection.clear();
+                collection.addAll(replaced);
+            }
+            return;
+        }
+        if (node instanceof Map<?, ?>) {
+            @SuppressWarnings("unchecked")
+            Map<Object, Object> map = (Map<Object, Object>) node;
+            Type valueType = typeArgument(declared, 1);
+            for (Map.Entry<Object, Object> entry : map.entrySet()) {
+                Object held = heldValue(entry.getValue(), valueType, child(path, String.valueOf(entry.getKey())), violations, visited);
+                if (held != entry.getValue()) {
+                    entry.setValue(held);
+                }
+            }
+            return;
+        }
+        if (node.getClass().isArray()) {
+            if (node.getClass().getComponentType().isPrimitive()) {
+                return;
+            }
+            Object[] array = (Object[]) node;
+            for (int i = 0; i < array.length; i++) {
+                array[i] = heldValue(array[i], node.getClass().getComponentType(), path + "[" + i + "]", violations, visited);
+            }
+            return;
+        }
+        if (!NucleoJsonSerializer.isComposite(node.getClass())) {
+            return;
+        }
+        // up the hierarchy as far as it is ours: a JDK superclass holds no artifact and its
+        // fields are not open to reflection
+        for (Class<?> clazz = node.getClass(); NucleoJsonSerializer.isComposite(clazz); clazz = clazz.getSuperclass()) {
+            for (Field field : clazz.getDeclaredFields()) {
+                if (Modifier.isStatic(field.getModifiers()) || field.getType().isPrimitive()) {
+                    continue;
+                }
+                field.setAccessible(true);
+                try {
+                    Object value = field.get(node);
+                    Object held = heldValue(value, field.getGenericType(), child(path, wireName(field.getName())), violations, visited);
+                    if (held != value) {
+                        field.set(node, held);
+                    }
+                }
+                catch (IllegalAccessException e) {
+                    throw new ai.redouble.nucleo.harness.errors.UncorrectableRuntimeLLMException(
+                            "Cannot replace a model-written artifact in field " + field.getName() + " of " + clazz.getName()
+                                    + " - what the model wrote there would reach the caller", e);
+                }
+            }
+        }
+    }
+
+    private static Class<?> rawClass(Type type) {
+        if (type instanceof Class<?> clazz) {
+            return clazz;
+        }
+        if (type instanceof ParameterizedType parameterized && parameterized.getRawType() instanceof Class<?> raw) {
+            return raw;
+        }
+        return null;
+    }
+
+    private static Type typeArgument(Type declared, int index) {
+        if (declared instanceof ParameterizedType parameterized && parameterized.getActualTypeArguments().length > index) {
+            return parameterized.getActualTypeArguments()[index];
+        }
+        return Artifact.class;
+    }
+
+    /** A Java field name as the framework mapper's SNAKE_CASE strategy spells it on the wire. */
+    private static String wireName(String fieldName) {
+        return fieldName.replaceAll("([a-z0-9])([A-Z])", "$1_$2").toLowerCase(Locale.ROOT);
+    }
+
+    /**
      * Filters the registry to only include specified artifacts.
      * Used for propagation to parent contexts.
      *

@@ -578,15 +578,17 @@ public abstract class AbstractThinker<I extends ThinkerInput, O extends ThinkerO
     }
 
     /**
-     * The provider's schema with the harness-facing {@code x-nucleo-*} keywords removed.
+     * The provider's schema as a model is offered it: every artifact-typed field reduced to
+     * its reference, since a model refers to an artifact and never writes one, and the
+     * harness-facing {@code x-nucleo-*} keywords removed.
      * This is the one place a schema becomes model-facing - the text form and the native
-     * tools API both render the block - so it is the one place the strip belongs. A schema
+     * tools API both render the block - so it is the one place the two belong. A schema
      * that will not parse is offered as it stands: the definition the model reads is not
      * the place to fail a turn over metadata.
      */
     private String modelFacingSchema(ToolProvider provider) {
         try {
-            return NucleoSchemaKeywords.stripFrom(provider.schemaJson());
+            return NucleoSchemaKeywords.forModel(provider.schemaJson());
         }
         catch (IOException e) {
             log.warn("Tool {} has an unparseable schema, offering it unstripped: {}", provider.name(), e.getMessage());

@@ -22,6 +22,9 @@ public class PojoDefinition {
     private String description;
     private Map<String, FieldDescriptor> fields;
     private Map<String, PojoDefinition> referencedDefinitions;
+    /** The wire name of an artifact's reference; the same constant the artifact registry keys on. */
+    static final String REF_FIELD = ai.redouble.nucleo.harness.artifacts.ArtifactRegistry.REF_FIELD;
+    private boolean artifact;
 
     public PojoDefinition() {
         this.fields = new LinkedHashMap<>();
@@ -61,6 +64,29 @@ public class PojoDefinition {
         this.fields.put(name, field);
     }
 
+    /** Whether the described class is an artifact. */
+    public boolean isArtifact() {
+        return artifact;
+    }
+
+    public void setArtifact(boolean artifact) {
+        this.artifact = artifact;
+    }
+
+    /**
+     * The fields a model is asked to write for this type. For an artifact that is its
+     * reference alone: a model never authors an artifact, it refers to one the registry
+     * lists, and the artifact's content is shown to it there and nowhere in a schema.
+     */
+    public Map<String, FieldDescriptor> modelWrittenFields() {
+        if (!artifact) {
+            return fields;
+        }
+        Map<String, FieldDescriptor> reference = new LinkedHashMap<>();
+        reference.put(REF_FIELD, fields.get(REF_FIELD));
+        return reference;
+    }
+
     public String toLLMSchema() {
         return toLLMSchemaNode().toPrettyString();
     }
@@ -73,7 +99,7 @@ public class PojoDefinition {
         }
         if (!fields.isEmpty()) {
             ObjectNode fieldsNode = NucleoJsonSerializer.createObjectNode();
-            for (Map.Entry<String, FieldDescriptor> entry : fields.entrySet()) {
+            for (Map.Entry<String, FieldDescriptor> entry : modelWrittenFields().entrySet()) {
                 fieldsNode.set(entry.getKey(), entry.getValue().toLLMSchemaNode());
             }
             node.set("@fields", fieldsNode);

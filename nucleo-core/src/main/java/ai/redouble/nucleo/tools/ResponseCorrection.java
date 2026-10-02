@@ -22,10 +22,10 @@ import java.util.*;
  * correction message carrying the error explanation and the ORIGINAL response handler,
  * then throws {@link ResponseCorrectionRetryException} for the dispatcher to re-run the
  * job transparently on the grown conversation. The budget is {@value #MAX_CORRECTIONS}
- * corrections per job instance, so it survives the dispatcher's re-runs. On exhaustion a
- * parse failure surfaces as {@link JsonParseException} while a validation failure logs a
- * structured WARN and returns the response as-is: contracts that demand hard validation
- * enforce it at their own boundary.
+ * corrections per job instance, so it survives the dispatcher's re-runs. On exhaustion the
+ * failure surfaces, a parse failure as {@link JsonParseException} and a missing required
+ * field as {@link ResponseValidationException}: required is required, and no caller
+ * receives an answer with a hole in it.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-09-16)
@@ -58,8 +58,8 @@ public final class ResponseCorrection {
 
     /**
      * The parsed answer of a response, or the correction protocol: within budget the
-     * failure becomes a correction turn and a retry signal; past it, a parse failure
-     * surfaces and an invalid answer is returned as it is.
+     * failure becomes a correction turn and a retry signal; past it, the failure surfaces,
+     * whether the answer did not parse or lacks a required field.
      *
      * @param response        what the client answered
      * @param conversation    the conversation the correction turn is appended to
@@ -80,14 +80,18 @@ public final class ResponseCorrection {
             }
             throw correctionRetry(parseFailure, outgoingMessage, conversation);
         }
-        List<String> validationErrors = outgoingMessage.getResponseHandler().getValidationErrors(parsed);
+        // A model never authors an artifact: every one in the reply is taken from the
+        // conversation's registry by its reference, before anything else reads the reply
+        List<String> validationErrors = new ArrayList<>();
+        parsed = outgoingMessage.getResponseHandler().heldArtifacts(parsed, conversation.getArtifactRegistry(), validationErrors);
+        validationErrors.addAll(outgoingMessage.getResponseHandler().getValidationErrors(parsed));
         if (!validationErrors.isEmpty()) {
+            ResponseValidationException validationFailure = new ResponseValidationException(validationErrors);
+            // gh-13: required is required, so past the budget the failure surfaces
             if (used >= MAX_CORRECTIONS) {
-                log.warn("Validation exhausted after {} correction(s), returning the answer as-is. type={} errors={}",
-                        used, parsed != null ? parsed.getClass().getName() : "null", validationErrors);
-                return parsed;
+                throw validationFailure;
             }
-            throw correctionRetry(new ResponseValidationException(validationErrors), outgoingMessage, conversation);
+            throw correctionRetry(validationFailure, outgoingMessage, conversation);
         }
         return parsed;
     }

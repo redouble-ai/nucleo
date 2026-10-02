@@ -379,6 +379,36 @@ public class ThinkingResponseHandler<O> implements ResponseHandler<ThinkingRespo
         return errors;
     }
 
+    /**
+     * The answer's artifacts and each tool call's are taken from the registry. A violation
+     * in the answer is the reply's, reported with its other validation errors. A violation
+     * in a tool call's input is that call's: the call is kept and carries the refusal, so
+     * its tool_use is answered with the reason and the model can correct that one call.
+     */
+    @Override
+    public ThinkingResponse<O> heldArtifacts(ThinkingResponse<O> parsed, ArtifactRegistry registry, List<String> violations) {
+        if (parsed == null) {
+            return null;
+        }
+        parsed.setAnswer(registry.held(parsed.getAnswer(), violations));
+        if (parsed.getToolCalls() != null) {
+            for (ToolCall toolCall : parsed.getToolCalls()) {
+                if (toolCall.getParseError() != null) {
+                    continue;
+                }
+                List<String> refused = new ArrayList<>();
+                Object input = registry.held(toolCall.getInput(), refused);
+                if (refused.isEmpty()) {
+                    toolCall.setInput(input);
+                }
+                else {
+                    toolCall.setParseError(new ai.redouble.nucleo.harness.errors.InvalidInputException("input", "", String.join("; ", refused)));
+                }
+            }
+        }
+        return parsed;
+    }
+
     @Override
     public PojoDefinition writeDefinition() {
         PojoDefinition baseDefinition = baseHandler.writeDefinition();

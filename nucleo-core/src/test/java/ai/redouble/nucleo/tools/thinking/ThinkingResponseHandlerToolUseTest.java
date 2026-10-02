@@ -137,4 +137,53 @@ public class ThinkingResponseHandlerToolUseTest {
         assertEquals(Set.of("toolu_a", "toolu_b", "toolu_c"), ids,
                 "a batch of unregistered tool_use blocks must all survive parse, not be abandoned by a throw");
     }
+
+    public static class CitingInput {
+        public ai.redouble.nucleo.harness.artifacts.CitationArtifact source;
+    }
+
+    @ToolName("citing_tool")
+    @ToolDescription("A registered stub tool whose input takes an artifact")
+    public static class CitingTool extends AbstractTool<CitingInput, StubOutput> {
+        public CitingTool(Identifiable parent) {
+            super(parent);
+        }
+
+        @Override
+        public JobRequirements getRequirements() {
+            JobRequirements req = new JobRequirements();
+            req.setRequiresTransaction(false);
+            return req;
+        }
+
+        @Override
+        public StubOutput execute(JobResources resources, JobContext<StubOutput> context) {
+            throw new UnsupportedOperationException("not executed in a parse-only test");
+        }
+    }
+
+    @Test
+    void anArtifactInAToolCallsInputIsTheRegistrysOwn_andOneItDoesNotHoldRefusesThatCallAlone() throws Exception {
+        ToolRegistry registry = new ToolRegistry();
+        registry.register(CitingTool.class);
+        ai.redouble.nucleo.harness.artifacts.ArtifactRegistry artifacts = new ai.redouble.nucleo.harness.artifacts.ArtifactRegistry();
+        ai.redouble.nucleo.harness.artifacts.CitationArtifact held = new ai.redouble.nucleo.harness.artifacts.CitationArtifact();
+        held.setDoi("10.1038/s41586-024-07386-0");
+        String ref = artifacts.register(held);
+        List<ContentBlock> blocks = List.of(
+                new ToolUseBlock("toolu_held", "citing_tool", "{\"source\":{\"@ref\":\"" + ref + "\",\"doi\":\"10.9999/invented\"}}"),
+                new ToolUseBlock("toolu_invented", "citing_tool", "{\"source\":{\"artifact_ref\":\"«artifact:link:cite~never1»\",\"doi\":\"10.9999/invented\"}}"));
+        ThinkingResponseHandler<String> handler = handler(registry);
+        List<String> violations = new ArrayList<>();
+        ThinkingResponse<String> response = handler.heldArtifacts(handler.parse(blocks), artifacts, violations);
+
+        assertTrue(violations.isEmpty(), "a tool call's refusal is that call's own, never the whole reply's: " + violations);
+        ToolCall withHeld = response.getToolCalls().stream().filter(c -> "toolu_held".equals(c.getToolUseId())).findFirst().orElseThrow();
+        ToolCall withInvented = response.getToolCalls().stream().filter(c -> "toolu_invented".equals(c.getToolUseId())).findFirst().orElseThrow();
+        assertSame(held, ((CitingInput)withHeld.getInput()).source, "the tool receives the registry's object, whatever content the model wrote beside the reference");
+        assertNull(withHeld.getParseError());
+        assertNotNull(withInvented.getParseError(), "the call naming an artifact the registry does not hold is kept and carries its refusal, so its tool_use is answered");
+        assertTrue(withInvented.getParseError().getLLMMessage().contains("source"), "the refusal names the place: " + withInvented.getParseError().getLLMMessage());
+        assertFalse(withInvented.getParseError().getLLMMessage().contains("invented"), "and never what the model wrote there");
+    }
 }

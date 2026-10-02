@@ -106,6 +106,35 @@ on the answer returns the artifacts it selected, the objects the tool built, loo
 registry when the agent finished. A reference that names no artifact in the registry is logged
 and skipped.
 
+## A model never authors an artifact
+
+There is no way for a model to write an artifact, in any place a model writes. An answer
+class may declare a field typed as an artifact, a list or a map of them, or be an artifact
+itself, and a tool's input may take one; in each of those places the model is asked for a
+reference and nothing else, and what arrives is the registry's object:
+
+```java
+public class Verdict extends ThinkerOutput<SimpleReasoning> {
+    private String reason;            // the model's words
+    private CitationArtifact best;    // the model's choice, the tool's data
+}
+```
+
+- The schema the model reads offers `best` as its `artifact_ref` alone. An artifact's content
+  is shown to the model in the registry section and in no schema it fills in.
+- When the reply is parsed, every artifact in it is replaced by the one the conversation's
+  registry holds under the reference the model gave (`ArtifactRegistry.held`). Content the
+  model wrote beside the reference is dropped with the object that carried it. The model may
+  write the reference under `artifact_ref` or as it is shown one, `{"@ref": "..."}`.
+- An artifact written with no reference, with a reference the registry does not hold, or with
+  a reference to an artifact of another type than the field declares, is refused. In an
+  answer the refusal goes back to the model the way a missing required field does, and fails
+  the call when the corrections run out. In a tool call's input it refuses that call alone,
+  as the call's result. Either refusal names the place and never what the model wrote.
+
+So an object the model must author is a plain class, and an artifact in a model's reply is
+always one a tool produced.
+
 ## Passing artifacts between agents
 
 An agent calling another agent hands it artifacts the same way. The caller's model lists the

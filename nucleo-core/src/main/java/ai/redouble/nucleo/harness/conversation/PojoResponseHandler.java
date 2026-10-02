@@ -6,6 +6,7 @@
 
 package ai.redouble.nucleo.harness.conversation;
 
+import ai.redouble.nucleo.harness.artifacts.*;
 import ai.redouble.nucleo.harness.schema.*;
 import com.fasterxml.jackson.annotation.*;
 import com.fasterxml.jackson.databind.node.*;
@@ -151,6 +152,21 @@ public class PojoResponseHandler<T > implements ResponseHandler<T> {
 
             // Add to definition
             definition.addField(jsonName, fieldDescriptor);
+        }
+        if (Artifact.class.isAssignableFrom(pojoClass)) {
+            definition.setArtifact(true);
+            // A field declared as the Artifact interface, or as an artifact class that does
+            // not extend AbstractArtifact, has no reference field of its own to describe; its
+            // reference is described the way every artifact's is.
+            if (!definition.getFields().containsKey(ArtifactRegistry.REF_FIELD)) {
+                try {
+                    definition.addField(ArtifactRegistry.REF_FIELD,
+                            buildFieldDescriptor(AbstractArtifact.class.getDeclaredField("artifactRef"), AbstractArtifact.class, walk));
+                }
+                catch (NoSuchFieldException e) {
+                    throw new IllegalStateException("AbstractArtifact no longer declares the artifactRef field its schema is described from", e);
+                }
+            }
         }
 
         walk.onPath.remove(pojoClass);

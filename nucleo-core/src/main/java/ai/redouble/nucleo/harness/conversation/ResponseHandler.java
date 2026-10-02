@@ -6,6 +6,7 @@
 
 package ai.redouble.nucleo.harness.conversation;
 
+import ai.redouble.nucleo.harness.artifacts.*;
 import ai.redouble.nucleo.harness.conversation.ContentBlocks.*;
 import ai.redouble.nucleo.harness.errors.*;
 import ai.redouble.nucleo.harness.schema.*;
@@ -43,6 +44,24 @@ public interface ResponseHandler<T> extends Serializable {
     String write(T response);
 
     List<String> getValidationErrors(T response);
+
+    /**
+     * The parsed reply with every artifact in it taken from the conversation's registry. A
+     * model never authors an artifact: where its reply holds one, it chose a reference, and
+     * the artifact the caller receives is the one the registry holds under it
+     * ({@link ArtifactRegistry#held}). An artifact the registry cannot supply is described
+     * in {@code violations}, which the caller treats as it treats a missing required field.
+     * A handler whose reply carries objects that are answered one by one, as a tool call's
+     * input is, overrides this to report each where its own answer goes.
+     *
+     * @param parsed     the reply as parsed
+     * @param registry   the registry of the conversation the reply belongs to
+     * @param violations receives one line per artifact the registry could not supply
+     * @return the reply to use in place of {@code parsed}
+     */
+    default T heldArtifacts(T parsed, ArtifactRegistry registry, List<String> violations) {
+        return registry.held(parsed, violations);
+    }
 
     PojoDefinition writeDefinition();
 

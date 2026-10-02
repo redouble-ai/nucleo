@@ -133,10 +133,14 @@ concrete class may not resolve, and then the schema is the only source. The keyw
 what the data IS; what a consumer does about it stays the consumer's policy.
 
 JSON Schema ignores unknown keywords, so they are inert for anyone who does not know them,
-and `NucleoSchemaKeywords.stripFrom` removes them again on the path to a model -
+and `NucleoSchemaKeywords.stripFrom` removes them again. On the path to a model -
 `AbstractThinker.buildToolDefinitionBlocks`, the one place a schema becomes model-facing
-for both the text form and a provider's native tools API. That is why the prefix has to be
-stable: it is what the strip keys on. The strip answers null for null and an empty string
+for both the text form and a provider's native tools API - the schema goes through
+`NucleoSchemaKeywords.forModel`, which first reduces every field marked
+`x-nucleo-type-alias` to an object whose one property is the artifact's `artifact_ref`, an
+array of artifacts in its items, and then strips: a model refers to an artifact and never
+writes one ([Artifacts](../artifacts/PACKAGE.md)). That is why the prefix has to be
+stable: it is what the strip keys on. Both answer null for null and an empty string
 for an empty one, so a provider with no schema passes through untouched.
 
 ## The mapper

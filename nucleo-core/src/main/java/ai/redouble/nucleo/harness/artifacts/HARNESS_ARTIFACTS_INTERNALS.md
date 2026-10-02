@@ -14,6 +14,32 @@ data from the registry - the thinker (`SingleObjectiveThinker.resolveArtifacts` 
 `tools/thinking`) resolves the refs through `normalizeToKey()` and populates the artifact set
 for the parent.
 
+## The one gate against a model-written artifact
+
+The readers in this package rebuild an artifact from a payload, which is right for a payload
+a tool or another process wrote and wrong for one a model wrote. The two are told apart by
+where the payload is read, and a model's reply is read in one place: `ResponseCorrection`,
+which every model-calling job goes through (`LLMCall` for a thinker's turn,
+`AbstractModelDependentTool` for a one-call tool). After the parse and before required-field
+validation it calls `ResponseHandler.heldArtifacts`, whose default hands the reply to
+`ArtifactRegistry.held` with the conversation's registry.
+
+`held` walks the reply the way the custody walk does (composite objects, lists, other
+collections, maps, arrays; never a JSON tree, never into an artifact) and replaces every
+`Artifact` it meets with `get(ref)`, checking the held object against the declared type of
+the place where generics state one. It returns violations as text for the model, so they
+join the required-field errors: a correction turn within `ResponseCorrection`'s budget, a
+`ResponseValidationException` past it. `ThinkingResponseHandler` overrides the hook because a
+turn's tool calls are answered one by one: a violation in a call's input becomes that call's
+parse error, which `executeTools` returns as the call's result, and the tool never runs.
+
+The schema side has two renderers and one rule. `PojoDefinition.modelWrittenFields()` reduces
+an artifact's definition to its reference in the `@`-notation form, which is only ever read
+by a model. The JSON Schema form stays canonical, content included, for a caller that sends
+artifacts across a process boundary; `NucleoSchemaKeywords.forModel` reduces every node
+marked `x-nucleo-type-alias` to its reference on the path to a model, in the same step that
+strips the keywords. `ArtifactAuthorshipTest` pins both sides and the walk.
+
 ## Canonical reference format
 
 The canonical format for all artifact references is `«artifact:type~uuid»` (with guillemet delimiters). This single format is used everywhere - HashMap keys, registry display, `@ref` placeholders, `artifactRefs` lists, and tool inputs.

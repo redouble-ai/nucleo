@@ -30,7 +30,7 @@ public class LiteratureAggregationOutput extends ThinkerOutput<ChainOfThoughtRea
     private String summary;
 
     @LLMRequired
-    @LLMDescription("List of the most relevant articles with brief descriptions")
+    @LLMDescription("The most relevant articles, each referred to by the reference of its artifact in the registry")
     private List<CitationArtifact> relevantArticles;
 
     @LLMDescription("Number of articles analyzed to produce this aggregation")
