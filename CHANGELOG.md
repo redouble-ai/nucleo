@@ -3,6 +3,12 @@
 Every release of Nucleo, newest first. Released artifacts are on Maven Central under the
 group `ai.redouble`; a published version is never changed in place.
 
+## Unreleased
+
+- A thinker's input reaches the model as the JSON of its fields inside the objective, and
+  `ThinkerInput` has no rendering method to override
+  ([#2](https://github.com/redouble-ai/nucleo/issues/2)).
+
 ## 0.1.1 (2026-10-02)
 
 - Every published artifact carries a CycloneDX software bill of materials, attached as

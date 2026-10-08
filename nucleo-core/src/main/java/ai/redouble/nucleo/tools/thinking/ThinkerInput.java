@@ -6,7 +6,6 @@
 
 package ai.redouble.nucleo.tools.thinking;
 
-import ai.redouble.nucleo.harness.conversation.*;
 import ai.redouble.nucleo.harness.models.*;
 import ai.redouble.nucleo.harness.schema.*;
 
@@ -15,6 +14,11 @@ import java.util.*;
 /**
  * Base class for all thinker inputs.
  * Every thinker accepts a natural language query as its core input.
+ *
+ * <p>An input has no rendering of its own. The thinker places it in a {@link ThinkerObjective}
+ * beside the registered prompt, and the conversation serializes that object to JSON for the
+ * model, so every thinker's input arrives in the same shape: its fields, under their schema
+ * names, with {@link LLMContextIgnore} fields left out.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-01-10)
@@ -62,20 +66,5 @@ public abstract class ThinkerInput  {
 
     public void setArtifactRefs(List<String> artifactRefs) {
         this.artifactRefs = artifactRefs;
-    }
-
-    // @TODO gh-2: convert to strict JSON output instead of this ad-hoc string concatenation.
-    // Every subclass overrides this with its own format. The default mixes schema, JSON data,
-    // and decorative separators into a single string - wasteful and inconsistent.
-    // Should return pure JSON that the framework formats for the LLM prompt.
-    public String toLLMString() {
-        String typeName = this.getClass().getSimpleName();
-        String schema = PojoResponseHandler.generateSchema(this.getClass()).toLLMSchema();
-        String data = NucleoJsonSerializer.write(this);
-        StringBuilder result = new StringBuilder();
-        result.append("=== Type: ").append(typeName).append(" ===\n");
-        result.append("Schema:\n").append(schema).append("\n");
-        result.append("Data:\n").append(data);
-        return result.toString();
     }
 }

@@ -28,6 +28,12 @@ which carries the model's reasoning and the artifacts the answer selected. The t
 until the model gives a final answer that fits the answer class and passes the declared
 checks, or until its iteration limit, and returns that answer as the job's result.
 
+The model reads the input as data. The thinker puts the registered prompt and the input
+side by side in a `ThinkerObjective`, and the conversation serializes that object to JSON:
+a `prompt` field and an `input` field, the input being its own fields under their schema
+names, with `@LLMContextIgnore` fields such as `artifactRefs` left out. A subclass adds the
+fields its agent needs and nothing else; there is no rendering to write.
+
 A few hooks change how a run starts and what it leaves behind:
 
 - **`getSeededFollowupMessage()`** returns a message placed right after the objective, before

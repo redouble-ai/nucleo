@@ -27,13 +27,4 @@ public class EPOThinkerInput extends ThinkerInput {
     public void setMaxPatents(Integer maxPatents) {
         this.maxPatents = maxPatents;
     }
-    @Override
-    public String toLLMString() {
-        StringBuilder sb = new StringBuilder();
-        sb.append("EPO Patent Query: ").append(getQuery());
-        if (maxPatents != null) {
-            sb.append("\nMax patents to return: ").append(maxPatents);
-        }
-        return sb.toString();
-    }
 }
