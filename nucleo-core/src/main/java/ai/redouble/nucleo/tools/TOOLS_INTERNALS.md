@@ -79,7 +79,11 @@ conversation to one entry. A pin bypasses the picker, never the compliance envel
 
 A tool whose work is one exchange with a model extends `AbstractModelDependentTool<I,O>`,
 declares its grade in the constructor (`super(parent, Grade.SMALL)`), and holds no client
-and no model. In `getRequirements` it calls `wireConversation(req, depth, output,
+and no model. It is the one way the runtime's own code converses with a model: a thinker's
+turn (`LLMCall`), a compaction summary (`CompactionJob`), each call of the built-in
+summarizer (`SummaryCall`) and the catalog's probes (`ProbeCall`) are all built on it, and
+`ResponseCorrection.exchange` is the one place a conversation is sent on a client
+(`ModelCallDoorTest` pins both on the runtime's sources). In `getRequirements` it calls `wireConversation(req, depth, output,
 OutputType.class, instructions)`, which builds the conversation once (the input rendered as
 the prompt, the response contract from the output POJO) and wires a fresh binding onto it
 per attempt through `requireSeat`, so the reservation is priced from exactly what the wire
@@ -90,11 +94,15 @@ fresh binding per attempt the same way, and conversed through the same `converse
 answer is corrected the same way; a tool that sends its own conversation on the client
 loses that. In `execute` it calls
 `converse(resources)`, which sends the conversation on the client resolved for the binding
-and returns the typed answer, correcting the model the way `LLMCall` does (the two share
-`ResponseCorrection.exchange`): an answer that does not parse, or parses without its
+and returns the typed answer, correcting the model through `ResponseCorrection.exchange`:
+an answer that does not parse, or parses without its
 required fields, goes back as a correction turn and the dispatcher re-runs the same
 instance on the grown conversation, up to `ResponseCorrection.MAX_CORRECTIONS` times; past
-that a parse failure surfaces and an invalid answer is returned as it is. The tool wraps the
+that either failure surfaces, a parse failure as `JsonParseException` and a missing required
+field as `ResponseValidationException`, so no caller receives an answer with a hole in it.
+After `converse`, `lastResponse()` is the provider's response to the latest exchange, for a
+tool that reads the envelope beside the answer, the served model, the request id, the headers,
+the usage and the rate limits; null before the first exchange. The tool wraps the
 exchange in `catch (Exception e) { throw LLMReadableCheckedException.unwrap(e); }`, and
 `unwrap` lets the dispatcher's retry signals through (upstream throttling, a correction, a
 truncation escalation), so the broad catch never turns the model's second chance into a
@@ -103,8 +111,16 @@ transport. `QuickLLMQuestionTool` is the shape; `AbstractToolCorrectionTest` pin
 protocol. `AbstractTool` itself stays the base for tools that call no model at all.
 
 A one-call tool that declares no grade of its own inherits its parent's when
-`ClassToolProvider` creates it. `SummarizationTool` and `AnalyzeViolationTool` declare
-`Grade.SMALL` in their constructors; `QuickLLMQuestionTool` takes its grade from its input.
+`ClassToolProvider` creates it. `AnalyzeViolationTool` declares `Grade.SMALL` in its
+constructor; `QuickLLMQuestionTool` takes its grade from its input. `SummarizationTool` is a
+doer rather than a one-call tool: it holds the seat (`Grade.SMALL`, or a pin) and hands it to
+the `SummaryCall`s it submits, one per exchange, so it holds no reservation while it waits on
+them. A `SummaryCall` wires the summarization prompt at `Depth.IMMEDIATE` with the size's
+backstop as its output, answers as plain text trimmed, and judges the fit itself against the
+model it resolved: text over the model's share, the window less 20%, fails the call as
+`TokenEstimateExceedsLimitException` before anything is sent. Its `model()` is the resolved
+entry, null until the seat resolves, which is how the summarizer tells a call that never ran
+from one that refused its text and chunks by the model that refused.
 
 ## Benchmark: any model-dependent job, raced across its grade
 

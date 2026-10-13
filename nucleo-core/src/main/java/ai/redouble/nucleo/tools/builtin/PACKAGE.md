@@ -17,7 +17,7 @@ names `OrderStatusTool`, or a host pushes providers through `ToolHub`.
 | `calculate_duration` | `DurationCalculatorTool` | none | 5s | Hours and minutes between two date-times, judged against a minimum |
 | `calculate_unit_rate` | `UnitRateCalculatorTool` | none | 5s | Rate times quantity with an optional cap, disclosed in the formula |
 | `quick_llm_question` | `QuickLLMQuestionTool` | one LLM call | 6min | A focused question about supplied text, at the grade the asker names in the input |
-| `summarize_text` | `SummarizationTool` | LLM calls | 6min | Summary at a `SummarySize`, hierarchical chunking for text of any length |
+| `summarize_text` | `SummarizationTool` | none of its own; one LLM call per `SummaryCall` it submits | none of its own; 6min per call | Summary at a `SummarySize`, hierarchical chunking for text of any length |
 | `analyze_violation` | `AnalyzeViolationTool` | one LLM call | 6min | Judges whether a guardrail violation was the thinker's mistake or a hijack attempt |
 | `web_fetch` | `WebFetchTool` | HTTP client | 30s | Fetches a page and reduces it to readable text as a `WebPageArtifact` |
 
@@ -127,14 +127,22 @@ time, because only the asker knows how much model its question deserves.
 
 ### summarize_text - SummarizationTool
 
-Summarizes text to a target `SummarySize` (`BRIEF` / `SHORT` / `PARAGRAPHS`). Text that
-fits the model's context is summarized directly; larger text is chunked on paragraph, then
-sentence, then word boundaries, each chunk summarized at `SHORT`, and the combined
-summaries re-summarized at the requested size. The size reaches the prompt as a prose
+Summarizes text to a target `SummarySize` (`BRIEF` / `SHORT` / `PARAGRAPHS`). A doer: every
+exchange is a `SummaryCall` it submits and waits on, so the tool holds no reservation and each
+call carries the 6-minute hung-call guard. A call runs at `Depth.IMMEDIATE` and answers as
+plain text, trimmed. Text that fits the resolved model, its window less a 20% reserve, is one
+call; text over that share is refused by the call before anything is sent, as a
+`TokenEstimateExceedsLimitException`, and chunked on paragraph, then sentence, then word
+boundaries, and a word past the share into characters, every piece measured by that model's
+tokenizer so each chunk fits it, each chunk summarized at `SHORT` on that model, and the
+combined summaries re-summarized at the requested size. The output carries the summary, the
+original length, the compression ratio and the number of chunking levels, 1 for one call and
+2 or more for a chunked text. The size reaches the prompt as a prose
 phrase with no digits - a precise count in the prompt is what triggers small-model
 scratchpad spirals on length verification - and the numeric bound rides `max_tokens` as a
 per-size backstop (768 / 1536 / 3072) that exists to stop runaway output, not to shape it.
-Runs at `Grade.SMALL` as a `UTILITY` job.
+Runs at `Grade.SMALL`, or on the entry it is pinned to, as a `UTILITY` job; its calls take
+the same seat.
 
 ### analyze_violation - AnalyzeViolationTool
 
@@ -143,10 +151,12 @@ Security monitoring: given the user's original input and a guardrail violation m
 error or a manipulation attempt, with confidence and reasoning
 (`ViolationAnalysisOutput`). Results feed security monitoring and incident response.
 
-Both one-call tools are built on `AbstractModelDependentTool`: the conversation is wired
-at requirements time, the exchange runs under the shared `ResponseCorrection` budget, and
-a malformed answer goes back to the model as a correction turn before it ever surfaces as
-a failure.
+The two one-call tools, and the summarizer's `SummaryCall`, are built on
+`AbstractModelDependentTool`, as every exchange with a model in the runtime is: the
+conversation is wired at requirements time, the exchange runs under the shared
+`ResponseCorrection` budget, and a malformed answer to a typed question goes back to the
+model as a correction turn before it ever surfaces as a failure. A `SummaryCall` asks for
+plain text, which has no shape to miss.
 
 ---
 

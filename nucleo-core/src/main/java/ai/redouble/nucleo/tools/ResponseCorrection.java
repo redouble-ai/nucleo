@@ -35,6 +35,7 @@ public final class ResponseCorrection {
     /** Correction budget per job: at most this many parse/validation feedback retries. */
     public static final int MAX_CORRECTIONS = 2;
     private int used;
+    private LLMResponse<?> lastResponse;
 
     /** Corrections consumed so far by the job holding this. */
     public int getUsed() {
@@ -42,10 +43,20 @@ public final class ResponseCorrection {
     }
 
     /**
+     * The response of the latest exchange, for a caller that reads the provider's envelope
+     * beside the parsed answer: the served model, the request id, the headers, the usage and
+     * the rate limits. Null before the first exchange.
+     */
+    public LLMResponse<?> lastResponse() {
+        return lastResponse;
+    }
+
+    /**
      * One exchange: the conversation's last outgoing message sent on the client, the answer
      * parsed or corrected. The outgoing message is taken before the call, since the client
-     * appends the answer and the last message is no longer outgoing afterwards. What a
-     * thinker's call and a one-call tool both do, written once.
+     * appends the answer and the last message is no longer outgoing afterwards. The one place
+     * in the runtime that sends a conversation on a client: every model-dependent tool, a
+     * thinker's turn included, converses through it.
      */
     public <T> T exchange(LLMClient client, ConversationContext conversation) throws LLMReadableCheckedException {
         OutgoingMessage<T> outgoingMessage = conversation.getLastOutgoingMessage();
@@ -53,6 +64,7 @@ public final class ResponseCorrection {
             throw new IllegalStateException("An exchange needs a conversation with an outgoing message to send");
         }
         LLMResponse<T> response = client.singleResponse(new LLMRequest<>(conversation));
+        lastResponse = response;
         return parseOrCorrect(response, conversation, outgoingMessage);
     }
 

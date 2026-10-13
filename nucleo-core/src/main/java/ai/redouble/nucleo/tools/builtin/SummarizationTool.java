@@ -7,28 +7,28 @@
 package ai.redouble.nucleo.tools.builtin;
 
 import ai.redouble.nucleo.harness.*;
-import ai.redouble.nucleo.harness.conversation.*;
 import ai.redouble.nucleo.harness.errors.*;
-import ai.redouble.nucleo.harness.llm.*;
 import ai.redouble.nucleo.harness.models.*;
 import ai.redouble.nucleo.harness.schema.*;
+import ai.redouble.nucleo.harness.tokens.*;
 import ai.redouble.nucleo.tools.*;
-import ai.redouble.nucleo.util.*;
 import org.slf4j.*;
 
-import java.time.*;
 import java.util.*;
+import java.util.concurrent.*;
 
 /**
- * Smart summarization tool that handles text of any size.
+ * Summarizes text of any size to a target {@link SummarySize}. A doer: every exchange with
+ * the model is a {@link SummaryCall} it submits and waits on, so the tool itself holds no
+ * reservation and each call carries its own hung-call guard. Text that fits the resolved
+ * model is one call; text that does not is chunked on paragraph, then sentence, then word
+ * boundaries, and a word past the share into characters, every piece measured by that
+ * model's tokenizer, each chunk summarized at {@link SummarySize#SHORT}, and the combined
+ * summaries summarized again at the requested size, on the same model.
  *
- * <p>For text that fits in context, directly summarizes via LLM.
- * For text too large for context, uses hierarchical chunking:
- * splits into chunks, summarizes each, then summarizes the summaries.
- *
- * <p>Target output size is supplied as a {@link SummarySize} - rendered as a prose
- * prompt phrase rather than a precise number so the model is steered structurally
- * and does not spend a thinking budget verifying length character-by-character.
+ * <p>The size reaches the prompt as a prose phrase rather than a precise number, so the model
+ * is steered structurally and does not spend a thinking budget verifying length
+ * character-by-character.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-01-10)
@@ -37,7 +37,7 @@ import java.util.*;
 @ToolName("summarize_text")
 @ToolDescription(value = "Summarize text to a target size. Handles arbitrarily large text via hierarchical chunking.", readOnly = true)
 @ToolWeight(type = ToolType.API_CALL, min = 5, max = 5)
-public class SummarizationTool extends AbstractModelDependentTool<SummarizationInput, SummarizationOutput> {
+public class SummarizationTool extends AbstractDoer<SummarizationInput, SummarizationOutput> implements ModelDependentTool<SummarizationInput, SummarizationOutput> {
     private static final Logger log = LoggerFactory.getLogger(SummarizationTool.class);
     static final String PROMPT_TEMPLATE = """
             Summarize the following text as %s.
@@ -49,14 +49,11 @@ public class SummarizationTool extends AbstractModelDependentTool<SummarizationI
             ---
 
             Provide ONLY the summary, no preamble or explanation.""";
-    private static final double CONTEXT_RESERVE = 0.2;  // Reserve 20% for output and overhead
-    private ModelBinding binding;
+    private Grade grade = Grade.SMALL;
+    private ModelSpec pinned;
 
     public SummarizationTool(Identifiable parent) {
-        super(parent, Grade.SMALL);
-        // 6 min: hung-call guard for one LLM call - summarizing a long input can run far past the
-        // typical few seconds. A ceiling, not expected latency (matches LLMCall).
-        setTimeout(Duration.ofMinutes(6));
+        super(parent);
     }
 
     @Override
@@ -65,39 +62,34 @@ public class SummarizationTool extends AbstractModelDependentTool<SummarizationI
     }
 
     @Override
-    public JobRequirements getRequirements() {
-        SummarySize size = requireSize();
-        JobRequirements req = new JobRequirements();
-        // Prompt-form reservation: the input text counted under the RESOLVED spec's
-        // tokenizer plus the size-derived output backstop. The backstop is also what we
-        // send as max_tokens (see summarizeDirect), keeping local
-        // TPM accounting and upstream pre-debit in lock-step. Recursive chunking walks the
-        // call path more than once; the full-text count covers the total the recursion
-        // feeds through, and additional intermediate calls draw from the TPM bucket's
-        // background refill.
-        OutputDeclaration output = OutputDeclaration.of(sizeToBackstopTokens(size));
-        if (pinnedModel() != null) {
-            // a pin names the tokenizer up front, so the prompt is counted under it here
-            int inTokens = pinnedModel().tokenCounter().countTokens(input.getText());
-            binding = req.requireModel(pinnedModel(), Depth.IMMEDIATE, inTokens, output);
-        }
-        else {
-            binding = req.requireModelForPrompt(getGrade(), Depth.IMMEDIATE, input.getText(), output);
-        }
-        req.setRequiresTransaction(false);
-        return req;
+    public Grade getGrade() {
+        return grade;
     }
 
     @Override
-    public SummarizationOutput execute(JobResources resources, JobContext<SummarizationOutput> context) throws LLMReadableCheckedException {
+    public void setGrade(Grade grade) {
+        this.grade = grade;
+    }
+
+    @Override
+    public void pinModel(ModelSpec model) {
+        this.pinned = model;
+    }
+
+    @Override
+    public ModelSpec pinnedModel() {
+        return pinned;
+    }
+
+    @Override
+    public SummarizationOutput execute(JobContext<SummarizationOutput> context) throws LLMReadableCheckedException {
         try {
             SummarySize size = requireSize();
             String text = input.getText();
             String textContext = input.getContext();
             context.publish("Starting summarization", 5);
-            LLMClient client = resources.getLLMClient(binding.getModel());
             int[] levels = {0};  // Track recursion depth
-            String summary = summarizeRecursive(text, size, textContext, client, context, levels, 0);
+            String summary = summarize(text, size, textContext, context, levels, 0, pinned);
             SummarizationOutput output = new SummarizationOutput();
             output.setSummary(summary);
             output.setOriginalLength(text.length());
@@ -128,56 +120,61 @@ public class SummarizationTool extends AbstractModelDependentTool<SummarizationI
     }
 
     /**
-     * Recursively summarizes text, chunking if necessary.
+     * Summarizes the text in one call, or chunks it when the call failed and the text is over
+     * the share of the model the call resolved: the call refuses such text itself before
+     * sending, and the binding's pricing refuses text past the window before the call runs,
+     * so a failed call over an oversized text is the text's doing. The chunks are cut by that
+     * model's tokenizer to its share, each summarized at {@link SummarySize#SHORT} on that
+     * model, and the combined summaries go through the same path at the requested size. A
+     * failed call over text within the share is the failure it is, rethrown.
      *
-     * <p>Termination: chunking branch only entered when {@code textTokens > maxInputTokens}.
-     * {@link #splitIntoChunks} structurally guarantees >= 2 chunks for any text that
-     * exceeded the threshold (paragraph -> sentence -> {@link Texts#splitAtWords} cascade
-     * divides unconditionally). Each leaf summary is bounded by {@link SummarySize#SHORT}'s
-     * backstop, so combined intermediate output is N * SHORT-backstop tokens; reaching
-     * the chunking threshold a second time would require N > 300, i.e. multi-megabyte
-     * input, which is also bounded by the LLMSummarizer's {@code maxLlmChars} ceiling.
+     * <p>Termination: the chunking branch is entered only when the text exceeded the model's
+     * share. {@link #splitIntoChunks} guarantees two or more chunks, each within the share by
+     * the model's own tokenizer, for any text that exceeded it: a paragraph -> sentence -> word
+     * -> character cascade, every piece measured by that tokenizer, so no chunk is refused
+     * again. Each leaf summary is bounded by {@link SummarySize#SHORT}'s backstop,
+     * so the combined intermediate output is N times that backstop; reaching the share a
+     * second time would require N above 300, multi-megabyte input, which the LLMSummarizer's
+     * {@code maxLlmChars} ceiling also bounds.
+     *
+     * @param model the entry the calls run on: the tool's pin, or null to resolve the grade
+     *              until a call has resolved one
      */
-    private String summarizeRecursive(String text, SummarySize size, String textContext,
-                                       LLMClient client, JobContext<?> jobContext,
-                                       int[] maxLevel, int currentLevel) throws Exception {
+    private String summarize(String text, SummarySize size, String textContext, JobContext<?> jobContext,
+                             int[] maxLevel, int currentLevel, ModelSpec model) throws Exception {
         maxLevel[0] = Math.max(maxLevel[0], currentLevel + 1);
-        ModelSpec model = binding.getModel();
-        int textTokens = model.tokenCounter().countTokens(text);
-        int maxInputTokens = (int) (model.getMaxContextTokens() * (1 - CONTEXT_RESERVE));
-        if (textTokens <= maxInputTokens) {
-            // Text fits in context - direct summarization
-            return summarizeDirect(text, size, textContext, client);
+        SummaryCall call = newCall(jobContext, model, text, size, textContext);
+        ModelSpec resolved;
+        int textTokens;
+        int share;
+        try {
+            return submitInStep(call).get();
         }
-        // Text too large - chunk and recurse
-        log.info("Text too large ({} tokens), chunking at level {}", textTokens, (currentLevel + 1));
-        List<String> chunks = splitIntoChunks(text, maxInputTokens);
+        catch (ExecutionException e) {
+            resolved = call.model();
+            textTokens = resolved != null ? resolved.tokenCounter().countTokens(text) : 0;
+            share = resolved != null ? SummaryCall.maxTextTokens(resolved) : 0;
+            if (resolved == null || textTokens <= share) {
+                throw e.getCause() instanceof Exception cause ? cause : e;
+            }
+        }
+        log.info("Text too large ({} tokens against a share of {}), chunking at level {}", textTokens, share, (currentLevel + 1));
+        List<String> chunks = splitIntoChunks(text, share, resolved.tokenCounter());
         jobContext.publish("Chunked into " + chunks.size() + " parts at level " + (currentLevel + 1), 10 + currentLevel * 20);
-
-        // Summarize each chunk at SHORT (fixed intermediate size; the final combine
-        // re-summarizes at the caller's requested size).
+        // Each chunk at SHORT (the fixed intermediate size), on the model whose measure cut it,
+        // so every chunk fits by construction; the final combine re-summarizes at the caller's size
         List<String> chunkSummaries = new ArrayList<>();
         for (int i = 0; i < chunks.size(); i++) {
-            String chunk = chunks.get(i);
-            String chunkSummary = summarizeRecursive(chunk, SummarySize.SHORT, textContext, client, jobContext, maxLevel, currentLevel + 1);
-            chunkSummaries.add(chunkSummary);
+            chunkSummaries.add(summarize(chunks.get(i), SummarySize.SHORT, textContext, jobContext, maxLevel, currentLevel + 1, resolved));
             jobContext.publish("Summarized chunk " + (i + 1) + "/" + chunks.size(), 20 + (70 * i / chunks.size()));
         }
-
-        // Combine summaries and summarize again at the requested size
         String combined = String.join("\n\n", chunkSummaries);
-        return summarizeRecursive(combined, size, textContext, client, jobContext, maxLevel, currentLevel + 1);
+        return summarize(combined, size, textContext, jobContext, maxLevel, currentLevel + 1, resolved);
     }
 
-    /**
-     * Direct LLM summarization for text that fits in context.
-     */
-    private String summarizeDirect(String text, SummarySize size, String textContext, LLMClient client) throws Exception {
-        // The backstop is the sole output ceiling; a conversation per call keeps a truncation
-        // escalation from restoring the runaway this tool exists to prevent
-        ConversationContext conv = ConversationContext.singleTurn(binding.getModel(), buildPrompt(text, size, textContext), sizeToBackstopTokens(size));
-        LLMResponse<String> response = client.singleResponse(new LLMRequest<>(conv));
-        return response.getResponseMessage().getRawContent().trim();
+    /** The one call this tool makes, at its grade or on the given entry. Package-private so tests can supply calls that answer without a transport. */
+    SummaryCall newCall(Identifiable parent, ModelSpec model, String text, SummarySize size, String textContext) {
+        return new SummaryCall(parent, grade, model, text, size, textContext);
     }
 
     /**
@@ -185,7 +182,7 @@ public class SummarizationTool extends AbstractModelDependentTool<SummarizationI
      * reaches the model (a precise count in the prompt is what triggers small-model
      * scratchpad spirals on length verification).
      */
-    private String buildPrompt(String text, SummarySize size, String textContext) {
+    static String buildPrompt(String text, SummarySize size, String textContext) {
         String contextLine = (textContext != null && !textContext.isEmpty())
             ? "Context: This is a " + textContext + ".\n\n"
             : "";
@@ -234,10 +231,13 @@ public class SummarizationTool extends AbstractModelDependentTool<SummarizationI
     }
 
     /**
-     * Splits text into chunks that fit within the token limit.
-     * Tries to split on paragraph or sentence boundaries.
+     * Splits text into chunks that fit within the token limit, every piece counted by the
+     * tokenizer of the model that will read them: on paragraph boundaries, a paragraph too
+     * large on sentence boundaries, a sentence too large on word boundaries, and a word too
+     * large into characters, so any text over the limit yields two or more chunks, each within
+     * it. Package-private so the cascade can be pinned without a model.
      */
-    private List<String> splitIntoChunks(String text, int maxTokens) {
+    static List<String> splitIntoChunks(String text, int maxTokens, TokenCounter counter) {
         List<String> chunks = new ArrayList<>();
 
         // First try splitting by paragraphs
@@ -245,7 +245,7 @@ public class SummarizationTool extends AbstractModelDependentTool<SummarizationI
         StringBuilder currentChunk = new StringBuilder();
         int currentTokens = 0;
         for (String para : paragraphs) {
-            int paraTokens = binding.getModel().tokenCounter().countTokens(para);
+            int paraTokens = counter.countTokens(para);
             if (paraTokens > maxTokens) {
                 // Single paragraph too large - split by sentences
                 if (!currentChunk.isEmpty()) {
@@ -253,7 +253,7 @@ public class SummarizationTool extends AbstractModelDependentTool<SummarizationI
                     currentChunk = new StringBuilder();
                     currentTokens = 0;
                 }
-                chunks.addAll(splitBySentences(para, maxTokens));
+                chunks.addAll(splitBySentences(para, maxTokens, counter));
             }
             else if (currentTokens + paraTokens > maxTokens) {
                 // Adding this paragraph would exceed limit
@@ -278,41 +278,68 @@ public class SummarizationTool extends AbstractModelDependentTool<SummarizationI
         return chunks;
     }
 
-    /**
-     * Splits a paragraph by sentences when it's too large.
-     */
-    private List<String> splitBySentences(String text, int maxTokens) {
-        List<String> chunks = new ArrayList<>();
+    /** Splits a paragraph by sentences when it is too large; a sentence too large goes to the word step. */
+    private static List<String> splitBySentences(String text, int maxTokens, TokenCounter counter) {
+        return packUnits(text.split("(?<=[.!?])\\s+"), " ", maxTokens, counter,
+                sentence -> splitByWords(sentence, maxTokens, counter));
+    }
 
-        // Simple sentence splitting - split on . ! ? followed by space or end
-        String[] sentences = text.split("(?<=[.!?])\\s+");
+    /** Splits a sentence by words when it is too large; a word too large is cut into characters. */
+    private static List<String> splitByWords(String text, int maxTokens, TokenCounter counter) {
+        return packUnits(text.split("\\s+"), " ", maxTokens, counter,
+                word -> splitIntoCharacters(word, maxTokens, counter));
+    }
+
+    /**
+     * Cuts a run with no boundary inside it into pieces that fit, halving by characters until
+     * the tokenizer says each half fits: the one step that needs no boundary, so the cascade
+     * ends for any text.
+     */
+    private static List<String> splitIntoCharacters(String run, int maxTokens, TokenCounter counter) {
+        if (run.length() <= 1 || counter.countTokens(run) <= maxTokens) {
+            return List.of(run);
+        }
+        int half = run.length() / 2;
+        List<String> pieces = new ArrayList<>(splitIntoCharacters(run.substring(0, half), maxTokens, counter));
+        pieces.addAll(splitIntoCharacters(run.substring(half), maxTokens, counter));
+        return pieces;
+    }
+
+    /**
+     * Packs units into chunks under the limit, joined by the separator, each unit counted by
+     * the tokenizer; a unit over the limit by itself is handed to the finer split.
+     */
+    private static List<String> packUnits(String[] units, String separator, int maxTokens, TokenCounter counter,
+                                          java.util.function.Function<String, List<String>> finer) {
+        List<String> chunks = new ArrayList<>();
         StringBuilder currentChunk = new StringBuilder();
         int currentTokens = 0;
-        for (String sentence : sentences) {
-            int sentenceTokens = binding.getModel().tokenCounter().countTokens(sentence);
-            if (sentenceTokens > maxTokens) {
-                // Single sentence too large - force split by character count
+        for (String unit : units) {
+            if (unit.isEmpty()) {
+                continue;
+            }
+            int unitTokens = counter.countTokens(unit);
+            if (unitTokens > maxTokens) {
                 if (!currentChunk.isEmpty()) {
                     chunks.add(currentChunk.toString().trim());
                     currentChunk = new StringBuilder();
                     currentTokens = 0;
                 }
-                // Approximate: 1 token ~= 4 characters for English
-                chunks.addAll(Texts.splitAtWords(sentence, maxTokens * 4));
+                chunks.addAll(finer.apply(unit));
             }
-            else if (currentTokens + sentenceTokens > maxTokens) {
+            else if (currentTokens + unitTokens > maxTokens) {
                 if (!currentChunk.isEmpty()) {
                     chunks.add(currentChunk.toString().trim());
                 }
-                currentChunk = new StringBuilder(sentence);
-                currentTokens = sentenceTokens;
+                currentChunk = new StringBuilder(unit);
+                currentTokens = unitTokens;
             }
             else {
                 if (!currentChunk.isEmpty()) {
-                    currentChunk.append(" ");
+                    currentChunk.append(separator);
                 }
-                currentChunk.append(sentence);
-                currentTokens += sentenceTokens;
+                currentChunk.append(unit);
+                currentTokens += unitTokens;
             }
         }
         if (!currentChunk.isEmpty()) {

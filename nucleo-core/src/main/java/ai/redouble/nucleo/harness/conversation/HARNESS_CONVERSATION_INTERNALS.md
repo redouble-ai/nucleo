@@ -251,7 +251,7 @@ objective.
 ### Cache Metrics
 
 ```java
-LLMResponse<T> response = client.singleResponse(request);
+LLMResponse<?> response = lastResponse();   // in a model-dependent tool, after converse
 
 // Cache performance, on the usage ledger the provider's client built
 TokenLedger usage = response.getUsage();

@@ -138,14 +138,19 @@ after their surrounding prose is compacted.
 
 ## Every summary is a real LLM call
 
-`CompactionJob` is an `AbstractJob<CompactionResult>`: resolved through the picker at
-the compactor's grade (`Grade.SMALL` unless the constructor says otherwise), reserved,
-admitted and recorded like any other call, with a 6-minute hung-call ceiling. It builds
-its one conversation once and re-wires a fresh binding per attempt, so the client's
-truncation escalation reaches a re-run. `CompactionResult` is the typed answer: one
-required `summary` field. An answer that does not parse into that object, or whose summary
-is blank, is a failed summary (`requireSummary`), never a summary: the shape is enforced, and
-a model that cannot produce it is the wrong model for the job.
+`CompactionJob` is an `AbstractModelDependentTool<Void, CompactionResult>`, the base every
+exchange with a model in the runtime is built on: resolved through the picker at the
+compactor's grade (`Grade.SMALL` unless the constructor says otherwise) at `Depth.STANDARD`
+with a `STANDARD` answer declared, reserved, admitted and recorded like any other call, a
+`UTILITY` job (the runtime's own work, never a tool a model called) with a 6-minute hung-call
+ceiling. It wires its one
+conversation once and re-wires a fresh binding per attempt, so the client's truncation
+escalation and the correction turns reach a re-run. `CompactionResult` is the typed answer:
+one required `summary` field. An answer that does not parse into that object, or parses
+without the field, goes back to the model as a correction turn under `ResponseCorrection`'s
+budget and fails the summary past it; a summary that parses but is blank is refused by
+`requireSummary`. Either way prose outside the shape never replaces content, and a model
+that cannot produce the shape fails the summary, which the level's failure rule then decides.
 
 ## Classes
 
@@ -155,7 +160,7 @@ a model that cannot produce it is the wrong model for the job.
 | `ContextCompactor` | The compaction strategy interface: in-place, level-driven |
 | `LLMContextCompactor` | The shipped compactor: exchanges, the pairing check, age weighting, parallel jobs |
 | `CompactionLevel` | LIGHT / MODERATE / AGGRESSIVE / MAXIMUM |
-| `CompactionJob` | One summary as a first-class job |
+| `CompactionJob` | One summary as a model-dependent tool, corrected like any typed answer |
 | `CompactionResult` | The LLM's typed answer |
 
 Related packages: [conversation](../PACKAGE.md) (the messages being compacted, the

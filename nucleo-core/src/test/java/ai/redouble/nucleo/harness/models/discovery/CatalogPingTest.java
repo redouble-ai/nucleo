@@ -71,6 +71,22 @@ class CatalogPingTest {
                 new IllegalStateException("unexpected")));
     }
 
+    /**
+     * A probe runs with no transparent retries, so an upstream signal reaches the ping wrapped
+     * in the dispatcher's budget failure; the ping reads the signal inside it, and reports the
+     * failure as that signal.
+     */
+    @Test
+    void aSignalWrappedOnItsWayOutIsClassifiedAsItself() {
+        RateLimitRetryException busy = new RateLimitRetryException("429", null, 1, "rate limited", Duration.ofSeconds(5), null);
+        UncorrectableRuntimeLLMException wrapped = new UncorrectableRuntimeLLMException("Exceeded the transparent retry budget (0) on RateLimitRetryException", busy);
+        assertEquals(ProbeOutcome.Classification.THROTTLE, CatalogPing.classify(wrapped), "busy, read through the wrapper");
+        assertSame(busy, CatalogPing.significant(wrapped), "and reported as the signal, never as the wrapper");
+        IllegalStateException unknown = new IllegalStateException("unexpected", new IllegalArgumentException("deeper"));
+        assertEquals(ProbeOutcome.Classification.OTHER, CatalogPing.classify(unknown));
+        assertSame(unknown, CatalogPing.significant(unknown), "a chain that classifies nowhere is reported by its outermost exception");
+    }
+
     private static LLMResponse<String> responseWith(boolean successful) {
         ConversationContext conversation = new ConversationContext();
         conversation.setModelBinding(ModelBinding.preResolved(TestModels.small()));

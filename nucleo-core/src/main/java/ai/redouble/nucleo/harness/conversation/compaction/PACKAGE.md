@@ -84,10 +84,13 @@ so every artifact stays reachable.
 
 ## What it costs
 
-Every summary is a call to a model, run as a `CompactionJob` of its own: a job at the
-`Grade.SMALL` grade unless the compactor is built with another, admitted against rate
-limits, recorded and costed like any other call. At `LIGHT` the summaries of the separate
-tool results run in parallel, at `MODERATE` those of the separate exchanges.
+Every summary is a call to a model, run as a `CompactionJob` of its own: a model-dependent
+tool like every exchange with a model in the runtime, at the `Grade.SMALL` grade unless the
+compactor is built with another, at `Depth.STANDARD` with a `STANDARD` answer, admitted
+against rate limits, recorded and costed like any other call, and corrected like any other
+typed answer when the model answers outside the
+asked-for shape, up to twice before the summary fails. At `LIGHT` the summaries of the
+separate tool results run in parallel, at `MODERATE` those of the separate exchanges.
 
 ## How it works inside
 

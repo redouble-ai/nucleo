@@ -254,7 +254,10 @@ back to the model as a correction, up to twice, exactly as an agent's answer doe
 Java objects](../harness/schema/PACKAGE.md)). A tool whose request the prompt cannot express,
 one carrying images or files, builds the conversation itself and passes it to the other
 `wireConversation`, and is corrected the same way. `QuickLLMQuestionTool` is the reference
-implementation. A tool that calls no model at all stays on `AbstractTool`.
+implementation. A tool that calls no model at all stays on `AbstractTool`. Every exchange
+with a model inside Nucleo itself goes through this same base, an agent's turn included, so
+what is said here about wiring, reservation and correction holds for every call the runtime
+makes.
 
 ### Running on one exact model
 

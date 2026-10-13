@@ -14,12 +14,12 @@ limit has already been reserved.
 
 ## One client for every provider
 
-You rarely hold a client yourself. An agent's calls to its model are `LLMCall` jobs, and
-each gets its client from the model its binding resolved to
-([The catalog, grades and the picker](../models/PACKAGE.md)). A job of your own that calls a
-model directly asks its resources for one, `JobResources.getLLMClient(spec)`, and the
-client comes wrapped so that every call is recorded, costed and counted against the
-workflow's cap.
+You rarely hold a client yourself. Every exchange with a model, an agent's turn included, is
+a tool built on `AbstractModelDependentTool` ([Tools](../../tools/PACKAGE.md)), which gets
+its client from the model its binding resolved to
+([The catalog, grades and the picker](../models/PACKAGE.md)); the client comes wrapped so
+that every call is recorded, costed and counted against the workflow's cap. A job of your
+own that needs a model is written as such a tool, never around a client of its own.
 
 Which client serves a model is written in the model's catalog entry, as its provider key:
 `anthropic-direct`, `anthropic-bedrock`, `bedrock-converse`, `openai` and the others. A
@@ -79,7 +79,7 @@ The SDKs' own retries are switched off, and Nucleo decides what each failure mea
   output ceiling. An answer already cut at that ceiling fails, since there is no larger
   limit to give it.
 - **The answer does not fit the declared shape**: the model is told what was wrong and
-  asked again, up to `LLMCall.MAX_CORRECTIONS` times per call.
+  asked again, up to `ResponseCorrection.MAX_CORRECTIONS` times per call.
 - **The provider refused on safety grounds**: `ProviderRefusalException`, carrying the
   provider's category and explanation, so the caller can resubmit the work to another
   model. It is never retried on the model that refused.

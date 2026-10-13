@@ -16,8 +16,11 @@ import ai.redouble.nucleo.harness.schema.*;
 import java.util.function.*;
 
 /**
- * A tool whose work is one exchange with a model. It declares a grade, or is pinned to an
- * entry, and it wires one conversation: the input rendered as the prompt, the response
+ * A tool whose work is one exchange with a model, and the one way the runtime's own code
+ * converses with a model: a thinker's turn ({@code LLMCall}), a compaction summary, each call
+ * of the built-in summarizer and the catalog's probes are all built on it, so every exchange
+ * is wired, reserved, admitted and corrected the same way. It declares a grade, or is pinned
+ * to an entry, and it wires one conversation: the input rendered as the prompt, the response
  * contract from the output POJO, the seat's depth and answer size declared on it. The shape:
  * in {@code getRequirements}, {@link #wireConversation}; in {@code execute},
  * {@link #converse}, wrapped in {@code catch (Exception e) { throw LLMReadableCheckedException.unwrap(e); }}.
@@ -45,6 +48,11 @@ public abstract class AbstractModelDependentTool<I, O> extends AbstractTool<I, O
     /** A tool that learns its grade later, from its input or from the thinker that offers it. */
     protected AbstractModelDependentTool(Identifiable parent) {
         super(parent);
+    }
+
+    /** A tool that learns its grade later, with a job id prefix of its own. */
+    protected AbstractModelDependentTool(Identifiable parent, String idPrefix) {
+        super(parent, idPrefix);
     }
 
     /** A tool whose grade is its own decision. */
@@ -148,7 +156,20 @@ public abstract class AbstractModelDependentTool<I, O> extends AbstractTool<I, O
         return correction.exchange(client(resources), wired());
     }
 
-    /** The client for the wired conversation's resolved model. A test overrides it to answer without a transport. */
+    /**
+     * The response of the latest {@link #converse}, for a tool that reads the provider's
+     * envelope beside the answer: the served model, the request id, the headers, the usage and
+     * the rate limits a probe records. Null before the first exchange.
+     */
+    protected LLMResponse<?> lastResponse() {
+        return correction.lastResponse();
+    }
+
+    /**
+     * The client for the wired conversation's resolved model. A test overrides it to answer
+     * without a transport; a probe overrides it to build the client straight from the provider
+     * it is probing.
+     */
     protected LLMClient client(JobResources resources) {
         return resources.getLLMClient(wired().getModel());
     }

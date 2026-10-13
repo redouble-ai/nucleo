@@ -503,16 +503,14 @@ public class LLMContextCompactor implements ContextCompactor {
     }
 
     /**
-     * The summary-shape refusal: an answer that is not the asked-for object, or one whose
-     * summary is empty, is a failed compaction, never a summary - inserting it would REPLACE
-     * content with nothing or with prose of unknown provenance. A summary model that cannot
-     * answer in the shape is the wrong model for the job. Package-private so the check is
-     * testable without dispatching a job.
+     * The blank-summary refusal: a summary that comes back empty is a failed compaction, never
+     * a summary - inserting it would REPLACE content with nothing. An answer outside the
+     * asked-for object never reaches here: the job corrects the model under the shared budget
+     * and fails past it, so a summary model that cannot answer in the shape fails the summary
+     * and the level decides what that means. Package-private so the check is testable without
+     * dispatching a job.
      */
     static String requireSummary(CompactionResult result) {
-        if (result == null) {
-            throw new UncorrectableRuntimeLLMException("Compaction LLM did not answer in the required shape - cannot compact the context");
-        }
         if (result.getSummary() == null || result.getSummary().isBlank()) {
             throw new UncorrectableRuntimeLLMException("Compaction LLM returned no summary - cannot compact the context");
         }

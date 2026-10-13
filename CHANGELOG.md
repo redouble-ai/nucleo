@@ -37,6 +37,18 @@ group `ai.redouble`; a published version is never changed in place.
   path; when it does not fit the model it fails with the new `NonCompactableContextException`,
   distinct from `ContextOverflowException`, which says compaction was tried and was not enough
   ([#1](https://github.com/redouble-ai/nucleo/issues/1)).
+- Every exchange with a model inside the runtime is a tool built on `AbstractModelDependentTool`:
+  a thinker's turn (`LLMCall`), a compaction summary, each call of `SummarizationTool`, which is
+  now a doer submitting one `SummaryCall` per exchange, and the catalog's probes. One door means
+  one correction protocol: a compaction summary that answers outside its shape is corrected like
+  any typed answer, up to twice, before it fails; a probe keeps its own rule of one call with no
+  retries of any kind. The summarizer cuts an oversized text by the model's own tokenizer at
+  every step, down to characters, so a text with no paragraph or sentence breaks is chunked
+  rather than refused again. Breaking: `LLMCall` extends
+  `AbstractModelDependentTool`, so a subclass overriding `client(JobResources)` declares it
+  `protected`; `SummarizationTool` has no timeout of its own, its calls carry the 6-minute guard;
+  `CatalogPing.harvest` takes any `LLMResponse` and `CatalogPing.classify` any `Throwable`
+  ([#1](https://github.com/redouble-ai/nucleo/issues/1)).
 - A thinker's input reaches the model as the JSON of its fields inside the objective, and
   `ThinkerInput` has no rendering method to override
   ([#2](https://github.com/redouble-ai/nucleo/issues/2)).

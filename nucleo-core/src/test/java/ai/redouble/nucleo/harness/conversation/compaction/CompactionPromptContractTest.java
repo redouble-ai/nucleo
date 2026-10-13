@@ -10,6 +10,7 @@ import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.conversation.*;
 import ai.redouble.nucleo.harness.conversation.ContentBlocks.*;
 import ai.redouble.nucleo.harness.models.*;
+import ai.redouble.nucleo.tools.*;
 import org.junit.jupiter.api.*;
 
 import java.util.*;
@@ -24,10 +25,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * compacted); an exchange prompt's and a tool result prompt's terseness instruction follows
  * the exchange's age quartile; an opening prompt shows only the messages its summary replaces;
  * the surrounding context is clipped to 300 characters a message; a summary task's prompt
- * passes through verbatim; the job is a utility job at STANDARD depth and STANDARD output
- * that builds its one conversation once and re-wires a fresh binding per attempt under its
- * 6-minute hung-call guard; and a blank summary, or an answer outside the required shape, is
- * refused rather than inserted.
+ * passes through verbatim; the job is a model-dependent tool, a utility job at STANDARD
+ * depth and STANDARD output answering as the typed CompactionResult, that builds its one
+ * conversation once and re-wires a fresh binding per attempt under its 6-minute hung-call
+ * guard; and a blank summary is refused rather than inserted.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-09-17)
@@ -156,13 +157,18 @@ class CompactionPromptContractTest {
     }
 
     @Test
-    void aSummaryJobIsAUtilityJobAtStandardDepthAndStandardOutput() {
+    void aSummaryJobIsAModelDependentToolAtStandardDepthAndStandardOutput() {
         CompactionJob job = new CompactionJob(ROOT,
                 new LLMContextCompactor.SummaryTask("summarize this", LLMContextCompactor.CompactionType.AGGRESSIVE_SUMMARY),
                 List.of(), List.of(), Grade.SMALL);
+        assertTrue(job instanceof AbstractModelDependentTool<?, ?>,
+                "a summary converses through the one door every exchange with a model goes through");
         assertEquals(JobType.UTILITY, job.getJobType(), "a summary is the runtime's own utility work");
-        job.getRequirements();
-        assertEquals(OutputDeclaration.of(OutputSize.STANDARD), job.conversation.getOutputDeclaration(), "a summary declares a STANDARD answer");
+        ModelBinding binding = job.getRequirements().getModelBindings().getFirst();
+        assertEquals(Depth.STANDARD, binding.getDepth(), "compaction summarizes at STANDARD depth");
+        assertEquals(OutputDeclaration.of(OutputSize.STANDARD), binding.getConversation().getOutputDeclaration(), "a summary declares a STANDARD answer");
+        assertEquals(CompactionResult.class, binding.getConversation().getLastOutgoingMessage().getResponseHandler().getResponseClass(),
+                "the answer is the typed CompactionResult, so a wrong shape is corrected like any typed answer");
     }
 
     @Test
@@ -172,16 +178,15 @@ class CompactionPromptContractTest {
                 List.of(), List.of(), Grade.SMALL);
         assertEquals(java.time.Duration.ofMinutes(6), job.getTimeout(),
                 "a hung-call guard for one LLM call, far past typical latency");
-        job.getRequirements();
-        ConversationContext built = job.conversation;
-        ModelBinding first = built.getModelBinding();
+        ModelBinding first = job.getRequirements().getModelBindings().getFirst();
+        ConversationContext built = first.getConversation();
         assertEquals(Grade.SMALL, first.getGrade(), "the call resolves at the compactor's grade");
         assertEquals(Depth.STANDARD, first.getDepth(), "compaction summarizes at STANDARD depth");
-        job.getRequirements();
-        assertSame(built, job.conversation,
-                "the conversation is built once and retained - the truncation escalation on its"
-                        + " sent message must reach the re-run");
-        assertNotSame(first, built.getModelBinding(), "each attempt wires a FRESH binding onto it");
+        ModelBinding second = job.getRequirements().getModelBindings().getFirst();
+        assertSame(built, second.getConversation(),
+                "the conversation is built once and retained - the truncation escalation and the"
+                        + " correction turns on it must reach the re-run");
+        assertNotSame(first, second, "each attempt wires a FRESH binding onto it");
     }
 
     @Test
@@ -194,10 +199,6 @@ class CompactionPromptContractTest {
         CompactionResult absent = new CompactionResult();
         assertThrows(ai.redouble.nucleo.harness.errors.UncorrectableRuntimeLLMException.class,
                 () -> LLMContextCompactor.requireSummary(absent));
-        ai.redouble.nucleo.harness.errors.UncorrectableRuntimeLLMException wrongShape = assertThrows(ai.redouble.nucleo.harness.errors.UncorrectableRuntimeLLMException.class,
-                () -> LLMContextCompactor.requireSummary(null),
-                "an answer outside the required shape is a failed summary, never prose that replaces content");
-        assertTrue(wrongShape.getMessage().contains("required shape"), wrongShape.getMessage());
         CompactionResult real = new CompactionResult();
         real.setSummary("a real summary");
         assertEquals("a real summary", LLMContextCompactor.requireSummary(real));

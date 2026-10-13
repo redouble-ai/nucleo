@@ -6,6 +6,7 @@
 
 package ai.redouble.nucleo.harness.models.discovery;
 
+import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.conversation.*;
 import ai.redouble.nucleo.harness.errors.*;
 import ai.redouble.nucleo.harness.llm.*;
@@ -32,8 +33,8 @@ import java.util.concurrent.*;
  * each carries a note naming the classifier so a person knows which facts to verify -
  * classification is judgment on the record, never invisible invention.
  *
- * <p>The transport is {@code CatalogPing}'s, because the discovery runs before a catalog, a
- * picker or a dispatcher exists: a client straight from the provider, one call, a hard cap.
+ * <p>The call is a {@link ProbeCall} pinned to the classifying model: one call with no
+ * transparent retries, a client straight from the provider, and a hard cap.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-09-18)
@@ -107,58 +108,38 @@ public final class ModelClassifier {
 
     private ModelClassifier() {}
 
-    /** The one classification call, on {@code CatalogPing}'s transport, capped like the judge is. */
+    /** The one classification call, a {@link ProbeCall} on the classifying model under a six-minute cap. */
     static String call(ClientProvider<?> provider, ModelSpec spec, String prompt) throws Exception {
-        try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
-            Future<String> answer = executor.submit(() -> {
-                Client client = provider.createClient(spec);
-                try {
-                    if (!(client instanceof LLMClient llm)) {
-                        throw new UncorrectableRuntimeLLMException("Provider '" + spec.getProviderKey()
-                                + "' built " + client.getClass().getSimpleName() + " for LLM entry " + spec.getId());
-                    }
-                    LLMResponse<String> response = llm.singleResponse(new LLMRequest<>(conversation(llm, spec, prompt)));
-                    if (!response.isSuccessful()) {
-                        throw new UncorrectableRuntimeLLMException("The classification call on " + spec.getId()
-                                + " failed: " + response.getReasonForFailure());
-                    }
-                    return response.getResponseMessage().getResponse();
-                }
-                finally {
-                    if (client instanceof LLMClient llm) {
-                        llm.close();
-                    }
-                }
-            });
-            try {
-                return answer.get(CAP.toMillis(), TimeUnit.MILLISECONDS);
-            }
-            catch (TimeoutException e) {
-                answer.cancel(true);
-                throw new UncorrectableRuntimeLLMException("No classification from " + spec.getId()
-                        + " within " + CAP.toMinutes() + " minutes");
-            }
-            catch (ExecutionException e) {
-                throw e.getCause() instanceof Exception cause ? cause : e;
-            }
-        }
+        return call(provider, spec, prompt, CAP);
     }
 
-    private static ConversationContext conversation(LLMClient client, ModelSpec spec, String prompt) {
-        ConversationContext conversation = new ConversationContext();
-        conversation.setModelBinding(ModelBinding.preResolved(spec));
+    /** The call under a cap of the caller's. Package-private so a test can observe the timeout without waiting six minutes. */
+    static String call(ClientProvider<?> provider, ModelSpec spec, String prompt, Duration cap) throws Exception {
         // STANDARD depth, deliberately: with thinking suppressed the model deliberates in
         // prose inside the answer channel and truncates the budget; at STANDARD the judgment
         // rides the thinking channel and the answer stays tight JSON. The wall time is the
         // per-listing fan-out's job, not this knob's.
-        conversation.setDepth(Depth.STANDARD);
-        conversation.setOutputDeclaration(OutputDeclaration.of(OUTPUT_BUDGET));
-        OutgoingMessage<String> message = client.createOutgoingMessage(StringResponseHandler.instance);
-        message.setRole("user");
-        message.setTimestamp(Instant.now());
-        message.addText(prompt);
-        conversation.getMessages().add(message);
-        return conversation;
+        ProbeCall call = new ProbeCall(Job.workflow("catalog-discovery", "catalog-classification"), provider, spec,
+                Depth.STANDARD, OUTPUT_BUDGET, prompt, cap);
+        JobHandle<String> handle = JobDispatcher.getInstance().submit(call);
+        String answer;
+        try {
+            answer = handle.get();
+        }
+        catch (ExecutionException e) {
+            Throwable cause = e.getCause() != null ? e.getCause() : e;
+            // the job's state says it timed out, whatever the interrupted call surfaced as
+            if (handle.getContext().getState() == JobState.TIMED_OUT) {
+                throw new UncorrectableRuntimeLLMException("No classification from " + spec.getId()
+                        + " within " + cap.toSeconds() + "s", cause);
+            }
+            throw cause instanceof Exception ex ? ex : e;
+        }
+        if (!call.response().isSuccessful()) {
+            throw new UncorrectableRuntimeLLMException("The classification call on " + spec.getId()
+                    + " failed: " + call.response().getReasonForFailure());
+        }
+        return answer;
     }
 
     /**

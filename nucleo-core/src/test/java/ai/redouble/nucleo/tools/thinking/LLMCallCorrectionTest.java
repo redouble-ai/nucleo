@@ -15,6 +15,7 @@ import ai.redouble.nucleo.harness.llm.*;
 import ai.redouble.nucleo.harness.llm.encode.*;
 import ai.redouble.nucleo.harness.models.*;
 import ai.redouble.nucleo.harness.schema.*;
+import ai.redouble.nucleo.tools.*;
 import org.junit.jupiter.api.*;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -30,9 +31,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * registry does not hold is corrected the way a missing required field is. A truncation signal grows the outgoing
  * message's budget and rethrows for the dispatcher's one-shot retry.
  *
- * <p>The client is a stub behind {@code LLMCall}'s package-private seam; the loop's own
- * decisions - what gets appended, what gets thrown, when the budget runs out - execute
- * for real.
+ * <p>The client is a stub behind the tool base's {@code client(resources)} seam, which
+ * {@code LLMCall} inherits as every model-dependent tool does; the loop's own decisions -
+ * what gets appended, what gets thrown, when the budget runs out - execute for real.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-08-31)
@@ -116,7 +117,7 @@ public class LLMCallCorrectionTest {
         }
     }
 
-    /** LLMCall wired to the canned client through the package-private seam. */
+    /** LLMCall wired to the canned client through the tool base's client seam. */
     static final class TestableCall extends LLMCall<StrictAnswer> {
         private final CannedClient client;
 
@@ -124,10 +125,14 @@ public class LLMCallCorrectionTest {
             super(root(), conversation);
             this.client = client;
             client.setModel(TestModels.small());
+            // what the thinker and the dispatcher do before execute: declare the seat's grade,
+            // wire the conversation and resolve its seat
+            setGrade(Grade.SMALL);
+            getRequirements().getModelBindings().getFirst().resolve(TestModels.small());
         }
 
         @Override
-        LLMClient client(JobResources resources) {
+        protected LLMClient client(JobResources resources) {
             return client;
         }
     }
@@ -162,10 +167,14 @@ public class LLMCallCorrectionTest {
             super(root(), conversation);
             this.client = client;
             client.setModel(TestModels.small());
+            // what the thinker and the dispatcher do before execute: declare the seat's grade,
+            // wire the conversation and resolve its seat
+            setGrade(Grade.SMALL);
+            getRequirements().getModelBindings().getFirst().resolve(TestModels.small());
         }
 
         @Override
-        LLMClient client(JobResources resources) {
+        protected LLMClient client(JobResources resources) {
             return client;
         }
     }
@@ -196,6 +205,47 @@ public class LLMCallCorrectionTest {
                 "past the budget the call fails: a fabricated artifact is never returned");
         assertTrue(surfaced.explainToLLM().contains("best"), "the failure names the place: " + surfaced.explainToLLM());
         assertFalse(surfaced.explainToLLM().contains("invented"), "and never what the model wrote there: " + surfaced.explainToLLM());
+    }
+
+    @Test
+    void theCallWiresTheThinkersConversationOnce_andRewiresAFreshBindingPerAttempt() {
+        ConversationContext conversation = conversationExpecting(new PojoResponseHandler<>(StrictAnswer.class));
+        TestableCall call = new TestableCall(conversation, new CannedClient("{\"verdict\": \"yes\"}"));
+        ModelBinding first = call.getRequirements().getModelBindings().getFirst();
+        ModelBinding second = call.getRequirements().getModelBindings().getFirst();
+        assertSame(conversation, first.getConversation(), "the thinker's conversation itself is wired, never a copy");
+        assertSame(conversation, second.getConversation(), "and kept across attempts, so corrections and the truncation escalation reach the re-run");
+        assertNotSame(first, second, "each attempt wires a FRESH binding onto it");
+        assertEquals(Grade.SMALL, second.getGrade(), "the seat's grade is the conversation's");
+    }
+
+    @Test
+    void theCallRecordsNoToolOutputMetadata() throws Exception {
+        JobDispatcher.getInstance().start();
+        StandardModelSpec spec = new StandardModelSpec();
+        spec.setId("llm-call-fake");
+        spec.setIdentity("llm-call-fake");
+        spec.setProviderKey("openai");
+        spec.setWireModelId("llm-call-fake");
+        spec.setGrade(Grade.SMALL);
+        spec.setMaxContextTokens(100_000);
+        spec.setMaxOutputTokens(32_000);
+        spec.setTpm(1_000_000);
+        spec.setRpm(10_000);
+        ConversationContext conversation = conversationExpecting(new PojoResponseHandler<>(StrictAnswer.class));
+        CannedClient client = new CannedClient("{\"verdict\": \"yes\"}");
+        client.setModel(spec);
+        LLMCall<StrictAnswer> call = new LLMCall<>(root(), conversation) {
+            @Override
+            protected LLMClient client(JobResources resources) {
+                return client;
+            }
+        };
+        call.pinModel(spec);
+        JobHandle<StrictAnswer> handle = JobDispatcher.getInstance().submit(call);
+        assertEquals("yes", handle.get().getVerdict());
+        assertFalse(handle.getContext().getAllMetadata().containsKey(Tool.OBS_OUTPUT),
+                "the answer is already on the job as the call's recorded response; a tool's output metadata would repeat the whole turn");
     }
 
     @Test

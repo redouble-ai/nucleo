@@ -22,8 +22,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * A one-call tool built on {@code wireConversation} corrects the model the way
  * {@code LLMCall} does: an answer that does not parse, or parses without its required
  * fields, goes back as a correction turn under the shared budget, and the retry signal
- * survives the broad catch every tool wraps its exchange in. Before this, a tool whose
- * model wrote one stray character in its JSON failed outright, with no second chance.
+ * survives the broad catch every tool wraps its exchange in. After an exchange the tool
+ * reads the provider's response through {@code lastResponse()}, null before the first.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-09-16)
@@ -123,6 +123,10 @@ public class AbstractToolCorrectionTest {
             catch (Exception e) {
                 throw LLMReadableCheckedException.unwrap(e);
             }
+        }
+
+        LLMResponse<?> last() {
+            return lastResponse();
         }
     }
 
@@ -229,5 +233,16 @@ public class AbstractToolCorrectionTest {
         StrictTool tool = new StrictTool(new CannedClient("{\"verdict\": \"yes\"}"));
         tool.getRequirements();
         assertEquals("yes", tool.execute(null, null).getVerdict());
+    }
+
+    @Test
+    void theProvidersResponseIsReadableAfterTheExchange_nullBefore() throws Exception {
+        assertNull(new ResponseCorrection().lastResponse(), "no exchange yet, no response");
+        StrictTool tool = new StrictTool(new CannedClient("{\"verdict\": \"yes\"}"));
+        tool.getRequirements();
+        assertNull(tool.last(), "a tool that has not conversed has no response to read");
+        tool.execute(null, null);
+        assertNotNull(tool.last(), "after the exchange the provider's response is the tool's to read");
+        assertEquals("{\"verdict\": \"yes\"}", tool.last().getResponseMessage().getRawContent(), "the response of the latest exchange");
     }
 }

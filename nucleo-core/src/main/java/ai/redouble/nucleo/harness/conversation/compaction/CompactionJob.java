@@ -8,31 +8,33 @@ package ai.redouble.nucleo.harness.conversation.compaction;
 
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.conversation.*;
-import ai.redouble.nucleo.harness.conversation.ContentBlocks.*;
-import ai.redouble.nucleo.harness.llm.*;
+import ai.redouble.nucleo.harness.errors.*;
 import ai.redouble.nucleo.harness.models.*;
 import ai.redouble.nucleo.harness.tokens.*;
+import ai.redouble.nucleo.tools.*;
 
 import java.time.*;
 import java.util.*;
 
 /**
- * Job for parallel execution of conversation compaction tasks.
- * Each job compacts one tool result, one exchange, or a composed prompt, using an LLM.
- * Built only by {@link LLMContextCompactor}, whose tasks it takes. What the summary model
- * reads is the text a model reads ({@link ModelText}), never the placeholder form.
+ * One compaction summary as a job: one tool result, one exchange, or a composed prompt,
+ * summarized by a model. Built only by {@link LLMContextCompactor}, whose tasks it takes.
+ * What the summary model reads is the text a model reads ({@link ModelText}), never the
+ * placeholder form.
+ *
+ * <p>A model-dependent tool like every exchange with a model in the runtime: resolved
+ * through the picker at the compactor's grade, reserved and admitted for exactly the
+ * conversation it sends, and corrected when the model answers outside the required shape,
+ * under the shared {@link ResponseCorrection} budget. Past that budget the summary fails;
+ * prose that is not the asked-for object never replaces content.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2025-11-19)
  */
-class CompactionJob extends AbstractJob<CompactionResult> {
+class CompactionJob extends AbstractModelDependentTool<Void, CompactionResult> {
     private final LLMContextCompactor.CompactionTask task;
     private final List<Message> contextWindow;
     private final List<Message> allMessages;
-    private final Grade grade;
-    private ModelBinding binding;
-    /** Built once in {@link #getRequirements}, kept across attempts, re-wired per attempt; package-private so tests can pin that lifecycle. */
-    ConversationContext conversation;
 
     /**
      * Creates a compaction job.
@@ -48,56 +50,56 @@ class CompactionJob extends AbstractJob<CompactionResult> {
                   List<Message> contextWindow,
                   List<Message> allMessages,
                   Grade grade) {
-        super(parent, "CompactionJob");
+        super(parent, "CompactionJob", grade);
         // 6 min: hung-call guard for one LLM call - compacting a large context can run far past the
         // typical few seconds. A ceiling, not expected latency (matches LLMCall).
         setTimeout(Duration.ofMinutes(6));
         this.task = task;
         this.contextWindow = contextWindow;
         this.allMessages = allMessages;
-        this.grade = grade;
     }
 
+    /** The runtime's own work, never a tool a model called. */
     @Override
     public JobType getJobType() {
         return JobType.UTILITY;
     }
 
     /**
-     * Builds the one conversation this job sends, once, and wires a fresh binding onto it per
-     * attempt: the prompt exists at construction, so the wired form prices the exact input
-     * under the resolved tokenizer, and a retained conversation lets the client's truncation
-     * escalation reach the re-run. A compaction summary distils an arbitrarily large segment
-     * into structured prose: the typical structured answer.
+     * Wires the one conversation this job sends at {@link Depth#STANDARD}, built once and
+     * given a fresh binding per attempt: the prompt exists at construction, so the wired form
+     * prices the exact input under the resolved tokenizer, and the retained conversation lets
+     * the client's truncation escalation and the correction turns reach the re-run.
      */
     @Override
     public JobRequirements getRequirements() {
         JobRequirements req = new JobRequirements();
-        if (conversation == null) {
-            ConversationContext built = new ConversationContext();
-            built.setGrade(grade);
-            built.setDepth(Depth.STANDARD);
-            built.setOutputDeclaration(OutputDeclaration.of(OutputSize.STANDARD));
-            OutgoingMessage<CompactionResult> msg = new OutgoingMessage<>(new PojoResponseHandler<>(CompactionResult.class));
-            msg.setRole("user");
-            msg.addText(buildPrompt());
-            built.getMessages().add(msg);
-            conversation = built;
-        }
-        binding = req.requireModel(grade, Depth.STANDARD);
-        conversation.setModelBinding(binding);
+        wireConversation(req, Depth.STANDARD, this::buildConversation);
+        req.setRequiresTransaction(false);
         return req;
     }
 
-    @Override
-    public CompactionResult execute(JobResources resources, JobContext<CompactionResult> context) throws Exception {
-        LLMClient llm = resources.getLLMClient(binding.getModel());
-        LLMResponse<CompactionResult> response = llm.singleResponse(new LLMRequest<>(conversation));
+    /** A compaction summary distils an arbitrarily large segment into structured prose: the typical structured answer. */
+    private ConversationContext buildConversation() {
+        ConversationContext built = new ConversationContext();
+        built.setGrade(getGrade());
+        built.setDepth(Depth.STANDARD);
+        built.setOutputDeclaration(OutputDeclaration.of(OutputSize.STANDARD));
+        OutgoingMessage<CompactionResult> msg = new OutgoingMessage<>(new PojoResponseHandler<>(CompactionResult.class));
+        msg.setRole("user");
+        msg.addText(buildPrompt());
+        built.getMessages().add(msg);
+        return built;
+    }
 
-        // The typed answer, or null when the model answered outside the required shape; the
-        // compactor refuses a null as a failed summary, since prose that is not the asked-for
-        // object may be anything and must never replace content
-        return response.getResponseMessage().getResponse();
+    @Override
+    public CompactionResult execute(JobResources resources, JobContext<CompactionResult> context) throws LLMReadableCheckedException {
+        try {
+            return converse(resources);
+        }
+        catch (Exception e) {
+            throw LLMReadableCheckedException.unwrap(e);
+        }
     }
 
     /**

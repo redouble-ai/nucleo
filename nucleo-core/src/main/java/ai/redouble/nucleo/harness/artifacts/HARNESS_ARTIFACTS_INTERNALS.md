@@ -19,8 +19,8 @@ for the parent.
 The readers in this package rebuild an artifact from a payload, which is right for a payload
 a tool or another process wrote and wrong for one a model wrote. The two are told apart by
 where the payload is read, and a model's reply is read in one place: `ResponseCorrection`,
-which every model-calling job goes through (`LLMCall` for a thinker's turn,
-`AbstractModelDependentTool` for a one-call tool). After the parse and before required-field
+which every model-dependent tool converses through, a thinker's turn (`LLMCall`) included.
+After the parse and before required-field
 validation it calls `ResponseHandler.heldArtifacts`, whose default hands the reply to
 `ArtifactRegistry.held` with the conversation's registry.
 
