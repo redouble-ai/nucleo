@@ -153,14 +153,6 @@ public class IncomingMessage<T> implements Message, Serializable {
         }
     }
     /**
-     * Returns actual output tokens for this response.
-     */
-    @Override
-    public Integer getActualTokens() {
-        return actualOutputTokens;
-    }
-
-    /**
      * Checks if this message can be compacted during context window management.
      * Non-compactable messages (like final answers) are preserved verbatim.
      *

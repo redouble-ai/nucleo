@@ -8,16 +8,19 @@ package ai.redouble.nucleo.harness.conversation.compaction;
 
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.conversation.*;
+import ai.redouble.nucleo.harness.conversation.ContentBlocks.*;
 import ai.redouble.nucleo.harness.llm.*;
 import ai.redouble.nucleo.harness.models.*;
+import ai.redouble.nucleo.harness.tokens.*;
 
 import java.time.*;
 import java.util.*;
 
 /**
  * Job for parallel execution of conversation compaction tasks.
- * Each job compacts a segment of messages using an LLM. Built only by
- * {@link LLMContextCompactor}, whose tasks it takes.
+ * Each job compacts one tool result, one exchange, or a composed prompt, using an LLM.
+ * Built only by {@link LLMContextCompactor}, whose tasks it takes. What the summary model
+ * reads is the text a model reads ({@link ModelText}), never the placeholder form.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2025-11-19)
@@ -35,7 +38,7 @@ class CompactionJob extends AbstractJob<CompactionResult> {
      * Creates a compaction job.
      *
      * @param parent the parent identity for lineage tracking
-     * @param task the compaction task with segment to compact
+     * @param task the compaction task
      * @param contextWindow surrounding messages for context
      * @param allMessages all messages in the conversation (for reference)
      * @param grade the capability floor the compaction call is resolved at
@@ -106,186 +109,115 @@ class CompactionJob extends AbstractJob<CompactionResult> {
 
     /**
      * The prompt this job sends: a summary task carries one the compactor composed from the
-     * whole conversation; a segment task's is composed here from the segment and its window.
-     * Package-private so tests can pin the prompt contract without an LLM.
+     * whole conversation; a tool result's or an exchange's is composed here from the task and
+     * its surrounding window. Package-private so tests can pin the prompt contract without an LLM.
      */
     String buildPrompt() {
         return switch (task) {
             case LLMContextCompactor.SummaryTask summary -> summary.prompt();
-            case LLMContextCompactor.SegmentTask segmentTask -> buildSegmentPrompt(segmentTask.segment(), segmentTask.type());
+            case LLMContextCompactor.ToolResultTask toolResult -> buildToolResultPrompt(withContext(toolResult.exchange()), toolResult);
+            case LLMContextCompactor.ExchangeTask exchangeTask -> buildExchangePrompt(withContext(exchangeTask.exchange()), exchangeTask.exchange());
         };
     }
 
-    private String buildSegmentPrompt(LLMContextCompactor.MessageSegment segment, LLMContextCompactor.CompactionType type) {
+    /** The surrounding messages, clipped, so the summary model knows where the exchange sits. */
+    private StringBuilder withContext(LLMContextCompactor.Exchange exchange) {
         StringBuilder prompt = new StringBuilder();
-
-        // Add context window (messages before and after)
-        if (!contextWindow.isEmpty()) {
-            prompt.append("Previous conversation context:\n");
-            prompt.repeat("-", 50).append("\n");
-
-            for (Message msg : contextWindow) {
-                // Skip the messages we're actually compacting
-                if (!segment.messageIndices.contains(allMessages.indexOf(msg))) {
-                    String role = msg instanceof IncomingMessage ? "assistant" : msg.getRole();
-                    String content = truncate(msg.getRawContent(), 300);
-                    prompt.append("[").append(role).append("]: ").append(content).append("\n");
-                }
-            }
-            prompt.repeat("-", 50).append("\n\n");
+        if (contextWindow.isEmpty()) {
+            return prompt;
         }
-
-        // Build specific prompt based on compaction type
-        return switch (type) {
-            case TOOL_RESULTS_ONLY -> buildToolResultsPrompt(prompt, segment);
-            case FULL_SEGMENT -> buildFullSegmentPrompt(prompt, segment);
-            default -> throw new IllegalArgumentException("A segment task cannot be of type " + type);
-        };
+        Set<Message> own = Collections.newSetFromMap(new IdentityHashMap<>());
+        own.addAll(exchange.all());
+        prompt.append("Previous conversation context:\n");
+        prompt.repeat("-", 50).append("\n");
+        for (Message msg : contextWindow) {
+            if (!own.contains(msg)) {
+                prompt.append("[").append(msg.getRole()).append("]: ").append(truncate(ModelText.render(msg), 300)).append("\n");
+            }
+        }
+        prompt.repeat("-", 50).append("\n\n");
+        return prompt;
     }
 
     /**
-     * Builds prompt for compacting tool results only (LIGHT mode).
+     * Builds the prompt for one tool result (LIGHT): the call that asked for it, the payload it
+     * returned, and the assistant's next turn when there is one, which shows what mattered.
      */
-    private String buildToolResultsPrompt(StringBuilder base, LLMContextCompactor.MessageSegment segment) {
-        base.append("A series of tools were executed. ");
-
-        // If we have the assistant's response, mention it
-        if (segment.incomingResponse != null) {
-            base.append("The assistant then responded based on these results.\n\n");
-
-            base.append("Assistant's response (shows what was important):\n");
-            String assistantResponse = truncate(segment.incomingResponse.getRawContent(), 500);
-            base.append(assistantResponse).append("\n\n");
-        } else {
-            base.append("\n\n");
+    private String buildToolResultPrompt(StringBuilder base, LLMContextCompactor.ToolResultTask task) {
+        LLMContextCompactor.Exchange exchange = task.exchange();
+        String toolName = exchange.toolName(task.result().toolUseId());
+        base.append("A tool was called and returned a result.\n\n");
+        if (exchange.assistant != null) {
+            base.append("The call:\n").append(ModelText.render(exchange.assistant)).append("\n\n");
         }
-
-        base.append("Tool results to summarize:\n");
+        base.append("The result to summarize");
+        if (toolName != null) {
+            base.append(" (").append(toolName).append(")");
+        }
+        base.append(":\n");
         base.repeat("=", 50).append("\n");
-
-        // Add all tool results from this segment
-        for (Message msg : segment.outgoingMessages) {
-            if (isToolResult(msg)) {
-                String toolName = extractToolName(msg.getRawContent());
-                if (toolName != null) {
-                    base.append("[").append(toolName).append(" Result]:\n");
-                } else {
-                    base.append("[Tool Result]:\n");
-                }
-                base.append(msg.getRawContent()).append("\n\n");
-            }
-        }
-
+        base.append(task.result().resultJson()).append("\n");
         base.repeat("=", 50).append("\n\n");
-
-        // Age-based instructions
-        appendAgeInstructions(base, segment);
-
+        appendAgeInstructions(base, exchange);
         base.append("Instructions:\n");
-        base.append("- Create a concise summary of what these tools found\n");
-        base.append("- If the assistant's response indicates certain results were not useful, mention that briefly\n");
+        base.append("- Create a concise summary of what this tool found\n");
         base.append("- CRITICAL: Preserve any artifact references like «artifact:type~uuid» (e.g., «artifact:link:cite~a1b2c3»)\n");
         base.append("- Focus on the key findings\n\n");
-
-        base.append("Return your response as JSON with a 'summary' field containing the compacted tool results.");
-
+        base.append("Return your response as JSON with a 'summary' field containing the compacted tool result.");
         return base.toString();
     }
 
     /**
-     * Builds prompt for compacting an entire segment (MODERATE mode).
+     * Builds the prompt for one exchange (MODERATE): the assistant's turn with the calls it made,
+     * then every turn that answered it, each as the model read it.
      */
-    private String buildFullSegmentPrompt(StringBuilder base, LLMContextCompactor.MessageSegment segment) {
-        base.append("Summarize this conversation segment.\n\n");
-
-        // Messages to summarize
-        base.append("Messages in this segment:\n");
+    private String buildExchangePrompt(StringBuilder base, LLMContextCompactor.Exchange exchange) {
+        base.append("Summarize this conversation exchange.\n\n");
+        base.append("Messages in this exchange:\n");
         base.repeat("=", 50).append("\n");
-
-        for (Message msg : segment.outgoingMessages) {
+        for (Message msg : exchange.all()) {
             String role = msg.getRole();
-            if (isToolResult(msg)) {
-                String toolName = extractToolName(msg.getRawContent());
-                role = toolName != null ? toolName : "tool";
+            if (msg instanceof OutgoingMessage<?> outgoing && !exchange.compactable()) {
+                // the opening: only the compactable messages are summarized
+                if (!outgoing.isCompactable()) {
+                    continue;
+                }
             }
             base.append("[").append(role).append("]: ");
-            base.append(msg.getRawContent()).append("\n\n");
+            base.append(ModelText.render(msg)).append("\n\n");
         }
-
         base.repeat("=", 50).append("\n\n");
-
-        // Include assistant's response to understand importance
-        if (segment.incomingResponse != null) {
-            base.append("Assistant's response (shows what was important):\n");
-            base.append(segment.incomingResponse.getRawContent()).append("\n\n");
-        }
-
-        // Age-based instructions
-        appendAgeInstructions(base, segment);
-
+        appendAgeInstructions(base, exchange);
         base.append("Instructions:\n");
-        base.append("- Create a single coherent summary of this entire segment\n");
-        base.append("- Look at the assistant's response to understand what was important\n");
+        base.append("- Create a single coherent summary of this entire exchange\n");
+        base.append("- Keep what the tool calls found and what the assistant concluded from it\n");
         base.append("- CRITICAL: Preserve any artifact references like «artifact:type~uuid» (e.g., «artifact:link:cite~a1b2c3»)\n");
         base.append("- Be concise but preserve key information\n\n");
-
-        base.append("Return your response as JSON with a 'summary' field containing the segment summary.");
-
+        base.append("Return your response as JSON with a 'summary' field containing the exchange summary.");
         return base.toString();
     }
 
-    /**
-     * Appends age-based compaction instructions.
-     */
-    private void appendAgeInstructions(StringBuilder prompt, LLMContextCompactor.MessageSegment segment) {
-        double age = segment.ageWeight;
-
+    /** Appends the terseness instruction for the exchange's age: the older, the shorter. */
+    private void appendAgeInstructions(StringBuilder prompt, LLMContextCompactor.Exchange exchange) {
+        double age = exchange.ageWeight;
         if (age < 0.25) {
             prompt.append("This is in the OLDEST 25% of the conversation - be VERY concise (1-2 lines max).\n\n");
-        } else if (age < 0.5) {
+        }
+        else if (age < 0.5) {
             prompt.append("This is in the older half of the conversation - be concise (2-3 lines).\n\n");
-        } else if (age < 0.75) {
+        }
+        else if (age < 0.75) {
             prompt.append("This is relatively recent - moderate detail (3-5 lines).\n\n");
-        } else {
+        }
+        else {
             prompt.append("This is recent - preserve most details.\n\n");
         }
     }
 
-    /**
-     * Checks if a message is a tool result.
-     */
-    private boolean isToolResult(Message msg) {
-        if (!(msg instanceof OutgoingMessage)) return false;
-        String content = msg.getRawContent();
-        return content != null &&
-               content.contains("[") &&
-               content.contains("result]:") &&
-               (content.contains("{") || content.contains("```"));
-    }
-
-    /**
-     * Extracts tool name from a tool result message.
-     */
-    private String extractToolName(String content) {
-        if (content == null) return null;
-
-        // Look for pattern like "[ToolName result]:"
-        int startIdx = content.indexOf("[");
-        int endIdx = content.indexOf(" result]:");
-
-        if (startIdx >= 0 && endIdx > startIdx) {
-            return content.substring(startIdx + 1, endIdx);
-        }
-
-        return null;
-    }
-
-    /**
-     * Truncates text to specified length.
-     */
     private String truncate(String text, int maxLength) {
-        if (text == null) return "";
-        if (text.length() <= maxLength) return text;
+        if (text.length() <= maxLength) {
+            return text;
+        }
         return text.substring(0, maxLength) + "...";
     }
 }

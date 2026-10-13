@@ -8,6 +8,7 @@ package ai.redouble.nucleo.harness.llm;
 
 import ai.redouble.nucleo.harness.decision.*;
 import ai.redouble.nucleo.harness.models.*;
+import ai.redouble.nucleo.harness.tokens.*;
 
 import java.io.*;
 import java.time.*;
@@ -39,7 +40,7 @@ public class FakeDecisionClient implements DecisionClient {
         DecisionResponse response = new DecisionResponse(model, request);
         response.setStartTime(Instant.now());
         response.setAnswers(current.apply(request));
-        response.setActualInputTokens(SystemOneWire.encode(model.getWireModelId(), request).length() / 4);
+        response.setUsage(new DefaultTokenLedger(model, SystemOneWire.encode(model.getWireModelId(), request).length() / 4, null, null, 0));
         response.setEndTime(Instant.now());
         response.setSuccessful(true);
         return response;

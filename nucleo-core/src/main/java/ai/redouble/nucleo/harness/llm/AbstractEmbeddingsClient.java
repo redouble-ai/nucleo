@@ -11,6 +11,7 @@ import ai.redouble.nucleo.harness.admission.*;
 import ai.redouble.nucleo.harness.errors.*;
 import ai.redouble.nucleo.harness.errors.http.*;
 import ai.redouble.nucleo.harness.errors.retry.*;
+import ai.redouble.nucleo.harness.tokens.*;
 
 import java.io.*;
 import java.net.*;
@@ -108,7 +109,11 @@ public abstract class AbstractEmbeddingsClient extends AbstractRateLimitedClient
         // a lossy expand/fold against the framework canonical dimension.
         Integer specDimensions = model != null ? model.getEmbeddingDimensions() : null;
         response.setVector(DimensionAdapter.coerce(raw.vector(), specDimensions != null ? specDimensions : EmbeddingsClient.DIMENSIONS));
-        response.setActualInputTokens(raw.inputTokens());
+        // an embedding generates nothing: input as the provider reported it, output zero, no cache;
+        // a provider that reported no count gives the response no ledger, as a chat client does
+        if (raw.inputTokens() != null) {
+            response.setUsage(new DefaultTokenLedger(model, raw.inputTokens(), null, null, 0));
+        }
         response.setEndTime(Instant.now());
         response.setSuccessful(true);
         return response;

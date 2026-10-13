@@ -42,11 +42,13 @@ public class OpenAIResponseParseTest {
         assertEquals("chatcmpl-123", response.getResponseMessage().getMessageId());
         assertEquals("gpt-5-mini-2026-01-15", response.getServedModelId(),
                 "the served-model echo: an alias answers with its snapshot");
-        assertEquals(120, response.getActualInputTokens(),
+        assertEquals(120, response.getUsage().inputTokens(),
                 "prompt_tokens is the grand total on this provider");
-        assertEquals(100, response.getCacheReadInputTokens(),
+        assertEquals(100, response.getUsage().cacheReadTokens(),
                 "cached_tokens is a subset of prompt_tokens, not additive");
-        assertEquals(30, response.getResponseMessage().getActualOutputTokens());
+        assertEquals(0, response.getUsage().cacheWriteTokens(), "OpenAI bills no cache writes: zero is the fact");
+        assertEquals(20, response.getUsage().uncachedInputTokens(), "the uncached part is the total less the cached subset");
+        assertEquals(30, response.getUsage().outputTokens());
         assertEquals(LLMStopReason.END_TURN, response.getStopReason(),
                 "finish_reason \"stop\" normalizes to END_TURN");
         assertEquals("ANSWER-MARKER", response.getResponseMessage().getRawContent());
@@ -98,7 +100,7 @@ public class OpenAIResponseParseTest {
         LLMResponse<String> response = parse("{\"choices\":[{\"message\":{\"content\":\"x\"}}]}");
         assertEquals("", response.getResponseMessage().getMessageId());
         assertNull(response.getServedModelId());
-        assertNull(response.getActualInputTokens(), "no usage block, no usage recorded");
+        assertNull(response.getUsage(), "no usage block, no usage recorded");
         assertEquals(LLMStopReason.UNKNOWN, response.getStopReason());
     }
 
@@ -183,10 +185,10 @@ public class OpenAIResponseParseTest {
     @Test
     void usageWithStringNumbersOrNullIsReadOrAbsentNeverZeroed() {
         LLMResponse<String> strings = parse("{\"choices\":[{\"message\":{\"content\":\"x\"}}],\"usage\":{\"prompt_tokens\":\"12\",\"completion_tokens\":\"3\"}}");
-        assertEquals(12, strings.getActualInputTokens(), "a number written as a string is still the number");
-        assertEquals(3, strings.getResponseMessage().getActualOutputTokens());
+        assertEquals(12, strings.getUsage().inputTokens(), "a number written as a string is still the number");
+        assertEquals(3, strings.getUsage().outputTokens());
         LLMResponse<String> absent = parse("{\"choices\":[{\"message\":{\"content\":\"x\"}}],\"usage\":null}");
-        assertNull(absent.getActualInputTokens(), "a null usage block records nothing, so nothing downstream is billed at zero");
+        assertNull(absent.getUsage(), "a null usage block records nothing, so nothing downstream is billed at zero");
         assertNull(absent.getResponseMessage().getActualOutputTokens());
     }
 

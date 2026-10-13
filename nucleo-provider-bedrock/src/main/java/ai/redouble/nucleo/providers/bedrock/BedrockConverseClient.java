@@ -117,12 +117,11 @@ public class BedrockConverseClient extends AbstractLLMClient<ContentBlock> {
         IncomingMessage<T> incomingMessage = response.getResponseMessage();
         incomingMessage.overwriteRawContent(responseText.toString());
         // Bedrock Converse reports usage with cache counters additive to inputTokens
-        // (same shape as Anthropic's Messages API, different AWS field names).
+        // (same shape as Anthropic's Messages API, different AWS field names); the ledger sums them.
         if (converseResponse.usage() != null) {
             software.amazon.awssdk.services.bedrockruntime.model.TokenUsage usage = converseResponse.usage();
-            response.setAdditiveUsage(usage.inputTokens(), usage.cacheWriteInputTokens(),
-                    usage.cacheReadInputTokens(), usage.outputTokens());
-            incomingMessage.setActualOutputTokens(usage.outputTokens());
+            response.setUsage(new BedrockTokenLedger(getModel(), usage.inputTokens(), usage.cacheWriteInputTokens(),
+                    usage.cacheReadInputTokens(), usage.outputTokens()));
         }
         log.debug("Raw content:\n{}", responseText);
         return response;

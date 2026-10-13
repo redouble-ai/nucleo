@@ -282,8 +282,7 @@ public class OpenAISDKClient extends AbstractOpenAIChatClient {
             int completionTokens = (int) usage[0].completionTokens();
             Integer cachedTokens = usage[0].promptTokensDetails().flatMap(CompletionUsage.PromptTokensDetails::cachedTokens)
                     .map(Long::intValue).orElse(null);
-            response.setUsage(promptTokens, null, cachedTokens, completionTokens);
-            incoming.setActualOutputTokens(completionTokens);
+            response.setUsage(new OpenAITokenLedger(getModel(), promptTokens, cachedTokens, completionTokens));
         }
         response.setStopReason(LLMStopReason.from(finishReason[0]));
     }

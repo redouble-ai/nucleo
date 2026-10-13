@@ -31,9 +31,9 @@ public class OutgoingMessage<T> implements Message, Serializable {
     private String role = "user";
     private final List<ContentBlock> contentBlocks = new ArrayList<>();
     private transient String cachedRawContent = null;
-    // Caps API max_tokens (via ConversationContext.resolveOutputBudget, which every
-    // SDK client consumes) AND drives the local rate-limiter reservation. The same
-    // value is used on both sides of the boundary so they stay in lock-step.
+    // The per-call output override: the first layer of ConversationContext.resolveOutputBudget,
+    // and through outputReserve both the wire max_tokens and the reservation, so the two sides
+    // of the boundary cannot drift apart.
     private Integer requestedOutputTokens;
     private boolean compactable = true;  // Whether this message can be compacted
     private boolean appAuthored = false;  // Application-injected context on the user channel, not a human utterance
@@ -251,29 +251,37 @@ public class OutgoingMessage<T> implements Message, Serializable {
     }
 
     /**
-     * Always returns null. OutgoingMessage uses estimates only.
-     * Actual input tokens from API are conversation-level, not per-message.
+     * A new message carrying the given blocks and everything else this one has: id, timestamp,
+     * role, cache flag, requested output, compactability, authorship and the response handler.
+     * Compaction builds a message's shrunken form this way, because blocks are immutable records
+     * and the block list is not exposed for editing.
      */
-    @Override
-    public Integer getActualTokens() {
-        return null;
+    public static <T> OutgoingMessage<T> copyWithBlocks(OutgoingMessage<T> original, List<ContentBlock> blocks) {
+        OutgoingMessage<T> copy = new OutgoingMessage<>(original.responseHandler);
+        copy.messageId = original.messageId;
+        copy.timestamp = original.timestamp;
+        copy.enableCache = original.enableCache;
+        copy.role = original.role;
+        copy.requestedOutputTokens = original.requestedOutputTokens;
+        copy.compactable = original.compactable;
+        copy.appAuthored = original.appAuthored;
+        copy.contentBlocks.addAll(blocks);
+        return copy;
     }
 
-    /**
-     * Gets requested output tokens for rate limiter reservation.
-     */
+    /** The per-call output override, or null when this message declares none. */
     @Override
     public Integer getRequestedOutputTokens() {
         return requestedOutputTokens;
     }
 
     /**
-     * Sets the output token budget for this call. Consumed by
-     * {@link ai.redouble.nucleo.harness.conversation.ConversationContext#resolveOutputBudget()},
-     * which every SDK client uses as the API {@code max_tokens} field; the same
-     * value also drives the local rate-limiter reservation via
-     * {@link ai.redouble.nucleo.tools.thinking.LLMCall#getRequirements()}. Caps the response size
-     * upstream and pre-debits the matching tokens locally.
+     * Sets the output token budget for this call: the first layer of
+     * {@link ConversationContext#resolveOutputBudget()}, which
+     * {@link ConversationContext#outputReserve(ai.redouble.nucleo.harness.models.ModelSpec)} carries
+     * to both the wire {@code max_tokens} and the reservation
+     * ({@link ai.redouble.nucleo.tools.thinking.LLMCall#getRequirements()}), so the response is
+     * capped upstream and the same tokens are pre-debited locally.
      */
     public void setRequestedOutputTokens(Integer tokens) {
         this.requestedOutputTokens = tokens;

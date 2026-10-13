@@ -7,6 +7,7 @@
 package ai.redouble.nucleo.harness.llm;
 
 import ai.redouble.nucleo.harness.models.*;
+import ai.redouble.nucleo.harness.tokens.*;
 import ai.redouble.nucleo.secrets.*;
 
 import java.util.*;
@@ -44,6 +45,24 @@ public interface ClientProvider<E extends Client> {
      * observability wrap) and intended to be shared across jobs for the same spec.
      */
     E createClient(ModelSpec spec);
+
+    /**
+     * How this provider counts a conversation before the call: its tokenizer's density, which
+     * blocks it sends and bills, how it frames them. Needs no credential, so it serves before
+     * any client exists; code reaches it as {@link ModelSpec#estimate}. The default is the
+     * provider-neutral estimator, the generic text rendering under the generic counter.
+     */
+    default ContextEstimator contextEstimator(ModelSpec spec) {
+        return DefaultContextEstimator.INSTANCE;
+    }
+
+    /**
+     * The density of this provider's tokenizer for the given spec, for text that is not a
+     * conversation. The default is the provider-neutral counter.
+     */
+    default TokenCounter tokenCounter(ModelSpec spec) {
+        return TiktokenCounter.DEFAULT;
+    }
 
     /**
      * The id of the credential this provider's clients are constructed around, in the

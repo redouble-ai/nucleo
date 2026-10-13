@@ -253,10 +253,11 @@ objective.
 ```java
 LLMResponse<T> response = client.singleResponse(request);
 
-// Cache performance
-response.getCacheCreationInputTokens();  // Tokens written (125% cost)
-response.getCacheReadInputTokens();       // Tokens read (10% cost)
-response.getCacheHitRate();               // 0.0-1.0
+// Cache performance, on the usage ledger the provider's client built
+TokenLedger usage = response.getUsage();
+usage.cacheWriteTokens();   // Tokens written, priced at the entry's cache write multiplier
+usage.cacheReadTokens();    // Tokens read, priced at the entry's cache read multiplier
+usage.cacheHitRate();       // 0.0-1.0, null when the provider reports no cache
 ```
 
 ### What Gets Cached
@@ -290,7 +291,7 @@ public sealed interface ContentBlock
 | `ImageBlock` | Base64 images | Base64 + MIME type |
 | `FileBlock` | Base64 files | Base64 + metadata |
 | `ToolUseBlock` | LLM tool invocations | ID + name + input JSON |
-| `ToolResultBlock` | Tool execution results | Tool ID + result + error flag |
+| `ToolResultBlock` | Tool execution results | Tool ID + result + error flag; after LIGHT compaction the result is the summary that replaced the payload, in the same block |
 | `ThinkingBlock` | Anthropic thinking | Text + opaque signature, echoed back VERBATIM on later turns (the provider 400s otherwise) |
 | `RedactedThinkingBlock` | Policy-hidden thinking | Opaque data, replayed verbatim |
 | `SkillBlock` | Admitted skill bundle | The skill lives on `ConversationContext.loadedSkills`; snapshot restores by registry name |
@@ -362,26 +363,32 @@ The length prefix signals substantial content exists. LLM can call tools when it
 
 ## Token Tracking
 
-### Fresh Estimation Approach
+### The conversation does not count itself
 
-ConversationContext **always estimates tokens from scratch** using the tokenizer. This ensures accurate
-context window calculations regardless of conversation history.
-
-The objective and the artifact registry are counted on the strings `prepareMessagesForLLM`
-would send - the objective's PojoBlocks via `ContentProcessor.processForLLM`, the registry via
-`buildArtifactRegistrySection`. Messages are counted by the model's `TokenCounter` from their
-raw content plus per-image/file arithmetic; that is an estimate of the rendered turn, and the
-response instructions appended at render are not part of it - the compaction trigger's headroom
-absorbs the difference. The first call runs the configured `Summarizer` (typically
-`LLMSummarizer` set by the thinker) and populates the per-artifact summary cache; subsequent
-calls reuse cached summaries.
+A conversation has no token number of its own. What it will cost a model is the model's
+estimate, `ModelSpec.estimate(conversation)`, a `TokenLedger` the model's provider builds by
+rendering the conversation exactly as its client will send it and counting that rendering
+([Tokens](../tokens/PACKAGE.md)). The rendering is `render(formatter, thinkingActive)`: the
+same pipeline `prepareMessagesForLLM` runs, PojoBlocks lowered through
+`ContentProcessor.processForLLM`, the response instructions appended to every outgoing turn
+whose answer handler states any, the registry section from `buildArtifactRegistrySection`
+(the `registrySection` component of the result, null when the conversation holds no artifacts,
+otherwise also the last turn), with one difference: it commits
+nothing. The legend and the definitions of tools declared since the last render are rendered
+where the next real render will place them, in the head of an unfrozen conversation and as
+an announcement turn at the end of a frozen one, without being written to either; the one
+write-back is the conversion of a pending declaration to its definition, which is idempotent
+and changes nothing the model sees. A fresh estimate on every call, never accumulated state;
+the first render runs the configured `Summarizer` (typically `LLMSummarizer` set by the
+thinker) and populates the per-artifact summary cache, which later renders reuse.
 
 ### API-Reported Tokens Live on the Response
 
-The provider's actual token counts belong to `LLMResponse` (billing, cache metrics,
-observability), never to the conversation: each API call reports the ENTIRE
-conversation's input, not an increment, so per-message input actuals cannot exist.
-`getTotalTokens()` is the conversation's only token number.
+The provider's actual token counts belong to `LLMResponse.getUsage()` (billing, cache
+metrics, observability), never to the conversation: each API call reports the ENTIRE
+conversation's input, not an increment, so per-message input actuals cannot exist. The one
+per-message actual is the assistant message's own output count, stamped by the client template
+from the usage ledger, which persistence keeps with the message.
 
 ### The seat's declarations
 
@@ -419,7 +426,8 @@ output-token budget of the next LLM call. Three declaration layers and no defaul
 Nothing declaring anywhere throws `UncorrectableRuntimeLLMException`: the seat never said
 how much it answers, and that is a bug to surface, never a number to invent. The same
 chain resolves depth (`resolveDepth()`: the conversation's, else the binding's, else the
-refusal).
+refusal); `declaredDepth()` asks the same question without the refusal and answers null
+when no seat has declared one, which is what an estimate of the input alone reads.
 
 The result is capped at `ModelSpec.getMaxOutputTokens()` here rather than in each client
 because a budget above what the model can emit is not a budget: the provider rejects the
@@ -430,9 +438,9 @@ meter tokens the call could never produce.
 the call books (`ThinkingMode.reasoningReserved` times `spec.getThinkingBudget(depth)`), clamped
 at the ceiling exactly as the Anthropic wire clamps `max_tokens`. It takes the spec as an
 argument because the compaction fit checks run before the next binding is resolved and
-account under the prior spec. Both sides of the boundary use it: the wired `ModelBinding`
-adds it to the conversation's input token count when pricing the rate-limiter reservation
-at resolution, and every SDK client's `resolveWireMaxTokens` sends the same number as the
+account under the prior spec. Both sides of the boundary use it: it is the `outputTokens()`
+of the estimate the wired `ModelBinding` prices its reservation from at resolution, and
+every SDK client's `resolveWireMaxTokens` sends the same number as the
 upstream `max_tokens` (`max_completion_tokens` on OpenAI). Anthropic and Bedrock pre-debit
 `max_tokens` from their own TPM bucket at request time, so local and upstream accounting
 must agree - a local reservation smaller than `max_tokens` silently overflows the provider.
@@ -461,9 +469,10 @@ instead.
 limits - the comfort window and the compaction trigger - and walks the compaction ladder
 when the trigger is crossed. The numbers, their three-level resolution, the ladder, and
 the best-effort-vs-loud failure discipline are the subpackage's story:
-[compaction/PACKAGE.md](compaction/PACKAGE.md). Only exhausting the hard context - the
-model's `max_context_tokens` minus the seat's `outputReserve` - raises this package's
-`ContextOverflowException`.
+[compaction/PACKAGE.md](compaction/PACKAGE.md). Only an input that exceeds the model's
+`max_context_tokens` after the whole ladder raises this package's
+`ContextOverflowException`; whether the answer fits beside it is the client's pre-flight
+question.
 
 ---
 
@@ -722,9 +731,9 @@ verbatim while verbose intermediate content (tool results, reasoning) compacts w
 context limits are reached. The compactor respects `isCompactable()` at every level.
 A whole conversation opts out via `ConversationContext.setCompactable(false)`.
 
-When even maximum compaction cannot bring the call - input plus the seat's output
-reserve - inside the model's hard context, the result is `ContextOverflowException`,
-an `UncorrectableLLMException`: parent thinkers see the error and can adapt.
+When even maximum compaction cannot bring the input inside the model's hard context, the
+result is `ContextOverflowException`, an `UncorrectableLLMException`: parent thinkers see
+the error and can adapt.
 
 ---
 

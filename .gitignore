@@ -13,6 +13,8 @@ target/
 !**/src/test/**/target/
 dependency-reduced-pom.xml
 .mvn/timing.properties
+# Per-checkout Maven settings such as a local repository path; the committed jvm.config stays
+.mvn/maven.config
 /lib/*.jar
 
 # Gradle - Build system files and caches (if used alongside/instead of Maven)

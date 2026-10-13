@@ -12,9 +12,18 @@ import ai.redouble.nucleo.harness.errors.*;
  * Thrown when our pre-flight token estimate exceeds the model's context window.
  *
  * <p>This is uncorrectable - the LLM cannot fix this by changing tool parameters.
- * The conversation itself is too large. The framework handles this by attempting
- * compaction (see SingleObjectiveThinker), and if that fails, wrapping in
- * {@link ai.redouble.nucleo.harness.conversation.ContextOverflowException}.</p>
+ * The conversation itself is too large. A thinker answers it by compacting the conversation
+ * and retrying the call once ({@code AbstractThinker.compactAndRetry}); a second overflow
+ * becomes a {@link ai.redouble.nucleo.harness.conversation.ContextOverflowException}, and a
+ * conversation that may not be compacted fails with
+ * {@link ai.redouble.nucleo.harness.conversation.NonCompactableContextException}.</p>
+ *
+ * <p><strong>LLM sees:</strong></p>
+ * <pre>
+ * Conversation context (12,000 tokens) exceeds small-model limit of 8,000 tokens. Context
+ * must be reduced before retrying.
+ * [This error is not correctable - consider an alternative approach]
+ * </pre>
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2025-12-02)

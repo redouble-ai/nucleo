@@ -10,6 +10,8 @@ import ai.redouble.nucleo.events.*;
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.conversation.*;
 import ai.redouble.nucleo.harness.llm.*;
+import ai.redouble.nucleo.harness.models.*;
+import ai.redouble.nucleo.harness.tokens.*;
 import ch.qos.logback.classic.*;
 import ch.qos.logback.classic.spi.*;
 import ch.qos.logback.core.read.*;
@@ -44,10 +46,7 @@ class MicrometerObserverTest {
         conversation.getMessages().add(message);
         LLMResponse<String> response = new LLMResponse<>(new LLMRequest<>(conversation));
         response.setModel(model);
-        response.setActualInputTokens(input);
-        response.setActualOutputTokens(output);
-        response.setCacheReadInputTokens(cacheRead);
-        response.setCacheCreationInputTokens(cacheWrite);
+        response.setUsage(new DefaultTokenLedger(TestModels.small(), input, cacheRead, cacheWrite, output));
         response.setStartTime(Instant.now().minusMillis(latencyMs));
         response.setEndTime(Instant.now());
         return response;
@@ -94,6 +93,12 @@ class MicrometerObserverTest {
         assertEquals(1, registry.find("nucleo.llm.latency").tags("model", "m").timer().count());
         assertEquals(1, count(registry, "nucleo.llm.calls", "model", "unknown"), "a response with no model is tagged unknown");
         assertNull(registry.find("nucleo.llm.input_tokens").tags("model", "unknown").counter(), "a null token count records nothing");
+        LLMResponse<String> noUsage = response("silent", 1, 1, 1, 1, 5);
+        noUsage.setUsage(null);
+        observer.observe(new JobCompletedEvent<>(tool, "ok", 1, List.of(noUsage), Map.of()));
+        assertEquals(1, count(registry, "nucleo.llm.calls", "model", "silent"), "a call with no usage record is still a call");
+        assertNull(registry.find("nucleo.llm.input_tokens").tags("model", "silent").counter(), "and records no token counter at all");
+        assertNull(registry.find("nucleo.llm.cache_read_tokens").tags("model", "silent").counter());
     }
 
     @Test

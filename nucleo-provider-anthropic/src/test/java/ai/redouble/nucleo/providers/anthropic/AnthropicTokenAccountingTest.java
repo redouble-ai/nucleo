@@ -1,0 +1,180 @@
+/*
+ * Copyright 2024-present Redouble AI, Inc. Authors
+ *
+ * Licensed under the Apache-2.0 license (https://www.apache.org/licenses/LICENSE-2.0).
+ */
+
+package ai.redouble.nucleo.providers.anthropic;
+
+import ai.redouble.nucleo.harness.conversation.*;
+import ai.redouble.nucleo.harness.conversation.ContentBlocks.*;
+import ai.redouble.nucleo.harness.llm.*;
+import ai.redouble.nucleo.harness.models.*;
+import ai.redouble.nucleo.harness.tokens.*;
+import org.junit.jupiter.api.*;
+
+import java.util.*;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+/**
+ * Anthropic's counting as the provider module states it: the usage ledger sums the three
+ * additive input counters into the total the model read; the estimator counts a thinking block,
+ * redacted or not, on the newest assistant turn and on no earlier one; text counts at
+ * {@code cl100k_base} times 1.10 and an image at a floor of 1600; what it counts is the
+ * rendering the Anthropic client sends, formatter included; and a spec on the provider's key
+ * reaches that estimator and counter.
+ *
+ * @author Andrey Santrosyan
+ * @since 0.1 (2026-10-09)
+ */
+class AnthropicTokenAccountingTest {
+
+    private static StandardModelSpec claude() {
+        StandardModelSpec spec = new StandardModelSpec();
+        spec.setId("claude-test-direct");
+        spec.setIdentity("claude-test");
+        spec.setProviderKey("anthropic-direct");
+        spec.setWireModelId("claude-test");
+        spec.setMaxContextTokens(200_000);
+        spec.setMaxOutputTokens(8_000);
+        spec.setGrade(Grade.SMALL);
+        return spec;
+    }
+
+    private static ConversationContext conversation(ModelSpec spec) {
+        ConversationContext conversation = new ConversationContext();
+        conversation.setModelBinding(ModelBinding.preResolved(spec));
+        conversation.setDepth(Depth.IMMEDIATE);
+        conversation.setOutputDeclaration(OutputDeclaration.of(OutputSize.COMPACT));
+        OutgoingMessage<String> ask = new OutgoingMessage<>(StringResponseHandler.instance);
+        ask.setRole("user");
+        ask.addText("plan the migration");
+        conversation.getMessages().add(ask);
+        return conversation;
+    }
+
+    private static IncomingMessage<String> assistant(String text, String thinking) {
+        IncomingMessage<String> message = new IncomingMessage<>(StringResponseHandler.instance);
+        List<ContentBlock> blocks = new ArrayList<>();
+        if (thinking != null) {
+            blocks.add(new ThinkingBlock(thinking, "sig"));
+        }
+        blocks.add(new TextBlock(text));
+        message.setContentBlocks(blocks);
+        message.overwriteRawContent(text);
+        return message;
+    }
+
+    private static OutgoingMessage<String> user(String text) {
+        OutgoingMessage<String> message = new OutgoingMessage<>(StringResponseHandler.instance);
+        message.setRole("user");
+        message.addText(text);
+        return message;
+    }
+
+    @Test
+    void theLedgerSumsTheAdditiveCountersIntoTheTotalTheModelRead() {
+        TokenLedger usage = new AnthropicTokenLedger(claude(), 100, 20, 30, 5);
+        assertEquals(150, usage.inputTokens(), "input plus cache creation plus cache read");
+        assertEquals(30, usage.cacheReadTokens());
+        assertEquals(20, usage.cacheWriteTokens());
+        assertEquals(100, usage.uncachedInputTokens());
+        assertEquals(5, usage.outputTokens());
+        TokenLedger uncached = new AnthropicTokenLedger(claude(), 100, null, null, 5);
+        assertEquals(100, uncached.inputTokens(), "counters the response did not carry add nothing");
+        assertNull(uncached.cacheReadTokens(), "and stay null as facets");
+    }
+
+    @Test
+    void aThinkingBlockCountsOnTheNewestAssistantTurnOnly() {
+        ModelSpec claude = claude();
+        AnthropicContextEstimator estimator = AnthropicContextEstimator.INSTANCE;
+        String thought = "weighing the options ".repeat(300);
+        ConversationContext earlierThinking = conversation(claude);
+        earlierThinking.getMessages().add(assistant("step one", thought));
+        earlierThinking.getMessages().add(user("go on"));
+        earlierThinking.getMessages().add(assistant("step two", null));
+        earlierThinking.getMessages().add(user("and then"));
+        ConversationContext noThinking = conversation(claude);
+        noThinking.getMessages().add(assistant("step one", null));
+        noThinking.getMessages().add(user("go on"));
+        noThinking.getMessages().add(assistant("step two", null));
+        noThinking.getMessages().add(user("and then"));
+        assertEquals(estimator.estimate(noThinking, claude).inputTokens(), estimator.estimate(earlierThinking, claude).inputTokens(),
+                "Anthropic strips an earlier turn's thinking from billing, so it costs nothing");
+        ConversationContext newestThinking = conversation(claude);
+        newestThinking.getMessages().add(assistant("step one", null));
+        newestThinking.getMessages().add(user("go on"));
+        newestThinking.getMessages().add(assistant("step two", thought));
+        newestThinking.getMessages().add(user("and then"));
+        int difference = estimator.estimate(newestThinking, claude).inputTokens() - estimator.estimate(noThinking, claude).inputTokens();
+        assertTrue(difference > 500, "the newest assistant turn's thinking is replayed and billed: " + difference);
+    }
+
+    @Test
+    void aRedactedThinkingBlockCountsLikeThinking_onTheNewestAssistantTurnOnly() {
+        ModelSpec claude = claude();
+        AnthropicContextEstimator estimator = AnthropicContextEstimator.INSTANCE;
+        String opaque = "redacted-payload-".repeat(300);
+        ConversationContext noThinking = conversation(claude);
+        noThinking.getMessages().add(assistant("step one", null));
+        noThinking.getMessages().add(user("go on"));
+        noThinking.getMessages().add(assistant("step two", null));
+        noThinking.getMessages().add(user("and then"));
+        ConversationContext earlierRedacted = conversation(claude);
+        earlierRedacted.getMessages().add(redacted("step one", opaque));
+        earlierRedacted.getMessages().add(user("go on"));
+        earlierRedacted.getMessages().add(assistant("step two", null));
+        earlierRedacted.getMessages().add(user("and then"));
+        assertEquals(estimator.estimate(noThinking, claude).inputTokens(), estimator.estimate(earlierRedacted, claude).inputTokens(),
+                "an earlier turn's redacted thinking is stripped from billing");
+        ConversationContext newestRedacted = conversation(claude);
+        newestRedacted.getMessages().add(assistant("step one", null));
+        newestRedacted.getMessages().add(user("go on"));
+        newestRedacted.getMessages().add(redacted("step two", opaque));
+        newestRedacted.getMessages().add(user("and then"));
+        assertTrue(estimator.estimate(newestRedacted, claude).inputTokens() - estimator.estimate(noThinking, claude).inputTokens() > 500,
+                "the newest turn's redacted thinking is replayed and billed");
+    }
+
+    private static IncomingMessage<String> redacted(String text, String data) {
+        IncomingMessage<String> message = new IncomingMessage<>(StringResponseHandler.instance);
+        message.setContentBlocks(List.of(new RedactedThinkingBlock(data), new TextBlock(text)));
+        message.overwriteRawContent(text);
+        return message;
+    }
+
+    @Test
+    void theDensityAndTheImageFloorAreAsStated_andTheSpecReachesThemByKey() {
+        String text = "The quick brown fox jumps over the lazy dog. ".repeat(20);
+        assertEquals((int)(TiktokenCounter.DEFAULT.countTokens(text) * 1.10), AnthropicContextEstimator.COUNTER.countTokens(text),
+                "cl100k_base at 1.10");
+        String smallImage = Base64.getEncoder().encodeToString(new byte[2 * 1024]);
+        assertEquals(1600, AnthropicContextEstimator.COUNTER.countImageTokens(new ImageBlock(smallImage, "image/png", null)), "an image costs at least 1600");
+        ModelSpec claude = claude();
+        assertSame(AnthropicContextEstimator.INSTANCE, claude.contextEstimator(), "the spec finds the anthropic-direct provider by key");
+        assertSame(AnthropicContextEstimator.COUNTER, claude.tokenCounter());
+    }
+
+    @Test
+    void theEstimateRendersWhatTheAnthropicClientSends() {
+        ModelSpec claude = claude();
+        ConversationContext conversation = conversation(claude);
+        conversation.putMainObjective("task", "answer briefly");
+        AnthropicContentFormatter formatter = new AnthropicContentFormatter();
+        PreparedConversation estimated = conversation.render(formatter, ThinkingMode.thinkingActive(claude, conversation.resolveDepth()));
+        PreparedConversation sent = conversation.prepareMessagesForLLM(formatter, ThinkingMode.thinkingActive(claude, conversation.resolveDepth()));
+        assertEquals(sent, estimated, "the provider's estimator counts the payload the provider's client carries");
+    }
+
+    @Test
+    void theProviderSuppliesItsCounterAndEstimator() {
+        AnthropicProvider<?> provider = new AnthropicDirectProvider();
+        assertSame(AnthropicContextEstimator.INSTANCE, provider.contextEstimator(claude()));
+        assertSame(AnthropicContextEstimator.COUNTER, provider.tokenCounter(claude()));
+        assertTrue(AnthropicContextEstimator.COUNTER.countTokens("The quick brown fox jumps over the lazy dog. ".repeat(20))
+                        > TiktokenCounter.DEFAULT.countTokens("The quick brown fox jumps over the lazy dog. ".repeat(20)),
+                "Claude's density is above the neutral encoding's");
+    }
+}

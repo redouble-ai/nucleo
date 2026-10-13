@@ -113,7 +113,7 @@ class DecisionResolutionTest {
         assertTrue(binding.isPinned());
         binding.resolve(binding.getPinnedSpec());
         assertEquals(10, binding.price(), "a decision reserves its input alone");
-        assertEquals(0, binding.getReservedOutput());
+        assertEquals(0, binding.getReservation().outputTokens());
         ModelBinding counted = ModelBinding.decision("{\"state\":\"twelve words of state to count under the tokenizer\"}");
         counted.resolve(decision("kev-y"));
         assertTrue(counted.price() > 0, "the counted form prices the text");

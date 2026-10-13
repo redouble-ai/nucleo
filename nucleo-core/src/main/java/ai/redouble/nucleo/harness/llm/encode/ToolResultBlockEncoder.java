@@ -17,9 +17,13 @@ import ai.redouble.nucleo.harness.conversation.ContentBlocks.*;
  * @since 0.1 (2026-06-18)
  */
 public class ToolResultBlockEncoder<B> extends BlockEncoder<B> {
+    /** The text form of a tool result: what this encoder sends, and what an estimate counts for it. */
+    public static String renderText(ToolResultBlock block) {
+        return "[Tool Result " + block.toolUseId() + "] " + block.resultJson();
+    }
+
     @Override
     public B encode(ContentBlock block) {
-        ToolResultBlock r = (ToolResultBlock) block;
-        return textWrapper.wrap("[Tool Result " + r.toolUseId() + "] " + r.resultJson());
+        return textWrapper.wrap(renderText((ToolResultBlock) block));
     }
 }

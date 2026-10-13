@@ -48,6 +48,12 @@ The application's compliance envelope decides whether such a model may serve at 
 (`DefaultComplianceEnvelope.setAllowDataShare`), and the Mantle client checks it once more
 as the last step before a request leaves the process.
 
+## How it counts tokens
+
+Both providers here are Anthropic providers, so a Claude entry on Bedrock or Mantle counts the
+way it does on Anthropic's own API, and its responses report usage the same way: the rules are
+in the [Anthropic provider's guide](../../../../../../../../../../nucleo-provider-anthropic/src/main/java/ai/redouble/nucleo/providers/anthropic/PACKAGE.md).
+
 ## How it works inside
 
 The classes, how entries link to a provider when a classpath lacks one, and the tests are

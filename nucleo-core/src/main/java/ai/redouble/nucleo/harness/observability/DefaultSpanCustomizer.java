@@ -9,6 +9,7 @@ package ai.redouble.nucleo.harness.observability;
 import ai.redouble.nucleo.events.*;
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.llm.*;
+import ai.redouble.nucleo.harness.tokens.*;
 import io.opentelemetry.api.common.*;
 import io.opentelemetry.api.trace.*;
 
@@ -89,10 +90,11 @@ public class DefaultSpanCustomizer implements SpanCustomizer {
         long latencyMs = 0;
         StringBuilder models = new StringBuilder();
         for (LLMResponse<?> r : responses) {
-            if (r.getActualInputTokens() != null) inputTokens += r.getActualInputTokens();
-            if (r.getActualOutputTokens() != null) outputTokens += r.getActualOutputTokens();
-            if (r.getCacheReadInputTokens() != null) cacheReadTokens += r.getCacheReadInputTokens();
-            if (r.getCacheCreationInputTokens() != null) cacheCreationTokens += r.getCacheCreationInputTokens();
+            TokenLedger usage = r.getUsage();
+            if (usage != null && usage.inputTokens() != null) inputTokens += usage.inputTokens();
+            if (usage != null && usage.outputTokens() != null) outputTokens += usage.outputTokens();
+            if (usage != null && usage.cacheReadTokens() != null) cacheReadTokens += usage.cacheReadTokens();
+            if (usage != null && usage.cacheWriteTokens() != null) cacheCreationTokens += usage.cacheWriteTokens();
             latencyMs += r.getLatencyMs();
             if (r.getModel() != null) {
                 if (!models.isEmpty()) models.append(",");

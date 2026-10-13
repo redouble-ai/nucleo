@@ -9,6 +9,7 @@ package ai.redouble.nucleo.harness.conversation.compaction;
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.conversation.*;
 import ai.redouble.nucleo.harness.models.*;
+import ai.redouble.nucleo.harness.tokens.*;
 import org.junit.jupiter.api.*;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -17,8 +18,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Pins the three-level resolution of the context window's two numbers: the comfort window
  * (thinker override, else the catalog entry's declaration, else the framework default,
  * always capped by the hard context) and the compaction trigger (thinker override, else
- * the framework default), plus the absolute fit limit that subtracts the seat's declared
- * output reserve from the hard context.
+ * the framework default), and that the trigger reads the estimate's input alone.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-09-06)
@@ -72,34 +72,24 @@ class ContextWindowManagerResolutionTest {
     }
 
     @Test
-    void absoluteLimit_leavesRoomForTheDeclaredReserve() {
-        StandardModelSpec model = spec(64_000, null);
-        ContextWindowManager manager = new ContextWindowManager(model, ROOT, null, null);
-        ConversationContext context = new ConversationContext();
-        context.setModelBinding(ModelBinding.preResolved(model));
-        context.setDepth(Depth.IMMEDIATE);
-        context.setOutputDeclaration(OutputDeclaration.of(OutputSize.COMPACT));
-        assertEquals(64_000 - model.getOutputBudget(OutputSize.COMPACT), manager.absoluteLimit(context),
-                "the hard context minus the seat's own reserve is what is left for input");
-    }
-
-    @Test
     void compactionTrigger_isTheOverrideOrTheDefault() {
         StandardModelSpec model = spec(64_000, null);
         ConversationContext context = new ConversationContext();
         context.setModelBinding(ModelBinding.preResolved(model));
+        // no depth, no answer size: compaction reads the input alone and needs neither
         // a conversation between the default trigger and the full window: the tokenizer decides
         // the exact count, so the assertions read the measured total rather than assuming one
         OutgoingMessage<String> big = new OutgoingMessage<>(StringResponseHandler.instance);
         big.addText("lorem ipsum dolor sit amet, consectetur ".repeat(8_700));
         context.getMessages().add(big);
-        int total = context.getTotalTokens(model);
+        TokenLedger estimate = model.estimate(context);
+        int total = estimate.inputTokens();
         int limit = new ContextWindowManager(model, ROOT, null, null).effectiveLimit();
         assertTrue(total > limit * ContextWindowManager.DEFAULT_COMPACTION_TRIGGER && total <= limit,
                 "fixture assumption: the payload sits between the default trigger and the full window, measured " + total);
-        assertTrue(new ContextWindowManager(model, ROOT, null, null).needsCompaction(context),
+        assertTrue(new ContextWindowManager(model, ROOT, null, null).needsCompaction(context, estimate),
                 "above the default 0.92 trigger");
-        assertFalse(new ContextWindowManager(model, ROOT, null, 1.0).needsCompaction(context),
+        assertFalse(new ContextWindowManager(model, ROOT, null, 1.0).needsCompaction(context, estimate),
                 "a thinker that tolerates the full window compacts nothing under it");
     }
 }

@@ -99,7 +99,8 @@ public class ContentBlocks {
      * Links to the original tool invocation via toolUseId.
      *
      * @param toolUseId Reference to the ToolUseBlock that requested this
-     * @param resultJson Tool output as JSON string
+     * @param resultJson Tool output as JSON string; after LIGHT compaction, the summary prose that
+     *                   replaced it inside this same block, so the id and the pairing with the call survive
      * @param isError Whether this result represents an error
      */
     public record ToolResultBlock(String toolUseId, String resultJson, boolean isError) implements ContentBlock {}

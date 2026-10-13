@@ -144,8 +144,9 @@ one charges a window the request did not fall in, and no care elsewhere repairs 
 The provider works the same way, which is the useful part. Bedrock deducts the input tokens
 plus `max_tokens` from the token quota at the start of a request, throttles when a quota is
 exceeded, enforces the request and token quotas together, and settles actual usage
-afterwards. `ModelBinding.price()` reserves the input plus the output the request will ask
-for, the same formula, so the local account mirrors the provider's exactly as long as the
+afterwards. `ModelBinding.price()` reserves what the model's ledger meters, the input plus
+the output the request will ask for on every shipped provider, the same formula, so the
+local account mirrors the provider's exactly as long as the
 local debit happens at the moment of dispatch. `tryTake` runs under the monitor's lock in the
 same critical section as the check, the job's thread wakes holding the grant, and it goes on
 to send without waiting on anything else.
@@ -241,9 +242,10 @@ and the gate says exactly how good the effort is. It judges a newcomer against w
 plus what is committed, where committed is every admitted, unfinished sibling's reservation,
 so the fan-out itself never overshoots: a thousand files admitted at once are a thousand
 reservations counted before any of them is priced. What remains is the gap between a
-reservation and the invoice: the input as the runtime's tokenizer counts it against the
-provider's count, and the output as declared against what the provider serves past the
-declaration. That gap is bounded per call and does not grow with the fan-out.
+reservation and the invoice: the input as the model's own estimate counts the rendered
+conversation (`ModelSpec.estimate`) against the provider's count, and the output as declared
+against what the provider serves past the declaration. That gap is bounded per call and does
+not grow with the fan-out.
 
 ### Why an LLM gateway's approach does not carry over
 

@@ -30,6 +30,17 @@ reads the API's model listing, which says which models the key may call. Anthrop
 no rate limits; each response carries the account's limits in its `anthropic-ratelimit-*`
 headers, and the discovery's one call per model writes them into the catalog.
 
+## How it counts tokens
+
+Claude's tokenizer is not public, so the provider counts text with `cl100k_base` at a density
+of 1.10, the ratio Anthropic's usage reports show, and gives an image a floor of 1600 tokens.
+A thinking block is replayed on every assistant turn and counted on the newest one only, the
+one Anthropic bills. The same counting serves every channel the Anthropic SDK reaches, direct
+and on Bedrock. A response's usage sums Anthropic's three input counters, the uncached input
+plus the cache writes plus the cache reads, into the total the model read, with the cache
+counters kept as facets of their own. How the runtime uses these numbers is in
+[Tokens](../../../../../../../../../nucleo-core/src/main/java/ai/redouble/nucleo/harness/tokens/PACKAGE.md).
+
 ## How it works inside
 
 How each part of a message becomes Anthropic's native content blocks is in

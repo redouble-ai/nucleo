@@ -666,10 +666,11 @@ The loop itself fails in a few ways:
 - **The model answers with neither tool calls nor a final answer.** A `SingleObjectiveThinker`
   tells it so and asks again. A `ReactiveThinker` asks once for the answer, and fails with
   `SystemException("AgentLoop", ...)` when the second reply is empty too.
-- **The conversation no longer fits the model.** It is compacted, tool results first, and the
-  call is retried; when it still does not fit, the thinker fails with
-  `ContextOverflowException`. In a chat, the user's messages and the final answers are kept
-  word for word.
+- **The conversation no longer fits the model.** It is compacted at once, everything that may
+  be summarized into one summary, and the call is retried; when it still does not fit, the
+  thinker fails with `ContextOverflowException`. A conversation marked non-compactable is not
+  touched and fails with `NonCompactableContextException` instead. In a chat, the user's
+  messages and the final answers are kept word for word.
 
 Where a failure ends up depends on how the thinker was called:
 

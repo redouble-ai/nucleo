@@ -42,9 +42,4 @@ public class EmbeddingsResponse extends LLMResponse<float[]> {
     public void setVector(float[] vector) {
         this.vector = vector;
     }
-
-    @Override
-    public int getLastOutputTokens() {
-        return 0;
-    }
 }

@@ -85,12 +85,25 @@ class AbstractEmbeddingsClientDimensionTest {
         assertArrayEquals(new float[]{0.6f, 0.8f, 0f, 0f}, response.getVector(), 1e-6f);
         assertEquals("dim-test-4", response.getModel());
         assertEquals("fake-embeddings", response.getProvider());
-        assertEquals(7, response.getActualInputTokens(), "what the provider billed");
+        assertEquals(7, response.getUsage().inputTokens(), "what the provider billed");
         assertEquals(EmbeddingPurpose.QUERY, response.getPurpose());
         assertTrue(response.isSuccessful());
         assertNotNull(response.getEndTime());
         assertNull(response.getContext(), "an embeddings call is no conversation");
         assertNull(response.getResponseMessage());
-        assertEquals(0, response.getLastOutputTokens());
+        assertEquals(0, response.getUsage().outputTokens(), "an embedding generates nothing");
+        assertNull(response.getUsage().cacheReadTokens(), "a facet the provider does not report is null");
+    }
+
+    @Test
+    void aProviderThatReportsNoCountLeavesTheResponseWithoutALedger() throws IOException, InterruptedException {
+        FixedVectorClient client = new FixedVectorClient(new float[]{3f, 4f, 0f, 0f}) {
+            @Override
+            protected RawEmbedding doCalculateEmbedding(String input, EmbeddingPurpose purpose) {return new RawEmbedding(new float[]{3f, 4f, 0f, 0f}, null);}
+        };
+        client.setModel(spec(4));
+        EmbeddingsResponse response = client.embed("t", EmbeddingPurpose.QUERY);
+        assertNull(response.getUsage(), "no usage record from the provider, no ledger on the response, so nothing downstream bills the call at zero");
+        assertTrue(response.isSuccessful(), "the vector is still the answer");
     }
 }

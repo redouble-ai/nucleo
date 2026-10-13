@@ -247,7 +247,8 @@ the dispatcher's retry path and never meets one.
 Some exceptions of this set are thrown by Nucleo itself, and code that submits jobs may
 catch them: a job stopped by a cancel (`JobCancelledException`) or by its time budget
 (`JobTimeoutException`); a conversation that does not fit the model's window even after
-compaction (`ContextOverflowException`); a prompt key no source holds
+compaction (`ContextOverflowException`), or that does not fit and may not be compacted
+because its owner said so (`NonCompactableContextException`); a prompt key no source holds
 (`PromptNotFoundException`); a model id the catalog does not hold
 (`ModelNotFoundException`); a provider account out of money (`QuotaExhaustedException`); a
 job refused under its workflow's spend cap (`SpendCapExceededException`); and a provider

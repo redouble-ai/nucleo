@@ -43,9 +43,10 @@ thousandths read as exactly one. `plus` and `exceeds` refuse a different currenc
 `Cost.of(spec, input, cacheWrite, cacheRead, output)` prices a call on a priced entry: the
 uncached input at the input price, cache writes and reads at the entry's effective cache
 multipliers, output at the output price, an embeddings entry pricing input alone; it is null on
-an unpriced entry, never zero. `Cost.reserved(spec, input, output)` is the most a reservation
-can cost, every token at its own price and none of it cached, null on an unpriced entry.
-`toString` renders six decimals and the currency.
+an unpriced entry, never zero. The most a reservation can cost is its estimate ledger's
+`cost()`, every token at its own price and none of it cached, null on an unpriced entry; the
+spend gate reads it from `ModelBinding.getReservation()`. `Cost.reserved(spec, input, output)`
+prices the same ceiling from two counts. `toString` renders six decimals and the currency.
 
 ## The ledger
 

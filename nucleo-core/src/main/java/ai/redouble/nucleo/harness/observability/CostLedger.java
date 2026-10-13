@@ -12,6 +12,7 @@ import ai.redouble.nucleo.harness.admission.*;
 import ai.redouble.nucleo.harness.errors.*;
 import ai.redouble.nucleo.harness.llm.*;
 import ai.redouble.nucleo.harness.models.*;
+import ai.redouble.nucleo.harness.tokens.*;
 import org.slf4j.*;
 import java.util.*;
 import java.util.concurrent.*;
@@ -187,10 +188,11 @@ public class CostLedger implements JobObserver<JobEvent>, SpendGate {
     private void record(JobSnapshot snapshot, LLMResponse<?> response) {
         String modelId = response.getModel();
         ModelSpec spec = modelId != null ? specs.apply(modelId) : null;
-        long input = response.getActualInputTokens() != null ? response.getActualInputTokens() : 0;
-        long cacheWrite = response.getCacheCreationInputTokens() != null ? response.getCacheCreationInputTokens() : 0;
-        long cacheRead = response.getCacheReadInputTokens() != null ? response.getCacheReadInputTokens() : 0;
-        long output = response.getActualOutputTokens() != null ? response.getActualOutputTokens() : 0;
+        TokenLedger usage = response.getUsage();
+        long input = usage != null && usage.inputTokens() != null ? usage.inputTokens() : 0;
+        long cacheWrite = usage != null && usage.cacheWriteTokens() != null ? usage.cacheWriteTokens() : 0;
+        long cacheRead = usage != null && usage.cacheReadTokens() != null ? usage.cacheReadTokens() : 0;
+        long output = usage != null && usage.outputTokens() != null ? usage.outputTokens() : 0;
         Cost cost = spec != null ? Cost.of(spec, input, cacheWrite, cacheRead, output) : null;
         if (spec == null) {
             log.warn("Call by {} on model '{}' which the catalog does not know; counted unpriced", snapshot.getJobId(), modelId);
@@ -255,7 +257,7 @@ public class CostLedger implements JobObserver<JobEvent>, SpendGate {
         Map<String, Cost> reservations = new LinkedHashMap<>();
         for (ModelBinding binding : priced) {
             ModelSpec model = binding.getModel();
-            Cost reserved = Cost.reserved(model, binding.getReservedInput(), binding.getReservedOutput());
+            Cost reserved = binding.getReservation().cost();
             if (reserved == null) {
                 throw new SpendCapExceededException("Workflow " + workflowId + " runs under a spend cap and " + context.getJobId()
                         + " would call " + model.getId() + ", which the catalog does not price; a spend nobody can state cannot"

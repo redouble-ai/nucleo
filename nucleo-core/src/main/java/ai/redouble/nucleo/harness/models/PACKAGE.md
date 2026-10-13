@@ -206,6 +206,7 @@ and the picker class are the only two places a model id may appear.
 ## How it works inside
 
 The catalog loader, provider links, per-entry token translations, the resolution gate in
-full, availability probes, overload failover and tokenization are in
+full, availability probes and overload failover are in
 [Inside the catalog and the picker](HARNESS_MODELS_INTERNALS.md), for those working on the
-runtime itself.
+runtime itself. How a conversation's tokens are counted, which the spec hands to its
+provider, is in [Tokens](../tokens/PACKAGE.md).

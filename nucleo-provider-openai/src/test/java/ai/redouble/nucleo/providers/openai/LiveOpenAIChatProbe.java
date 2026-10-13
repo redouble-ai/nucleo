@@ -233,10 +233,10 @@ public final class LiveOpenAIChatProbe {
                 List<StreamChunk> chunks = new ArrayList<>();
                 LLMResponse<String> response = client.streamResponse(new LLMRequest<>(conversation), chunks::add);
                 String text = response.getResponseMessage().getRawContent();
-                boolean pass = chunks.size() > 2 && text != null && text.contains("twenty") && response.getActualOutputTokens() != null;
+                boolean pass = chunks.size() > 2 && text != null && text.contains("twenty") && response.getUsage() != null;
                 failures += pass ? 0 : 1;
                 log.info("[ChatProbe] streaming: {} -> {} chunks, {} output tokens, \"{}\"", pass ? "PASS" : "FAIL", chunks.size(),
-                        response.getActualOutputTokens(), text == null ? null : text.replace('\n', ' '));
+                        response.getUsage() != null ? response.getUsage().outputTokens() : null, text == null ? null : text.replace('\n', ' '));
             }
             catch (Exception e) {
                 failures++;

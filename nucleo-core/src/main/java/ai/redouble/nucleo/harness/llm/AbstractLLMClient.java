@@ -15,6 +15,7 @@ import ai.redouble.nucleo.harness.errors.*;
 import ai.redouble.nucleo.harness.errors.retry.*;
 import ai.redouble.nucleo.harness.llm.encode.*;
 import ai.redouble.nucleo.harness.models.*;
+import ai.redouble.nucleo.harness.tokens.*;
 import ai.redouble.nucleo.util.*;
 import org.slf4j.*;
 
@@ -74,21 +75,20 @@ public abstract class AbstractLLMClient<B> extends AbstractRateLimitedClient imp
 
     @Override
     public final <T> LLMResponse<T> singleResponse(LLMRequest<T> request) throws TokenEstimateExceedsLimitException {
-        int estimatedTokens = estimateTokens(request);
+        TokenLedger estimate = estimate(request);
+        int estimatedTokens = estimate.inputTokens() + estimate.outputTokens();
         validateEstimatedTokens(estimatedTokens);
 
         // If estimate is above 75% of context window, try exact count from provider
-        if (model != null) {
-            int maxContext = model.getMaxContextTokens();
-            if (estimatedTokens > (int)(maxContext * 0.75)) {
-                int exactTokens = countTokensExact(request);
-                if (exactTokens > 0) {
-                    log.info("Exact token count: {} (estimate was {}, limit {})",
-                            Formats.compactNumber(exactTokens),
-                            Formats.compactNumber(estimatedTokens),
-                            Formats.compactNumber(maxContext));
-                    validateEstimatedTokens(exactTokens);
-                }
+        int maxContext = model.getMaxContextTokens();
+        if (estimatedTokens > (int)(maxContext * 0.75)) {
+            int exactTokens = countTokensExact(request);
+            if (exactTokens > 0) {
+                log.info("Exact token count: {} (estimate was {}, limit {})",
+                        Formats.compactNumber(exactTokens),
+                        Formats.compactNumber(estimatedTokens),
+                        Formats.compactNumber(maxContext));
+                validateEstimatedTokens(exactTokens + estimate.outputTokens());
             }
         }
 
@@ -105,14 +105,13 @@ public abstract class AbstractLLMClient<B> extends AbstractRateLimitedClient imp
                         // stable (bedrock-anthropic and bedrock-mantle are both BEDROCK, azure and
                         // direct OpenAI are both OPENAI), which would make the log unable to say
                         // which endpoint actually served the call.
-                        log.debug("===== SENDING TO {} {} | {} tokens{} =====", getDialect().id(), model, Formats.compactNumber(ctx.getTotalTokens(model)), callerInfo);
+                        log.debug("===== SENDING TO {} {} | {} tokens{} =====", getDialect().id(), model, Formats.compactNumber(estimate.inputTokens()), callerInfo);
                         long sentAt = System.nanoTime();
                         LLMResponse<T> resp = doSingleResponse(request, prepared);
                         long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - sentAt);
+                        stampUsage(resp);
                         // Stamped here, in the template, so every client's successful rows carry a
-                        // real latency - the failure paths and the streaming template already stamp
-                        // theirs, and a client-by-client convention left every single-path success
-                        // with a null end time fleet-wide.
+                        // real latency, as the failure paths and the streaming template stamp theirs.
                         resp.setEndTime(java.time.Instant.now());
                         // The response identifies the model by OUR catalog id, never the name the
                         // provider echoes back: the echo collapses variants (mantle, direct, and
@@ -126,9 +125,10 @@ public abstract class AbstractLLMClient<B> extends AbstractRateLimitedClient imp
                         // One line per call, naming the job that asked (the id its lifecycle lines
                         // carry), the model and the endpoint that answered, and what the call cost;
                         // the provider's payload detail below it is DEBUG
+                        TokenLedger usage = resp.getUsage();
                         log.info("{} <- {} via {}: {} in, {} cached, {} out, {} ms, {}", callerJobId(ctx), getModelIdentifier(), getDialect().id(),
-                                tokens(resp.getActualInputTokens()), tokens(resp.getCacheReadInputTokens()), tokens(resp.getActualOutputTokens()),
-                                elapsedMs, resp.getStopReason());
+                                tokens(usage != null ? usage.inputTokens() : null), tokens(usage != null ? usage.cacheReadTokens() : null),
+                                tokens(usage != null ? usage.outputTokens() : null), elapsedMs, resp.getStopReason());
                         if (resp.getRateLimitInfo() != null) {
                             updateRateLimitsFromHeaders(resp.getRateLimitInfo());
                         }
@@ -251,69 +251,47 @@ public abstract class AbstractLLMClient<B> extends AbstractRateLimitedClient imp
     }
 
     /**
-     * Calculates tokens for rate limiter reservation.
-     * Uses processed content to match what will be sent to the LLM.
-     *
-     * @param request the request
-     * @return total tokens to reserve (input + expected output)
+     * The pre-flight estimate of a request: the model's own ledger of the conversation as this
+     * client will send it ({@link ModelSpec#estimate}), input by part plus the output reserve.
+     * One estimate serves the whole call: the fit gate, the exact-count decision, the log line
+     * and the overflow mapping. A call whose estimate exceeds a tenth of the model's per-minute
+     * budget is logged, because one such call starves the rest of the fleet for that minute.
      */
-    protected int estimateTokens(LLMRequest<?> request) {
-        int promptTokens = 0;
-        ConversationContext context = request.getContext();
-        TokenCounter counter = TokenizerFactory.get().forModel(model);
-        PreparedConversation prepared = prepareConversation(context);
-        // System content is part of the wire payload like any turn; not counting it is
-        // how the pre-flight gate ends up trusting a number smaller than the request
-        promptTokens += counter.countTokens(prepared.systemText());
-        // The palette is counted in its text form regardless of how this client will encode
-        // it: native tool parameters are billed as input tokens at essentially the text rate
-        for (ai.redouble.nucleo.harness.conversation.ContentBlocks.ToolDefinitionBlock td : prepared.toolDefinitions()) {
-            promptTokens += counter.countTokens(ai.redouble.nucleo.harness.llm.encode.ToolDefinitionBlockEncoder.renderText(td));
+    private TokenLedger estimate(LLMRequest<?> request) {
+        if (model == null) {
+            throw new IllegalStateException(getClass().getSimpleName() + " has no model; a client is built for a spec by its provider");
         }
-        for (ProcessedMessageData msg : prepared.turns()) {
-            StringBuilder contentBuilder = new StringBuilder();
-            for (ai.redouble.nucleo.harness.conversation.ContentBlocks.ContentBlock block : msg.contentBlocks()) {
-                if (block instanceof ai.redouble.nucleo.harness.conversation.ContentBlocks.TextBlock tb) {
-                    contentBuilder.append(tb.text());
-                } else if (block instanceof ai.redouble.nucleo.harness.conversation.ContentBlocks.JsonBlock jb) {
-                    contentBuilder.append(jb.json());
-                } else if (block instanceof ai.redouble.nucleo.harness.conversation.ContentBlocks.ToolDefinitionBlock td) {
-                    // counted in the text form regardless of how this client will encode it:
-                    // native tool parameters are billed as input tokens at essentially the
-                    // text rate, so one number serves both encodings
-                    contentBuilder.append(ai.redouble.nucleo.harness.llm.encode.ToolDefinitionBlockEncoder.renderText(td));
-                } else if (block instanceof ai.redouble.nucleo.harness.conversation.ContentBlocks.ImageBlock ib) {
-                    promptTokens += counter.countImageTokens(ib);
-                } else if (block instanceof ai.redouble.nucleo.harness.conversation.ContentBlocks.FileBlock fb) {
-                    promptTokens += counter.countFileTokens(fb);
-                }
-            }
-            promptTokens += counter.countTokens(contentBuilder.toString());
-        }
-
-        int responseTokens = context.resolveOutputBudget();
-        int totalTokens = promptTokens + responseTokens;
-        int warningThreshold = model.getTpm() / 10;  // Warn at 10% of TPM
+        TokenLedger estimate = model.estimate(request.getContext());
+        int totalTokens = estimate.inputTokens() + estimate.outputTokens();
+        int warningThreshold = model.getTpm() / 10;
         if (totalTokens > warningThreshold) {
             log.warn("Large token estimate for {}: {} tokens (prompt: {}, response: {})",
                     model.getId(), Formats.compactNumber(totalTokens),
-                    Formats.compactNumber(promptTokens), Formats.compactNumber(responseTokens));
+                    Formats.compactNumber(estimate.inputTokens()), Formats.compactNumber(estimate.outputTokens()));
         }
-        return totalTokens;
+        return estimate;
     }
 
     /**
-     * Validates that estimated tokens don't exceed model limits.
-     * Throws a checked exception if they do, allowing callers to handle gracefully
-     * (e.g., trigger segmentation, compact context).
+     * Carries the provider's usage onto the response message, once, for both call templates: the
+     * assistant message remembers how many tokens it took to generate, and persistence keeps that
+     * with the message. A response the provider returned without a usage record stamps nothing.
+     */
+    private static void stampUsage(LLMResponse<?> response) {
+        TokenLedger usage = response.getUsage();
+        if (usage != null && response.getResponseMessage() != null) {
+            response.getResponseMessage().setActualOutputTokens(usage.outputTokens());
+        }
+    }
+
+    /**
+     * The fit gate: a call whose estimate does not fit the model's context window is refused
+     * before the provider is called, as a checked exception the thinkers answer by compacting.
      *
-     * @param estimatedTokens the estimated token count
-     * @throws TokenEstimateExceedsLimitException if estimate exceeds model's max input tokens
+     * @param estimatedTokens the estimated token count, input plus the output reserve
+     * @throws TokenEstimateExceedsLimitException when the estimate exceeds {@code model.getMaxContextTokens()}
      */
     protected void validateEstimatedTokens(int estimatedTokens) throws TokenEstimateExceedsLimitException {
-        if (model == null) {
-            return; // Can't validate without model info
-        }
         int maxContextTokens = model.getMaxContextTokens();
         if (estimatedTokens > maxContextTokens) {
             log.warn("Pre-flight token estimate {} exceeds {} limit of {}",
@@ -375,11 +353,6 @@ public abstract class AbstractLLMClient<B> extends AbstractRateLimitedClient imp
     protected abstract boolean isOverloadError(Exception e);
 
     /**
-     * Checks if an exception represents an API "prompt too long" rejection.
-     * This is the last-resort catch when the pre-flight estimate was wrong.
-     * Subclasses can override for provider-specific exception types.
-     */
-    /**
      * The {@link UnknownHostException} anywhere in a failure's cause chain, or null: the one
      * failure no retry changes, since the endpoint is not served where this deployment points.
      * Shared with the embeddings client and with the catalog discovery, which reads a listing
@@ -394,6 +367,11 @@ public abstract class AbstractLLMClient<B> extends AbstractRateLimitedClient imp
         return null;
     }
 
+    /**
+     * Whether a failure is the provider's own "prompt too long" rejection, the last-resort
+     * catch when the pre-flight estimate fell short. Subclasses override for provider-specific
+     * exception types.
+     */
     protected boolean isPromptTooLongError(Exception e) {
         Throwable current = e;
         while (current != null) {
@@ -566,10 +544,6 @@ public abstract class AbstractLLMClient<B> extends AbstractRateLimitedClient imp
     }
 
     /**
-     * Caller attribution for the request/response log envelope: {@code " | from <DisplayName>"} when
-     * the conversation carries a JobContext with a display name, empty otherwise.
-     */
-    /**
      * The id of the job the call runs in - the id its lifecycle lines carry - or
      * {@code no job} for a call made outside the job system.
      */
@@ -583,6 +557,10 @@ public abstract class AbstractLLMClient<B> extends AbstractRateLimitedClient imp
         return count != null ? Formats.compactNumber(count) : "unreported";
     }
 
+    /**
+     * Caller attribution for the request/response log envelope: {@code " | from <DisplayName>"} when
+     * the conversation carries a JobContext with a display name, empty otherwise.
+     */
     protected String getCallerInfo(ConversationContext context) {
         JobContext<?> jobCtx = context.getJobContext();
         if (jobCtx != null) {
@@ -633,7 +611,8 @@ public abstract class AbstractLLMClient<B> extends AbstractRateLimitedClient imp
     @Override
     public final <T> LLMResponse<T> streamResponse(LLMRequest<T> request, Consumer<StreamChunk> chunkHandler)
             throws TokenEstimateExceedsLimitException {
-        int estimatedTokens = estimateTokens(request);
+        TokenLedger estimate = estimate(request);
+        int estimatedTokens = estimate.inputTokens() + estimate.outputTokens();
         validateEstimatedTokens(estimatedTokens);
 
         PreparedConversation prepared = prepareConversation(request.getContext());
@@ -679,6 +658,7 @@ public abstract class AbstractLLMClient<B> extends AbstractRateLimitedClient imp
         response.setRequestedMaxTokens(resolveWireMaxTokens(request.getContext()));
         response.setEndTime(java.time.Instant.now());
         response.setSuccessful(true);
+        stampUsage(response);
         throwIfRefused(response, request);
         throwIfTruncated(response, request);
         return response;
@@ -712,9 +692,8 @@ public abstract class AbstractLLMClient<B> extends AbstractRateLimitedClient imp
      * Centralized output-truncation handling. If the response hit the model's output ceiling
      * ({@link LLMResponse#wasTruncated()}), the content is incomplete and would fail to parse, so
      * signal the framework's deterministic retry instead of letting the half-written body flow
-     * downstream. Runs for every client on both the single and streaming templates, so a single
-     * client (or a future one) cannot silently skip it - which is exactly how truncated Bedrock
-     * responses were reaching the JSON parser as "No JSON object or array found".
+     * downstream. Runs for every client on both the single and streaming templates, so no
+     * client can skip it and hand a half-written body to the parser.
      *
      * <p>The escalation happens here too: the outgoing message that was just sent gets its
      * per-call budget bumped to the model ceiling before the retry signal is raised. A caller

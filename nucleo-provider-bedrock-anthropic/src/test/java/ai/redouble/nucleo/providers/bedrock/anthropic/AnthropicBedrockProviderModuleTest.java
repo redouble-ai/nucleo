@@ -24,7 +24,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * Mantle providers are discovered by key beside the base's Converse and Cohere embeddings, its
  * fragment's Claude entries come up as Anthropic specs through the anthropic artifact it carries,
  * a Claude entry that needs a provider links to an Anthropic surface (they claim Claude) before
- * Converse, and resolving a provider never constructs its client.
+ * Converse, resolving a provider never constructs its client, and Claude on Bedrock or Mantle
+ * counts tokens exactly as Claude does on Anthropic's own API.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-09-27)
@@ -36,6 +37,20 @@ class AnthropicBedrockProviderModuleTest {
         assertInstanceOf(AnthropicBedrockProvider.class, ClientProviders.get("anthropic-bedrock"));
         assertInstanceOf(AnthropicBedrockMantleProvider.class, ClientProviders.get("anthropic-bedrock-mantle"));
         assertInstanceOf(BedrockConverseProvider.class, ClientProviders.get("bedrock-converse"));
+    }
+
+    @Test
+    void claudeOnBedrockCountsTheWayClaudeDoesOnAnthropicsApi() {
+        StandardModelSpec onBedrock = new StandardModelSpec();
+        onBedrock.setId("claude-on-bedrock-test");
+        onBedrock.setIdentity("claude-test");
+        onBedrock.setProviderKey("anthropic-bedrock");
+        onBedrock.setWireModelId("anthropic.claude-sonnet-4-5-20250929-v1:0");
+        onBedrock.setMaxContextTokens(200_000);
+        onBedrock.setMaxOutputTokens(8_000);
+        assertSame(AnthropicContextEstimator.INSTANCE, new AnthropicBedrockProvider().contextEstimator(onBedrock), "the same estimator as the direct API");
+        assertSame(AnthropicContextEstimator.COUNTER, new AnthropicBedrockMantleProvider().tokenCounter(onBedrock), "and the same counter, on Mantle too");
+        assertSame(AnthropicContextEstimator.INSTANCE, onBedrock.contextEstimator(), "reached through the spec by the provider's key");
     }
 
     @Test

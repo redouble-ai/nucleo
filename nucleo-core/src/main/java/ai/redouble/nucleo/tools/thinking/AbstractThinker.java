@@ -18,6 +18,7 @@ import ai.redouble.nucleo.harness.errors.*;
 import ai.redouble.nucleo.harness.errors.retry.*;
 import ai.redouble.nucleo.harness.models.*;
 import ai.redouble.nucleo.harness.schema.*;
+import ai.redouble.nucleo.harness.tokens.*;
 import ai.redouble.nucleo.tools.*;
 import ai.redouble.nucleo.tools.builtin.*;
 import ai.redouble.nucleo.tools.registry.*;
@@ -916,18 +917,20 @@ public abstract class AbstractThinker<I extends ThinkerInput, O extends ThinkerO
             return conversation;
         }
         ContextWindowManager manager = new ContextWindowManager(accountingSpec, this, comfortContextTokens, compactionTrigger);
-        double usage = manager.getUsagePercentage(conversation);
+        // One estimate per turn: the warning, the trigger and the ladder's first rung all read it
+        TokenLedger estimate = manager.estimate(conversation);
+        double usage = manager.getUsagePercentage(estimate);
 
         // Early warning for ALL conversations (compactable or not)
         if (usage >= 0.80) {
-            int total = conversation.getTotalTokens(accountingSpec);
+            int total = estimate.inputTokens();
             context.publishUserNotification(UserNotificationEvent.Severity.WARNING, "Context Window Alert", String.format("Conversation is at %.0f%% of context window (%s tokens). Approaching limit.",
                     usage * 100, Formats.compactNumber(total)));
             log.warn("Context at {}% of window ({} tokens)", Math.round(usage * 100), Formats.compactNumber(total));
         }
 
         // Skip when nothing to do: below the trigger, or not compactable at all
-        if (!manager.needsCompaction(conversation)) {
+        if (!manager.needsCompaction(conversation, estimate)) {
             return conversation;
         }
 
@@ -936,7 +939,7 @@ public abstract class AbstractThinker<I extends ThinkerInput, O extends ThinkerO
         context.publishUserNotification(UserNotificationEvent.Severity.INFO, "Context Compaction", "Context approaching limit, starting compaction");
 
         try {
-            return manager.ensureFits(conversation);
+            return manager.ensureFits(conversation, estimate);
         }
         catch (ContextOverflowException overflow) {
             dumpContextForDiagnosis(conversation, accountingSpec);
@@ -947,6 +950,7 @@ public abstract class AbstractThinker<I extends ThinkerInput, O extends ThinkerO
     /** The full context breakdown at DEBUG, for diagnosing what filled an overflowing window. */
     private void dumpContextForDiagnosis(ConversationContext conversation, ModelSpec accountingSpec) {
         log.debug("=== CONTEXT OVERFLOW DUMP START ===");
+        log.debug("ESTIMATE by part: {}", accountingSpec.estimate(conversation).inputByPart());
         for (var block : conversation.getMainObjectiveBlocks()) {
             if (block instanceof TextBlock(String text)) {
                 log.debug("MAIN_OBJECTIVE TextBlock ({} chars): {}", text.length(), text);
@@ -959,7 +963,7 @@ public abstract class AbstractThinker<I extends ThinkerInput, O extends ThinkerO
             }
         }
         for (var msg : conversation.getMessages()) {
-            log.debug("MESSAGE [{}] ({} tokens)", msg.getRole(), msg.getEstimatedTokens(accountingSpec));
+            log.debug("MESSAGE [{}] ({} chars as the model reads it)", msg.getRole(), ModelText.render(msg).length());
         }
         var artifacts = conversation.getArtifactRegistry().getAllArtifacts();
         log.debug("ARTIFACT_REGISTRY: {} artifacts", artifacts.size());
@@ -971,18 +975,18 @@ public abstract class AbstractThinker<I extends ThinkerInput, O extends ThinkerO
     }
 
     /**
-     * Forces aggressive compaction of a conversation.
-     * Unlike performCompactionLoop, this method:
-     * - Does NOT check isCompactable() - forces compaction regardless
-     * - Does NOT check needsCompaction() - assumes compaction is needed
-     * - Goes directly to AGGRESSIVE level
-     * <p>
-     * Use this when a TokenEstimateExceedsLimitException has been thrown
-     * and immediate compaction is required to continue.
+     * The compaction a pre-flight overflow calls for: the call did not fit, so the ladder's
+     * trigger is beside the point and the conversation is collapsed at AGGRESSIVE at once.
+     * A conversation its owner marked non-compactable is never touched; it fails with
+     * {@link NonCompactableContextException}, which says so, as distinct from the refusal
+     * that follows a compaction that was tried and was not enough.
      *
      * @param conversation the conversation to compact
      * @param context      the job context for publishing notifications
      * @return the compacted conversation
+     * @throws NonCompactableContextException when the conversation may not be compacted
+     * @throws IllegalStateException when the conversation never resolved a model and has no prior
+     *                               spec, so there is nothing to account tokens under
      * @throws Exception from an override's compaction
      */
     @SuppressWarnings("RedundantThrows") // the declaration is the hook's contract; only an override throws
@@ -992,13 +996,16 @@ public abstract class AbstractThinker<I extends ThinkerInput, O extends ThinkerO
             throw new IllegalStateException("Forced compaction on a conversation that never resolved a model and has no prior"
                     + " - there is no spec to account tokens under");
         }
-        int beforeTokens = conversation.getTotalTokens(accountingSpec);
+        int beforeTokens = accountingSpec.estimate(conversation).inputTokens();
+        if (!conversation.isCompactable()) {
+            throw new NonCompactableContextException(beforeTokens, accountingSpec.getMaxContextTokens(), accountingSpec.getId());
+        }
         log.warn("Forcing aggressive compaction on {} tokens", Formats.compactNumber(beforeTokens));
 
         // Use aggressive compaction directly
         ContextCompactor compactor = new LLMContextCompactor(this);
         ConversationContext compacted = compactor.compact(conversation, CompactionLevel.AGGRESSIVE);
-        int afterTokens = compacted.getTotalTokens(accountingSpec);
+        int afterTokens = accountingSpec.estimate(compacted).inputTokens();
         log.info("Forced compaction: {} -> {} tokens (saved {})",
                 Formats.compactNumber(beforeTokens),
                 Formats.compactNumber(afterTokens),
@@ -1259,8 +1266,9 @@ public abstract class AbstractThinker<I extends ThinkerInput, O extends ThinkerO
      * What every agentic loop does when its call's token estimate overflows the model: tells the
      * user, compacts the conversation aggressively, and makes the call once more on it. An
      * overflow on that retry ends the run with a {@link ContextOverflowException}, so a parent
-     * thinker learns the conversation cannot fit; any other failure of the retry propagates as
-     * it came.
+     * thinker learns the conversation cannot fit; a conversation marked non-compactable ends it
+     * with {@link NonCompactableContextException} before anything is summarized; any other
+     * failure of the retry propagates as it came.
      */
     protected <R> CompactedReply<R> compactAndRetry(TokenEstimateExceedsLimitException overflow, ConversationContext conversation,
                                                     JobContext<?> context, ModelCall<R> call) throws Exception {

@@ -132,7 +132,7 @@ class ModelResolutionDispatchTest {
         String servedId = JobDispatcher.getInstance().submit(job).get();
         assertEquals(new TestModelPicker().provide(new Seat(FlatJob.class, Grade.SMALL, ModelKind.LLM), null).getId(), servedId);
         ModelBinding resolved = job.mintedBindings.get(job.mintedBindings.size() - 1);
-        assertEquals(100 + ConversationContext.outputReserve(resolved.getModel(), 50, Depth.STANDARD), resolved.getReservation(),
+        assertEquals(100 + ConversationContext.outputReserve(resolved.getModel(), 50, Depth.STANDARD), resolved.getReservedTokens(),
                 "flat pricing = in + declared out + the depth's thinking on the resolved entry, clamped as the wire is");
         assertEquals(2, job.requirementsCalls, "exactly one capture at submit plus one per attempt");
     }

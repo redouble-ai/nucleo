@@ -295,8 +295,7 @@ public abstract class AbstractOpenAIChatClient extends AbstractLLMClient<ObjectN
             JsonNode promptDetails = usage.path("prompt_tokens_details");
             Integer cachedTokens = promptDetails.has("cached_tokens")
                     ? promptDetails.path("cached_tokens").asInt() : null;
-            response.setUsage(promptTokens, null, cachedTokens, completionTokens);
-            incomingMessage.setActualOutputTokens(completionTokens);
+            response.setUsage(new OpenAITokenLedger(getModel(), promptTokens, cachedTokens, completionTokens));
         }
         // Stop reason is provider-derived; the abstract client's template records the requested
         // ceiling (resolveWireMaxTokens) and centralizes the truncation decision.
@@ -582,8 +581,7 @@ public abstract class AbstractOpenAIChatClient extends AbstractLLMClient<ObjectN
             int outputTokens = usage.path("output_tokens").asInt(0);
             JsonNode inputDetails = usage.path("input_tokens_details");
             Integer cachedTokens = inputDetails.has("cached_tokens") ? inputDetails.path("cached_tokens").asInt() : null;
-            response.setUsage(inputTokens, null, cachedTokens, outputTokens);
-            incoming.setActualOutputTokens(outputTokens);
+            response.setUsage(new OpenAITokenLedger(getModel(), inputTokens, cachedTokens, outputTokens));
         }
         StringBuilder text = new StringBuilder();
         List<ContentBlock> blocks = new ArrayList<>();

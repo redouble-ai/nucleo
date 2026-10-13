@@ -182,8 +182,8 @@ class OpenAISDKClientTest {
         assertEquals("chatcmpl-1", response.getResponseMessage().getMessageId());
         assertEquals("gpt-5-2025-08-07", response.getServedModelId());
         assertEquals(LLMStopReason.MAX_TOKENS, response.getStopReason());
-        assertEquals(7, response.getActualInputTokens());
-        assertEquals(1, response.getActualOutputTokens());
+        assertEquals(7, response.getUsage().inputTokens());
+        assertEquals(1, response.getUsage().outputTokens());
         assertEquals("pong", response.getResponseMessage().getRawContent());
     }
 

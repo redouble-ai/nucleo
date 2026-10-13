@@ -12,6 +12,7 @@ import ai.redouble.nucleo.harness.decision.*;
 import ai.redouble.nucleo.harness.errors.*;
 import ai.redouble.nucleo.harness.errors.http.*;
 import ai.redouble.nucleo.harness.errors.retry.*;
+import ai.redouble.nucleo.harness.tokens.*;
 
 import java.io.*;
 import java.net.*;
@@ -31,8 +32,9 @@ import java.time.*;
 public abstract class AbstractDecisionClient extends AbstractRateLimitedClient implements DecisionClient {
 
     /**
-     * What one wire call returned: the decoded answers, the input tokens the endpoint says it
-     * billed (null where it reports none), and the identity it reported, each null when absent.
+     * What one wire call returned: the decoded answers, which carry the input tokens the endpoint
+     * says it billed (null where it reports none), and the request identity it reported, null
+     * when absent.
      */
     public record RawDecision(SystemOneWire.Decoded decoded, String providerRequestId) {}
 
@@ -85,7 +87,11 @@ public abstract class AbstractDecisionClient extends AbstractRateLimitedClient i
             throw e;
         }
         response.setAnswers(raw.decoded().answers());
-        response.setActualInputTokens(raw.decoded().inputTokens());
+        // a decision generates nothing: input as the provider reported it, output zero, no cache;
+        // an endpoint that reported no count gives the response no ledger, as a chat client does
+        if (raw.decoded().inputTokens() != null) {
+            response.setUsage(new DefaultTokenLedger(model, raw.decoded().inputTokens(), null, null, 0));
+        }
         response.setServedModelId(raw.decoded().servedModelId());
         response.setProviderRequestId(raw.providerRequestId());
         response.setEndTime(Instant.now());

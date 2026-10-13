@@ -9,6 +9,7 @@ package ai.redouble.nucleo.providers.openai;
 import ai.redouble.nucleo.harness.llm.*;
 import ai.redouble.nucleo.harness.models.*;
 import ai.redouble.nucleo.harness.models.discovery.*;
+import ai.redouble.nucleo.harness.tokens.*;
 import ai.redouble.nucleo.secrets.*;
 
 import java.io.*;
@@ -41,6 +42,10 @@ public class OpenAIProvider extends AbstractClientProvider<OpenAISDKClient> impl
 
     @Override
     public List<CredentialShape> credentialShapes() {return List.of(SHAPE);}
+    @Override
+    public ContextEstimator contextEstimator(ModelSpec spec) {return OpenAIContextEstimator.OPENAI;}
+    @Override
+    public TokenCounter tokenCounter(ModelSpec spec) {return OpenAIContextEstimator.O200K_COUNTER;}
     @Override
     protected OpenAISDKClient newClient() {return new OpenAISDKClient(WireApi.RESPONSES);}
     @Override

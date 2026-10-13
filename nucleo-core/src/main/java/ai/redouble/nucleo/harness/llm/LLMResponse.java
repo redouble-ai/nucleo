@@ -8,6 +8,7 @@ package ai.redouble.nucleo.harness.llm;
 
 import ai.redouble.nucleo.harness.admission.*;
 import ai.redouble.nucleo.harness.conversation.*;
+import ai.redouble.nucleo.harness.tokens.*;
 
 import java.time.*;
 import java.util.*;
@@ -15,29 +16,12 @@ import java.util.*;
 /**
  * Response object from LLM API calls containing token metrics and response data.
  *
- * <h2>Token Metrics Overview</h2>
- * <p>This class tracks three categories of token information:
- *
- * <h3>Context Window Tokens (for managing context limits)</h3>
- * <ul>
- *   <li>{@link #getActualInputTokens()} - Total input tokens counting against context window
- *       (includes both cached and uncached content)</li>
- *   <li>{@link #getActualOutputTokens()} - Total output tokens</li>
- * </ul>
- *
- * <h3>Cache Metrics (for cache performance monitoring)</h3>
- * <ul>
- *   <li>{@link #getCacheCreationInputTokens()} - Tokens written to cache</li>
- *   <li>{@link #getCacheReadInputTokens()} - Tokens read from cache</li>
- *   <li>{@link #getCacheHitRate()} - Ratio of reads to total cache operations</li>
- * </ul>
- *
- * <h3>Billing Tokens (calculated and stored separately)</h3>
- * <p>Cached tokens bill differently from uncached ones, and the rates are per endpoint:
- * the spec's {@code getCacheWriteMultiplier()}/{@code getCacheReadMultiplier()} (with
- * explicit per-million cache prices for endpoints whose cache rate is not a simple
- * multiple). The deployment's usage recorder applies them; this class only carries
- * the raw counts the provider reported.
+ * <p>What the call cost in tokens is one {@link TokenLedger}, {@link #getUsage()}: input,
+ * cache reads and writes, output, and the cost at the model's prices, built by the provider's
+ * client from the provider's own usage record. It is the same type the reservation held
+ * before the call, so what was reserved and what was spent compare facet by facet. A provider
+ * that returns no usage record leaves it null; a facet it does not report is null on the
+ * ledger.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2025-09-15)
@@ -52,28 +36,8 @@ public class LLMResponse<T> {
      */
     protected String model;
 
-    /**
-     * Total input tokens counting against context window.
-     * Includes all tokens: uncached + cache_creation + cache_read.
-     */
-    protected Integer actualInputTokens;
-
-    /**
-     * Total output tokens.
-     */
-    protected Integer actualOutputTokens;
-
-    /**
-     * Input tokens written to cache this request. Billed at the spec's
-     * cache-write multiplier.
-     */
-    protected Integer cacheCreationInputTokens;
-
-    /**
-     * Input tokens read from cache this request. Billed at the spec's
-     * cache-read multiplier.
-     */
-    protected Integer cacheReadInputTokens;
+    /** The tokens this call spent, as the provider reported them; null when it reported nothing. */
+    protected TokenLedger usage;
 
     /**
      * Provider key for billing and observability. Set by the abstract client
@@ -178,63 +142,16 @@ public class LLMResponse<T> {
     }
 
     /**
-     * Gets total input tokens counting against context window.
-     * Includes uncached + cache_creation + cache_read tokens.
-     *
-     * @return total input tokens, or null if not available
+     * The tokens this call spent, by kind, as the provider reported them: null when the
+     * provider returned no usage record, so nothing downstream bills the call at zero.
      */
-    public Integer getActualInputTokens() {
-        return actualInputTokens;
+    public TokenLedger getUsage() {
+        return usage;
     }
 
-    public void setActualInputTokens(Integer actualInputTokens) {
-        this.actualInputTokens = actualInputTokens;
-    }
-
-    /**
-     * Gets total output tokens.
-     *
-     * @return output tokens, or null if not available
-     */
-    public Integer getActualOutputTokens() {
-        return actualOutputTokens;
-    }
-
-    public void setActualOutputTokens(Integer actualOutputTokens) {
-        this.actualOutputTokens = actualOutputTokens;
-    }
-
-    /**
-     * Gets tokens written to cache this request.
-     * Billed at the spec's cache-write multiplier but counts normally against the context window.
-     *
-     * @return cache creation tokens, or null if no cache creation
-     */
-    public Integer getCacheCreationInputTokens() {
-        return cacheCreationInputTokens;
-    }
-
-    public void setCacheCreationInputTokens(Integer cacheCreationInputTokens) {
-        this.cacheCreationInputTokens = cacheCreationInputTokens;
-    }
-
-    /**
-     * Gets tokens read from cache this request.
-     * Billed at the spec's cache-read multiplier but counts normally against the context window.
-     *
-     * @return cache read tokens, or null if no cache reads
-     */
-    public Integer getCacheReadInputTokens() {
-        return cacheReadInputTokens;
-    }
-
-    public void setCacheReadInputTokens(Integer cacheReadInputTokens) {
-        this.cacheReadInputTokens = cacheReadInputTokens;
-    }
-
-    public int getLastOutputTokens() {
-        Integer tokens = this.getResponseMessage().getActualOutputTokens();
-        return tokens != null ? tokens : 0;
+    /** Set by the provider's client from its usage record, once, when the response is complete. */
+    public void setUsage(TokenLedger usage) {
+        this.usage = usage;
     }
 
     public Throwable getLastError() {
@@ -376,7 +293,8 @@ public class LLMResponse<T> {
      *
      * <p>Primary signal is the normalized {@link LLMStopReason#MAX_TOKENS}. Some backends (e.g.
      * Anthropic-over-Bedrock) do not surface a typed stop reason, so a secondary backstop treats
-     * output reaching the requested ceiling as truncation.
+     * output reaching the requested ceiling as truncation. A call with no usage record, or no
+     * output count on it, gives no backstop signal.
      *
      * @return true if the response was truncated
      */
@@ -384,32 +302,8 @@ public class LLMResponse<T> {
         if (stopReason == LLMStopReason.MAX_TOKENS) {
             return true;
         }
-        return requestedMaxTokens > 0 && actualOutputTokens != null && actualOutputTokens >= requestedMaxTokens;
-    }
-
-    /**
-     * Checks if this response used caching.
-     *
-     * @return true if either cache creation or cache read tokens are present
-     */
-    public boolean hasCache() {
-        return (cacheCreationInputTokens != null && cacheCreationInputTokens > 0) ||
-               (cacheReadInputTokens != null && cacheReadInputTokens > 0);
-    }
-
-    /**
-     * Calculates cache hit rate for this response.
-     * Rate of 1.0 means all cached content was read (best performance).
-     * Rate of 0.0 means all cached content was written (first use, building cache).
-     *
-     * @return cache hit rate between 0.0 and 1.0, or 0.0 if no cache
-     */
-    public double getCacheHitRate() {
-        if (!hasCache()) return 0.0;
-        int reads = cacheReadInputTokens != null ? cacheReadInputTokens : 0;
-        int writes = cacheCreationInputTokens != null ? cacheCreationInputTokens : 0;
-        if (reads + writes == 0) return 0.0;
-        return (double) reads / (reads + writes);
+        Integer output = usage != null ? usage.outputTokens() : null;
+        return requestedMaxTokens > 0 && output != null && output >= requestedMaxTokens;
     }
 
     public String getProvider() {
@@ -419,31 +313,4 @@ public class LLMResponse<T> {
     public void setProvider(String provider) {
         this.provider = provider;
     }
-
-    /**
-     * Populates the four token counters in a single call. {@code grandTotal} is the
-     * already-reconciled total input. OpenAI calls this directly with {@code prompt_tokens}
-     * (its cached count is a subset of that total); providers whose cache counters are
-     * additive use {@link #setAdditiveUsage}.
-     */
-    public void setUsage(int grandTotal, Integer cacheCreation, Integer cacheRead, int output) {
-        this.actualInputTokens = grandTotal;
-        this.actualOutputTokens = output;
-        this.cacheCreationInputTokens = cacheCreation;
-        this.cacheReadInputTokens = cacheRead;
-    }
-
-    /**
-     * Usage setter for providers that report cache counters as ADDITIVE to their uncached-input field
-     * (Anthropic Messages, Bedrock Converse): the grand total is regular input plus cache-creation plus
-     * cache-read, summed here so callers do not re-derive it. OpenAI, whose {@code prompt_tokens}
-     * already includes the cached subset, calls {@link #setUsage} directly.
-     */
-    public void setAdditiveUsage(int regularInput, Integer cacheCreation, Integer cacheRead, int output) {
-        int grandTotal = regularInput
-                + (cacheCreation != null ? cacheCreation : 0)
-                + (cacheRead != null ? cacheRead : 0);
-        setUsage(grandTotal, cacheCreation, cacheRead, output);
-    }
-
 }

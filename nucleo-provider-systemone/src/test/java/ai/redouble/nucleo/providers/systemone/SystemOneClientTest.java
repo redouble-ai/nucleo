@@ -116,8 +116,8 @@ class SystemOneClientTest {
         assertEquals("kev-test", response.getModel(), "the catalog id we called, never the endpoint's echo");
         assertEquals("kev-latest", response.getServedModelId());
         assertEquals("req-42", response.getProviderRequestId());
-        assertEquals(96, response.getActualInputTokens());
-        assertEquals(0, response.getLastOutputTokens(), "a decision generates nothing");
+        assertEquals(96, response.getUsage().inputTokens());
+        assertEquals(0, response.getUsage().outputTokens(), "a decision generates nothing");
         assertEquals("billing", response.choice("department").choice());
         assertEquals(0.95, response.noul("is_urgent").probability(), 1e-9);
         assertThrows(IllegalArgumentException.class, () -> response.score("department"), "read an answer as it was asked");

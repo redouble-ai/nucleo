@@ -9,6 +9,7 @@ package ai.redouble.nucleo.providers.bedrock;
 import ai.redouble.nucleo.harness.llm.*;
 import ai.redouble.nucleo.harness.models.*;
 import ai.redouble.nucleo.harness.models.discovery.*;
+import ai.redouble.nucleo.harness.tokens.*;
 import java.util.*;
 
 /**
@@ -36,6 +37,14 @@ public class BedrockCohereEmbeddingsProvider extends AbstractClientProvider<Bedr
 
     @Override
     public List<DiscoveredModel> listModels() {return BedrockDiscovery.runtimeModels();}
+
+    /** Cohere's density, so an embedding request is reserved at what Bedrock will meter for it. */
+    @Override
+    public TokenCounter tokenCounter(ModelSpec spec) {return BedrockContextEstimator.COHERE_COUNTER;}
+
+    /** The estimator on the same counter, so the two doors of the spec agree. */
+    @Override
+    public ContextEstimator contextEstimator(ModelSpec spec) {return BedrockContextEstimator.forSpec(spec);}
 
     @Override
     protected BedrockCohereEmbeddingsClient newClient() {return new BedrockCohereEmbeddingsClient();}

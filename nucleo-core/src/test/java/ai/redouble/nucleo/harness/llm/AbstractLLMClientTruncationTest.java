@@ -12,6 +12,7 @@ import ai.redouble.nucleo.harness.errors.*;
 import ai.redouble.nucleo.harness.errors.retry.*;
 import ai.redouble.nucleo.harness.llm.encode.*;
 import ai.redouble.nucleo.harness.models.*;
+import ai.redouble.nucleo.harness.tokens.*;
 import org.junit.jupiter.api.*;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -134,6 +135,21 @@ public class AbstractLLMClientTruncationTest {
     }
 
     @Test
+    void untypedStopReasonWithNoUsageRecord_isACompleteAnswer() throws TokenEstimateExceedsLimitException {
+        ModelSpec model = TestModels.small();
+        ConversationContext conversation = declared(model);
+        OutgoingMessage<String> message = new OutgoingMessage<>(StringResponseHandler.instance);
+        message.setRole("user");
+        message.addText("question");
+        conversation.getMessages().add(message);
+        StubProviderClient client = new StubProviderClient(LLMStopReason.UNKNOWN);
+        client.setModel(model);
+        LLMResponse<String> response = client.singleResponse(new LLMRequest<>(conversation));
+        assertNull(response.getUsage(), "fixture: the provider reported no usage");
+        assertEquals(LLMStopReason.UNKNOWN, response.getStopReason(), "with no output count there is no backstop, so an untyped stop reason is not truncation");
+    }
+
+    @Test
     void untypedStopReasonOneTokenShortOfTheCeiling_isACompleteAnswer() throws TokenEstimateExceedsLimitException {
         ModelSpec model = TestModels.small();
         LLMResponse<String> response = callReporting(model, LLMStopReason.UNKNOWN, TEST_DEFAULT - 1);
@@ -222,7 +238,7 @@ public class AbstractLLMClientTruncationTest {
             response.setRefusalCategory(refusalCategory);
             response.setRefusal(refusal);
             if (outputTokens != null) {
-                response.setUsage(0, null, null, outputTokens);
+                response.setUsage(new DefaultTokenLedger(getModel(), 0, null, null, outputTokens));
             }
             return response;
         }

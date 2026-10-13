@@ -170,7 +170,7 @@ public class JobResources {
                 demand.add(RateLimiterRegistry.getInstance().gate(model), null);
             }
             else {
-                demand.add(RateLimiterRegistry.getInstance().getRateLimiter(model), binding.getReservation());
+                demand.add(RateLimiterRegistry.getInstance().getRateLimiter(model), binding.getReservedTokens());
             }
         }
         if (requirements.requiresHttpConnection()) {

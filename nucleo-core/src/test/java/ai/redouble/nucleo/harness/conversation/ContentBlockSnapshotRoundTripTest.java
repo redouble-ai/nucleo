@@ -29,6 +29,20 @@ class ContentBlockSnapshotRoundTripTest {
     }
 
     @Test
+    void anAssistantMessagesOwnOutputCountSurvivesTheSnapshot() {
+        IncomingMessage<String> answer = new IncomingMessage<>(StringResponseHandler.instance);
+        answer.overwriteRawContent("the answer");
+        answer.setActualOutputTokens(42);
+        Message restored = MessageSnapshot.fromMessage(answer).toMessage(StringResponseHandler.instance);
+        assertEquals(42, ((IncomingMessage<?>)restored).getActualOutputTokens(),
+                "the one per-message actual, what the answer took to generate, is kept with the message");
+        IncomingMessage<String> unstamped = new IncomingMessage<>(StringResponseHandler.instance);
+        unstamped.overwriteRawContent("no usage came back");
+        assertNull(((IncomingMessage<?>)MessageSnapshot.fromMessage(unstamped).toMessage(StringResponseHandler.instance)).getActualOutputTokens(),
+                "and an answer the provider never accounted stays unaccounted, never zero");
+    }
+
+    @Test
     void textJsonAndToolDefinitionRoundTripLosslessly() {
         assertEquals(new TextBlock("plain words"), roundTrip(new TextBlock("plain words")));
         assertEquals(new JsonBlock("{\"a\":1}"), roundTrip(new JsonBlock("{\"a\":1}")));

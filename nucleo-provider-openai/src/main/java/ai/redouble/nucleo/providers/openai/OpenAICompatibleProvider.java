@@ -9,6 +9,7 @@ package ai.redouble.nucleo.providers.openai;
 import ai.redouble.nucleo.harness.llm.*;
 import ai.redouble.nucleo.harness.models.*;
 import ai.redouble.nucleo.harness.models.discovery.*;
+import ai.redouble.nucleo.harness.tokens.*;
 import ai.redouble.nucleo.secrets.*;
 
 import java.io.*;
@@ -38,6 +39,9 @@ public class OpenAICompatibleProvider extends AbstractClientProvider<OpenAICompa
 
     @Override
     public List<CredentialShape> credentialShapes() {return List.of(OpenAICompatibleClient.SHAPE);}
+    /** The endpoint's wire shape is OpenAI's; the models behind it are not, so text counts at the neutral density. */
+    @Override
+    public ContextEstimator contextEstimator(ModelSpec spec) {return OpenAIContextEstimator.COMPATIBLE;}
     @Override
     protected OpenAICompatibleClient newClient() {return new OpenAICompatibleClient(WireApi.CHAT_COMPLETIONS);}
     @Override

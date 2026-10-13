@@ -100,7 +100,7 @@ public class AbstractToolReservationTest {
         tool.setInput(in);
 
         int reservation = tool.exposedEstimate(MODEL, "please analyze");
-        int promptTokens = TokenizerFactory.get().forModel(MODEL).countTokens(tool.exposedBuildPrompt("please analyze"));
+        int promptTokens = MODEL.tokenCounter().countTokens(tool.exposedBuildPrompt("please analyze"));
 
         assertEquals(promptTokens + TEST_DEFAULT_OUTPUT, reservation,
                 "reservation = prompt tokens + the declared output (no thinking at IMMEDIATE)");

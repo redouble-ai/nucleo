@@ -155,9 +155,9 @@ class OpenAIResponsesDialectTest {
         assertEquals("call_1", call.toolUseId());
         assertEquals("probe_tool", call.toolName());
         assertEquals("{\"q\":\"ports\"}", call.inputJson());
-        assertEquals(120, response.getActualInputTokens());
-        assertEquals(100, response.getCacheReadInputTokens());
-        assertEquals(30, response.getActualOutputTokens());
+        assertEquals(120, response.getUsage().inputTokens());
+        assertEquals(100, response.getUsage().cacheReadTokens());
+        assertEquals(30, response.getUsage().outputTokens());
         assertEquals(LLMStopReason.TOOL_USE, response.getStopReason());
     }
 

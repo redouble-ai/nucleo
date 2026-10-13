@@ -8,8 +8,10 @@ package ai.redouble.nucleo.harness.conversation.compaction;
 
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.conversation.*;
+import ai.redouble.nucleo.harness.conversation.ContentBlocks.*;
 import ai.redouble.nucleo.harness.errors.*;
 import ai.redouble.nucleo.harness.models.*;
+import ai.redouble.nucleo.harness.tokens.*;
 import org.slf4j.*;
 
 import java.time.*;
@@ -17,12 +19,27 @@ import java.util.*;
 import java.util.concurrent.*;
 
 /**
- * Intelligent context compactor using LLMs for semantic-aware conversation summarization.
- * <p>
- * Employs message segmentation, age-weighted compression, and context-aware
- * summarization to reduce conversation size while preserving meaning and continuity.
- * <p>
- * Failure discipline follows the level. LIGHT, MODERATE and AGGRESSIVE are best-effort:
+ * Context compactor using LLMs for semantic-aware conversation summarization.
+ *
+ * <p>The unit of compaction is the exchange: an assistant turn and the outgoing turns that
+ * answer it, up to the next assistant turn. A tool call lives on the assistant turn and its
+ * result on the turn that follows, and a provider refuses a request in which either stands
+ * alone, so an exchange is compacted whole or kept whole, and either side marked
+ * non-compactable keeps both. The messages before the first assistant turn form the opening
+ * exchange, which has no pairing and is compacted message by message. The newest exchange is
+ * the anchor: it is never touched below AGGRESSIVE, and at AGGRESSIVE it is summarized on its
+ * own when it carries tool results, so the model keeps the latest interaction with recency.
+ *
+ * <p>Every level checks the list it built: no tool call left without its result and no result
+ * without its call. An orphan on either side is a compactor bug and throws
+ * {@link IllegalStateException} naming the id.
+ *
+ * <p>What the summary model reads is the text a model reads ({@link ModelText}): a tool call
+ * with its input, a tool result with its payload. The summaries themselves are text; a LIGHT
+ * summary of a tool result replaces the result's payload inside its block, so the block keeps
+ * its id and the pairing with its call.
+ *
+ * <p>Failure discipline follows the level. LIGHT, MODERATE and AGGRESSIVE are best-effort:
  * a summary job that fails keeps the original messages (logged with the failure), the
  * conversation is never left worse than it arrived, and the ladder above decides what
  * to try next. MAXIMUM is the last line before an overflow refusal, so its failures are
@@ -67,33 +84,30 @@ public class LLMContextCompactor implements ContextCompactor {
     @Override
     public ConversationContext compact(ConversationContext context, CompactionLevel level) {
         List<Message> messages = context.getMessages();
-
-        // Nothing to compact
         if (messages.size() < 3) {
             log.debug("Too few messages to compact: {}", messages.size());
             return context;
         }
-
-        // Find last outgoing message - ALWAYS preserve
-        int lastOutgoingIdx = findLastOutgoingMessageIndex(messages);
-        if (lastOutgoingIdx < 0) {
+        List<Exchange> exchanges = exchanges(messages);
+        if (exchanges.isEmpty() || exchanges.getLast().followers.isEmpty()) {
+            // no outgoing message to anchor on: nothing the ladder may touch
             log.debug("No outgoing messages found, skipping compaction");
             return context;
         }
-
-        log.info("Starting {} compaction of {} messages", level, messages.size());
+        log.info("Starting {} compaction of {} messages in {} exchanges", level, messages.size(), exchanges.size());
+        List<Message> compacted;
         switch (level) {
         case LIGHT:
-            compactLight(context, lastOutgoingIdx);
+            compacted = compactLight(messages, exchanges);
             break;
         case MODERATE:
-            compactModerate(context, lastOutgoingIdx);
+            compacted = compactModerate(messages, exchanges);
             break;
         case AGGRESSIVE:
             // Best-effort: a failed collapse keeps the originals, the ladder decides what
             // is next. Interrupts are re-raised inside compactionFailure and never eaten.
             try {
-                compactAggressive(context, lastOutgoingIdx);
+                compacted = compactAggressive(messages, exchanges);
             }
             catch (Exception e) {
                 RuntimeException surfaced = compactionFailure(level, e);
@@ -101,6 +115,7 @@ public class LLMContextCompactor implements ContextCompactor {
                     throw surfaced;
                 }
                 log.warn("AGGRESSIVE compaction failed, keeping the original messages", surfaced);
+                return context;
             }
             break;
         case MAXIMUM:
@@ -110,14 +125,19 @@ public class LLMContextCompactor implements ContextCompactor {
             // is an open design question tracked there. The failure contract is already
             // final: MAXIMUM is not best-effort, its failures propagate.
             try {
-                compactAggressive(context, lastOutgoingIdx);
+                compacted = compactAggressive(messages, exchanges);
             }
             catch (Exception e) {
                 throw compactionFailure(level, e);
             }
             break;
+        default:
+            throw new IllegalArgumentException("Unknown compaction level " + level);
         }
-        log.info("Compaction complete. Messages: {} -> {}", messages.size(), context.getMessages().size());
+        requirePaired(compacted);
+        messages.clear();
+        messages.addAll(compacted);
+        log.info("Compaction complete. Messages: {} -> {}", exchanges.stream().mapToInt(Exchange::size).sum(), messages.size());
         return context;
     }
 
@@ -146,393 +166,336 @@ public class LLMContextCompactor implements ContextCompactor {
     }
 
     /**
-     * LIGHT compaction: Preserves conversation flow while condensing tool execution data.
-     * Targets raw tool results which often contain verbose output, replacing them with
-     * concise summaries that retain actionable information.
-     * Respects per-message compactability - non-compactable messages are preserved verbatim.
+     * LIGHT: every tool result in a compactable exchange before the anchor is summarized on its
+     * own, and the summary replaces the payload inside the result's block. Nothing else moves;
+     * every id, every pairing and every message stay where they were.
      */
-    private void compactLight(ConversationContext context, int lastOutgoingIdx) {
-        List<Message> messages = context.getMessages();
-
-        // Identify segments containing tool results
-        List<MessageSegment> segments = identifyMessageSegments(messages, lastOutgoingIdx);
-
-        // Create compaction tasks for tool results only (skip non-compactable messages)
-        List<SegmentTask> tasks = new ArrayList<>();
-        for (MessageSegment segment : segments) {
-            if (segment.hasCompactableToolResults(messages)) {
-                // Create task to compact just the compactable tool results in this segment
-                tasks.add(new SegmentTask(segment, CompactionType.TOOL_RESULTS_ONLY));
+    private List<Message> compactLight(List<Message> messages, List<Exchange> exchanges) {
+        List<CompactionTask> tasks = new ArrayList<>();
+        for (Exchange exchange : exchanges.subList(0, exchanges.size() - 1)) {
+            if (!exchange.compactable()) {
+                continue;
+            }
+            for (Message follower : exchange.followers) {
+                if (follower instanceof OutgoingMessage<?> outgoing) {
+                    for (ContentBlock block : outgoing.getContentBlocks()) {
+                        if (block instanceof ToolResultBlock result) {
+                            tasks.add(new ToolResultTask(exchange, outgoing, result));
+                        }
+                    }
+                }
             }
         }
-
         if (tasks.isEmpty()) {
             log.debug("No compactable tool results to compact in LIGHT mode");
-            return;
+            return new ArrayList<>(messages);
         }
-
-        // Execute compaction in parallel
-        Map<Integer, String> compactionResults = executeParallelCompaction(tasks, messages);
-
-        // Build new message list with compacted tool results
-        List<Message> compacted = new ArrayList<>();
-        for (int i = 0; i < messages.size(); i++) {
-            Message msg = messages.get(i);
-            // Only apply compaction to compactable messages
-            if (compactionResults.containsKey(i) && msg.isCompactable()) {
-                // Use compacted version
-                compacted.add(createCompactedMessage(msg, compactionResults.get(i)));
-            }
-            else {
-                // Keep original (either not in results or non-compactable)
-                compacted.add(msg);
-            }
+        Map<CompactionTask, String> summaries = runSummaries(tasks, messages);
+        Map<Message, List<ContentBlock>> rebuilt = new IdentityHashMap<>();
+        for (Map.Entry<CompactionTask, String> entry : summaries.entrySet()) {
+            ToolResultTask task = (ToolResultTask)entry.getKey();
+            List<ContentBlock> blocks = rebuilt.computeIfAbsent(task.message(), m -> new ArrayList<>(task.message().getContentBlocks()));
+            int at = blocks.indexOf(task.result());
+            blocks.set(at, new ToolResultBlock(task.result().toolUseId(), entry.getValue(), task.result().isError()));
         }
-
-        // Replace messages in place
-        messages.clear();
-        messages.addAll(compacted);
+        List<Message> compacted = new ArrayList<>(messages.size());
+        for (Message message : messages) {
+            List<ContentBlock> blocks = rebuilt.get(message);
+            compacted.add(blocks != null ? OutgoingMessage.copyWithBlocks((OutgoingMessage<?>)message, blocks) : message);
+        }
+        return compacted;
     }
 
     /**
-     * MODERATE compaction: Age-weighted summarization mimicking human memory patterns.
-     * Recent interactions remain detailed while older content progressively fades to
-     * essential facts, maintaining narrative continuity across the conversation.
-     * Respects per-message compactability - non-compactable messages are preserved verbatim.
+     * MODERATE: every compactable exchange before the anchor becomes one summary, the assistant
+     * turn with its tool calls and the turns that answered it together, with age-weighted detail.
+     * The opening exchange, which has no assistant turn, keeps its non-compactable messages and
+     * summarizes the rest. Non-compactable exchanges and the anchor stay as they are.
      */
-    private void compactModerate(ConversationContext context, int lastOutgoingIdx) {
-        List<Message> messages = context.getMessages();
-
-        // Identify all segments
-        List<MessageSegment> segments = identifyMessageSegments(messages, lastOutgoingIdx);
-
-        // Create compaction tasks only for segments that have compactable content
-        List<SegmentTask> tasks = new ArrayList<>();
-        for (MessageSegment segment : segments) {
-            if (segment.hasCompactableMessages(messages)) {
-                // Compact entire segment, with age-based aggressiveness
-                tasks.add(new SegmentTask(segment, CompactionType.FULL_SEGMENT));
+    private List<Message> compactModerate(List<Message> messages, List<Exchange> exchanges) {
+        List<CompactionTask> tasks = new ArrayList<>();
+        for (Exchange exchange : exchanges.subList(0, exchanges.size() - 1)) {
+            if (exchange.hasCompactableContent()) {
+                tasks.add(new ExchangeTask(exchange));
             }
         }
-
-        // Execute compaction in parallel
-        Map<Integer, String> compactionResults = executeParallelCompaction(tasks, messages);
-
-        // Build new message list preserving non-compactable messages
+        Map<CompactionTask, String> summaries = runSummaries(tasks, messages);
+        Map<Exchange, String> byExchange = new IdentityHashMap<>();
+        for (Map.Entry<CompactionTask, String> entry : summaries.entrySet()) {
+            byExchange.put(((ExchangeTask)entry.getKey()).exchange(), entry.getValue());
+        }
         List<Message> compacted = new ArrayList<>();
-        Set<Integer> processedIndices = new HashSet<>();
-
-        for (MessageSegment segment : segments) {
-            // First, add any non-compactable messages from this segment verbatim
-            for (int idx : segment.messageIndices) {
-                Message msg = messages.get(idx);
-                if (!msg.isCompactable()) {
-                    compacted.add(msg);
-                    processedIndices.add(idx);
-                }
+        for (Exchange exchange : exchanges) {
+            String summary = byExchange.get(exchange);
+            if (summary == null) {
+                compacted.addAll(exchange.all());
+                continue;
             }
-
-            // Add compacted version of compactable messages in segment
-            if (segment.compactedText != null && segment.hasCompactableMessages(messages)) {
-                Message segmentSummary = createSegmentSummary(segment);
-                compacted.add(segmentSummary);
-                // Mark compactable messages as processed
-                for (int idx : segment.messageIndices) {
-                    if (messages.get(idx).isCompactable()) {
-                        processedIndices.add(idx);
+            if (exchange.assistant == null) {
+                // the opening: verbatim messages keep their place, the rest collapse into one summary
+                boolean summarized = false;
+                for (Message message : exchange.followers) {
+                    if (message.isCompactable()) {
+                        if (!summarized) {
+                            compacted.add(summaryMessage(summary));
+                            summarized = true;
+                        }
+                    }
+                    else {
+                        compacted.add(message);
                     }
                 }
             }
-
-            // Add the incoming response after this segment
-            if (segment.incomingResponse != null) {
-                compacted.add(segment.incomingResponse);
+            else {
+                compacted.add(summaryMessage(summary));
             }
         }
-
-        // Add any messages not in segments (including last outgoing)
-        for (int i = 0; i < messages.size(); i++) {
-            if (!processedIndices.contains(i) && i >= lastOutgoingIdx) {
-                compacted.add(messages.get(i));
-            }
-        }
-
-        // Replace messages in place
-        messages.clear();
-        messages.addAll(compacted);
+        return compacted;
     }
 
     /**
-     * AGGRESSIVE compaction: Distills entire conversation to its essential narrative.
-     * Creates a comprehensive summary capturing key decisions, findings, and progression
-     * while preserving only the immediate context for continuity.
-     * Respects per-message compactability - non-compactable messages are preserved verbatim.
+     * AGGRESSIVE: every compactable exchange before the anchor collapses into one summary of
+     * the whole history; non-compactable messages stay verbatim in order ahead of it. The anchor
+     * exchange is summarized on its own, call and results together, when it may be compacted and
+     * the turns that answer it carry tool results; otherwise it stays as it is.
      */
-    private void compactAggressive(ConversationContext context, int lastOutgoingIdx) throws Exception {
-        List<Message> messages = context.getMessages();
-        Message lastOutgoing = messages.get(lastOutgoingIdx);
-
-        // Separate non-compactable messages (preserve verbatim) from compactable ones (summarize)
-        List<Message> nonCompactable = new ArrayList<>();
+    private List<Message> compactAggressive(List<Message> messages, List<Exchange> exchanges) throws Exception {
+        Exchange anchor = exchanges.getLast();
+        List<Message> verbatim = new ArrayList<>();
         List<Message> toSummarize = new ArrayList<>();
-        for (int i = 0; i < lastOutgoingIdx; i++) {
-            Message msg = messages.get(i);
-            if (msg.isCompactable()) {
-                toSummarize.add(msg);
+        for (Exchange exchange : exchanges.subList(0, exchanges.size() - 1)) {
+            if (exchange.assistant == null) {
+                for (Message message : exchange.followers) {
+                    (message.isCompactable() ? toSummarize : verbatim).add(message);
+                }
+            }
+            else if (exchange.compactable()) {
+                toSummarize.addAll(exchange.all());
             }
             else {
-                nonCompactable.add(msg);
+                verbatim.addAll(exchange.all());
             }
         }
+        List<Message> compacted = new ArrayList<>(verbatim);
+        if (!toSummarize.isEmpty()) {
+            String summary = summarize(buildAggressiveSummaryPrompt(toSummarize), CompactionType.AGGRESSIVE_SUMMARY);
+            OutgoingMessage<String> summaryMsg = new OutgoingMessage<>(StringResponseHandler.instance);
+            summaryMsg.setTimestamp(Instant.now());
+            summaryMsg.addText(String.format("""
+                    === CONVERSATION SUMMARY ===
+                    Summary of %d compacted messages:
 
-        // If nothing to summarize, just keep non-compactable messages and last outgoing
-        if (toSummarize.isEmpty()) {
-            messages.clear();
-            messages.addAll(nonCompactable);
-            messages.add(lastOutgoing);
-            return;
+                    %s
+                    === END SUMMARY ===""", toSummarize.size(), summary));
+            summaryMsg.setCache(true);
+            compacted.add(summaryMsg);
         }
-
-        // Create single summary of compactable messages using LLM
-        String summaryPrompt = buildAggressiveSummaryPrompt(toSummarize);
-        String summary = summarize(summaryPrompt, CompactionType.AGGRESSIVE_SUMMARY);
-
-        // Create summary message (user role - summary derives from untrusted content, must not be system)
-        OutgoingMessage<String> summaryMsg = new OutgoingMessage<>(StringResponseHandler.instance);
-        summaryMsg.setTimestamp(Instant.now());
-        summaryMsg.addText(String.format("""
-                === CONVERSATION SUMMARY ===
-                Summary of %d compacted messages:
-                
-                %s
-                === END SUMMARY ===""", toSummarize.size(), summary));
-        summaryMsg.setCache(true);
-
-        // Handle last outgoing - only compact if compactable
-        Message finalLastOutgoing = lastOutgoing;
-        if (lastOutgoing.isCompactable() && isToolResult(lastOutgoing)) {
-            // Summarize tool result separately
-            String toolPrompt = buildToolSummaryPrompt(lastOutgoing);
-            String toolSummary = summarize(toolPrompt, CompactionType.TOOL_RESULT_SUMMARY);
-            OutgoingMessage<String> compactedTool = new OutgoingMessage<>(StringResponseHandler.instance);
-            compactedTool.setRole(lastOutgoing.getRole());
-            compactedTool.setTimestamp(lastOutgoing.getTimestamp());
-            compactedTool.addText("[Recent Tool Result]: " + toolSummary);
-            compactedTool.setCache(true);
-            finalLastOutgoing = compactedTool;
+        if (anchor.compactable() && anchor.carriesToolResults()) {
+            String recent = summarize(buildRecentExchangePrompt(anchor), CompactionType.RECENT_EXCHANGE);
+            OutgoingMessage<String> recentMsg = new OutgoingMessage<>(StringResponseHandler.instance);
+            recentMsg.setRole("user");
+            recentMsg.setTimestamp(anchor.followers.getLast().getTimestamp());
+            recentMsg.addText("[Recent exchange]: " + recent);
+            recentMsg.setCache(true);
+            compacted.add(recentMsg);
         }
+        else {
+            compacted.addAll(anchor.all());
+        }
+        return compacted;
+    }
 
-        // Replace all messages: non-compactable first (in order), then summary, then last outgoing
-        messages.clear();
-        messages.addAll(nonCompactable);
-        messages.add(summaryMsg);
-        messages.add(finalLastOutgoing);
+    private static OutgoingMessage<String> summaryMessage(String summary) {
+        OutgoingMessage<String> msg = new OutgoingMessage<>(StringResponseHandler.instance);
+        msg.setTimestamp(Instant.now());
+        msg.addText(summary);
+        msg.setCache(true);
+        return msg;
     }
 
     /**
-     * Segments conversation into logical units based on interaction patterns.
-     * Groups related tool calls and their results, preserving causal relationships
-     * and execution flow for coherent summarization.
+     * Cuts the history into exchanges: the outgoing messages before the first assistant turn
+     * form the opening exchange; every assistant turn opens an exchange that runs to the next
+     * assistant turn. A tool result always answers the immediately preceding assistant turn,
+     * because the thinker appends one batched results message per assistant turn and the
+     * framework's own notes (a legend, a tool announcement) are appended after it, so the
+     * exchange is exactly the pairing unit. Package-private so tests can pin the cut.
      */
-    private List<MessageSegment> identifyMessageSegments(List<Message> messages, int lastOutgoingIdx) {
-        List<MessageSegment> segments = new ArrayList<>();
-        MessageSegment currentSegment = null;
-
-        for (int i = 0; i < lastOutgoingIdx; i++) {
-            Message msg = messages.get(i);
-
-            if (msg instanceof OutgoingMessage) {
-                // Add to current segment or start new one
-                if (currentSegment == null) {
-                    currentSegment = new MessageSegment();
-                    currentSegment.startIdx = i;
+    static List<Exchange> exchanges(List<Message> messages) {
+        List<Exchange> exchanges = new ArrayList<>();
+        Exchange current = null;
+        for (int i = 0; i < messages.size(); i++) {
+            Message message = messages.get(i);
+            if (message instanceof IncomingMessage<?> incoming) {
+                if (current != null) {
+                    exchanges.add(current);
                 }
-                currentSegment.outgoingMessages.add(msg);
-                currentSegment.messageIndices.add(i);
-
-                // Check if it's a tool result
-                if (isToolResult(msg)) {
-                    currentSegment.toolResultIndices.add(i);
-                }
-
+                current = new Exchange(incoming, i);
             }
-            else if (msg instanceof IncomingMessage) {
-                // End current segment if exists
-                if (currentSegment != null) {
-                    currentSegment.endIdx = i;
-                    currentSegment.incomingResponse = msg;
-                    currentSegment.calculateAgeWeight(i, messages.size());
-                    segments.add(currentSegment);
-                    currentSegment = null;
+            else {
+                if (current == null) {
+                    current = new Exchange(null, i);
                 }
+                current.followers.add(message);
             }
         }
-
-        // Handle last segment if no incoming message follows
-        if (currentSegment != null) {
-            currentSegment.endIdx = lastOutgoingIdx;
-            currentSegment.calculateAgeWeight(lastOutgoingIdx, messages.size());
-            segments.add(currentSegment);
+        if (current != null) {
+            exchanges.add(current);
         }
-
-        return segments;
+        for (int i = 0; i < exchanges.size(); i++) {
+            exchanges.get(i).ageWeight = (double)i / exchanges.size();
+        }
+        return exchanges;
     }
 
     /**
-     * Orchestrates parallel compaction with context awareness.
-     * Each segment is processed with surrounding context to maintain coherence
-     * while leveraging parallel execution for performance.
+     * The pairing invariant every compacted list must satisfy: a tool call on an assistant turn
+     * is answered in the message right after it, and a tool result on an outgoing turn answers a
+     * call in the message right before it. An orphan on either side is a compactor bug, not a
+     * model fault, and throws {@link IllegalStateException} naming the id.
      */
-    Map<Integer, String> executeParallelCompaction(List<SegmentTask> tasks, List<Message> messages) {
+    static void requirePaired(List<Message> messages) {
+        for (int i = 0; i < messages.size(); i++) {
+            Message message = messages.get(i);
+            Set<String> calls = toolUseIds(message);
+            if (!calls.isEmpty()) {
+                Set<String> answers = i + 1 < messages.size() ? toolResultIds(messages.get(i + 1)) : Set.of();
+                for (String id : calls) {
+                    if (!answers.contains(id)) {
+                        throw new IllegalStateException("Compaction left tool_use " + id + " at message " + i + " without its tool_result in the next message");
+                    }
+                }
+            }
+            Set<String> results = toolResultIds(message);
+            if (!results.isEmpty()) {
+                Set<String> asked = i > 0 ? toolUseIds(messages.get(i - 1)) : Set.of();
+                for (String id : results) {
+                    if (!asked.contains(id)) {
+                        throw new IllegalStateException("Compaction left tool_result " + id + " at message " + i + " without its tool_use in the previous message");
+                    }
+                }
+            }
+        }
+    }
 
+    private static Set<String> toolUseIds(Message message) {
+        if (!(message instanceof IncomingMessage<?> incoming) || !incoming.hasContentBlocks()) {
+            return Set.of();
+        }
+        Set<String> ids = new LinkedHashSet<>();
+        for (ContentBlock block : incoming.getContentBlocks()) {
+            if (block instanceof ToolUseBlock use) {
+                ids.add(use.toolUseId());
+            }
+        }
+        return ids;
+    }
+
+    private static Set<String> toolResultIds(Message message) {
+        if (!(message instanceof OutgoingMessage<?> outgoing)) {
+            return Set.of();
+        }
+        Set<String> ids = new LinkedHashSet<>();
+        for (ContentBlock block : outgoing.getContentBlocks()) {
+            if (block instanceof ToolResultBlock result) {
+                ids.add(result.toolUseId());
+            }
+        }
+        return ids;
+    }
+
+    /**
+     * Runs the summary jobs in parallel and collects what came back, by task. A task whose job
+     * failed is absent from the result: best-effort by contract, its messages keep their
+     * original form, the failure surfaces in the log with its cause, and the ladder decides
+     * what is next. An interrupt is never best-effort. Package-private so tests can supply
+     * canned summaries and exercise the selection and preservation logic without an LLM.
+     */
+    Map<CompactionTask, String> runSummaries(List<CompactionTask> tasks, List<Message> messages) {
         if (tasks.isEmpty()) {
-            return Collections.emptyMap();
+            return Map.of();
         }
-
-        // Get job dispatcher
         JobDispatcher dispatcher = JobDispatcher.getInstance();
-
-        // Submit all compaction jobs in parallel
-        Map<SegmentTask, JobHandle<CompactionResult>> handles = new HashMap<>();
-
-        for (SegmentTask task : tasks) {
-            // Extract context window for this task
-            List<Message> contextWindow = extractContextWindow(messages, task.segment().startIdx);
-
-            // Create and submit job
+        Map<CompactionTask, JobHandle<CompactionResult>> handles = new LinkedHashMap<>();
+        for (CompactionTask task : tasks) {
+            List<Message> contextWindow = extractContextWindow(messages, task.exchange().startIdx);
             CompactionJob job = new CompactionJob(this.parent, task, contextWindow, messages, compactionGrade);
-            JobHandle<CompactionResult> handle = dispatcher.submit(job);
-            handles.put(task, handle);
+            handles.put(task, dispatcher.submit(job));
         }
-
         log.debug("Submitted {} compaction jobs in parallel", handles.size());
-
-        // Collect results
-        Map<Integer, String> results = new HashMap<>();
-        for (Map.Entry<SegmentTask, JobHandle<CompactionResult>> entry : handles.entrySet()) {
-            MessageSegment segment = entry.getKey().segment();
+        Map<CompactionTask, String> results = new LinkedHashMap<>();
+        for (Map.Entry<CompactionTask, JobHandle<CompactionResult>> entry : handles.entrySet()) {
             try {
-                CompactionResult result = entry.getValue().get();
-
-                // Store compacted text in segment
-                segment.compactedText = result.getSummary();
-
-                // Map results to message indices
-                if (entry.getKey().type() == CompactionType.TOOL_RESULTS_ONLY) {
-                    // Only tool results get replaced
-                    for (int idx : segment.toolResultIndices) {
-                        results.put(idx, result.getSummary());
-                    }
-                }
-                else {
-                    // Entire segment gets replaced
-                    for (int idx : segment.messageIndices) {
-                        results.put(idx, result.getSummary());
-                    }
-                }
-
+                results.put(entry.getKey(), requireSummary(entry.getValue().get()));
             }
             catch (InterruptedException e) {
-                // An interrupt is never best-effort: the turn is dying and must stop compacting
                 Thread.currentThread().interrupt();
                 throw new UncorrectableRuntimeLLMException("Interrupted while collecting compaction summaries", e);
             }
             catch (Exception e) {
-                // Best-effort by contract: this segment keeps its original messages, the
-                // failure surfaces in the log with its cause, and the ladder decides what
-                // is next. MAXIMUM never reaches this path (it fails loudly in compact).
-                log.warn("Compaction job failed for segment {}-{}, keeping the original messages", segment.startIdx, segment.endIdx, e);
+                Exchange exchange = entry.getKey().exchange();
+                log.warn("Compaction job failed for exchange at message {}, keeping the original messages", exchange.startIdx, e);
             }
         }
-
         return results;
     }
 
     /**
-     * Extracts a context window around a target index.
+     * The messages around an exchange's start, for the summary model's bearings: the five before
+     * its first message and the four after it, the exchange's own among them, which the job leaves
+     * out when it renders the window. Package-private so the extent is testable.
      */
-    private List<Message> extractContextWindow(List<Message> messages, int targetIdx) {
+    static List<Message> extractContextWindow(List<Message> messages, int targetIdx) {
         int start = Math.max(0, targetIdx - 5);
         int end = Math.min(messages.size(), targetIdx + 5);
         return new ArrayList<>(messages.subList(start, end));
     }
 
     /**
-     * Creates a compacted message from original with new content.
-     */
-    private Message createCompactedMessage(Message original, String compactedContent) {
-        if (original instanceof IncomingMessage) {
-            IncomingMessage<String> msg = new IncomingMessage<>(StringResponseHandler.instance);
-            msg.overwriteRawContent(compactedContent);
-            msg.setTimestamp(original.getTimestamp());
-            msg.setCache(true);
-            return msg;
-        }
-        else {
-            OutgoingMessage<String> msg = new OutgoingMessage<>(StringResponseHandler.instance);
-            msg.setRole(original.getRole());
-            msg.addText(compactedContent);
-            msg.setTimestamp(original.getTimestamp());
-            msg.setCache(true);
-            return msg;
-        }
-    }
-
-    /**
-     * Creates a summary message for a segment.
-     */
-    private Message createSegmentSummary(MessageSegment segment) {
-        OutgoingMessage<String> msg = new OutgoingMessage<>(StringResponseHandler.instance);
-        msg.setTimestamp(Instant.now());
-        msg.addText(segment.compactedText);
-        msg.setCache(true);
-        return msg;
-    }
-
-    /**
-     * Builds prompt for aggressive single summary. Package-private so tests can pin
-     * the prompt contract without an LLM.
+     * Builds the prompt for the one summary of the whole compactable history, each message as the
+     * model read it ({@link ModelText}), the longest clipped. Package-private so tests can pin the
+     * prompt contract without an LLM.
      */
     String buildAggressiveSummaryPrompt(List<Message> messages) {
         StringBuilder prompt = new StringBuilder();
         prompt.append("Create a comprehensive summary of this conversation history.\n");
         prompt.append("Capture the key progression, important findings, and decisions made.\n");
         prompt.append("Preserve any artifact references like «artifact:type~uuid» (e.g., «artifact:link:cite~a1b2c3»).\n\n");
-
         prompt.append("Conversation:\n");
         prompt.repeat("=", 50).append("\n");
-
         for (Message msg : messages) {
             prompt.append("[").append(msg.getRole()).append("]: ");
-            String content = msg.getRawContent();
-            if (content != null && content.length() > 500) {
+            String content = ModelText.render(msg);
+            if (content.length() > 500) {
                 content = content.substring(0, 500) + "...";
             }
             prompt.append(content).append("\n\n");
         }
-
         prompt.repeat("=", 50).append("\n");
         prompt.append("Provide a clear, concise summary:");
-
         return prompt.toString();
     }
 
     /**
-     * Builds prompt for tool result summary.
+     * Builds the prompt for the anchor exchange at AGGRESSIVE: the tool calls the assistant made
+     * and the results they returned, summarized together so the model keeps what it just learned.
+     * Package-private so tests can pin the prompt contract without an LLM.
      */
-    private String buildToolSummaryPrompt(Message toolResult) {
-        return String.format("""
-                Summarize this tool result concisely, preserving key findings:
-                
-                %s
-                
-                Provide a brief summary:""", toolResult.getRawContent());
+    String buildRecentExchangePrompt(Exchange anchor) {
+        StringBuilder prompt = new StringBuilder();
+        prompt.append("Summarize this latest exchange concisely, preserving key findings.\n");
+        prompt.append("Preserve any artifact references like «artifact:type~uuid» (e.g., «artifact:link:cite~a1b2c3»).\n\n");
+        for (Message msg : anchor.all()) {
+            prompt.append("[").append(msg.getRole()).append("]: ").append(ModelText.render(msg)).append("\n\n");
+        }
+        prompt.append("Provide a brief summary:");
+        return prompt.toString();
     }
 
     /**
-     * One summary through a {@link CompactionJob}, the same door the parallel segment path
-     * uses: resolved through the picker, reserved, admitted and recorded like every other LLM
-     * call. A summary that comes back empty is a failed compaction, not a summary.
+     * One summary through a {@link CompactionJob}, the same door the parallel path uses: resolved
+     * through the picker, reserved, admitted and recorded like every other LLM call. A summary
+     * that comes back empty is a failed compaction, not a summary.
      */
     String summarize(String prompt, CompactionType type) throws Exception {
         CompactionJob job = new CompactionJob(this.parent, new SummaryTask(prompt, type), List.of(), List.of(), compactionGrade);
@@ -552,102 +515,129 @@ public class LLMContextCompactor implements ContextCompactor {
     }
 
     /**
-     * Checks if a message is a tool result.
+     * An assistant turn and the outgoing turns that answer it, up to the next assistant turn.
+     * The opening exchange has no assistant turn. Package-private so tests can build and
+     * inspect exchanges.
      */
-    private boolean isToolResult(Message msg) {
-        if (!(msg instanceof OutgoingMessage))
-            return false;
-        String content = msg.getRawContent();
-        return content != null && content.contains("[") && content.contains("result]:") && (content.contains("{") || content.contains("```"));
-    }
-
-    /**
-     * Finds the index of the last outgoing message.
-     */
-    private int findLastOutgoingMessageIndex(List<Message> messages) {
-        for (int i = messages.size() - 1; i >= 0; i--) {
-            if (messages.get(i) instanceof OutgoingMessage) {
-                return i;
-            }
-        }
-        return -1;
-    }
-
-    /**
-     * Represents a segment of messages between incoming messages.
-     */
-    static class MessageSegment {
-        int startIdx;
-        int endIdx;
-        final List<Message> outgoingMessages = new ArrayList<>();
-        final List<Integer> messageIndices = new ArrayList<>();
-        final List<Integer> toolResultIndices = new ArrayList<>();
-        Message incomingResponse;
+    static final class Exchange {
+        final IncomingMessage<?> assistant;
+        final List<Message> followers = new ArrayList<>();
+        final int startIdx;
         double ageWeight;
-        String compactedText;
 
-        /**
-         * Checks if this segment has any compactable tool results.
-         * Only compactable messages should be considered for compaction.
-         */
-        boolean hasCompactableToolResults(List<Message> allMessages) {
-            for (int idx : toolResultIndices) {
-                if (allMessages.get(idx).isCompactable()) {
+        Exchange(IncomingMessage<?> assistant, int startIdx) {
+            this.assistant = assistant;
+            this.startIdx = startIdx;
+        }
+
+        /** Every message of the exchange in conversation order. */
+        List<Message> all() {
+            List<Message> all = new ArrayList<>(followers.size() + 1);
+            if (assistant != null) {
+                all.add(assistant);
+            }
+            all.addAll(followers);
+            return all;
+        }
+
+        int size() {
+            return followers.size() + (assistant != null ? 1 : 0);
+        }
+
+        /** Whether the exchange may be compacted as a unit: every message of it is compactable, so either side pins both. */
+        boolean compactable() {
+            if (assistant != null && !assistant.isCompactable()) {
+                return false;
+            }
+            for (Message message : followers) {
+                if (!message.isCompactable()) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        /** Whether MODERATE has anything to summarize here: an opening with a compactable message, or a compactable exchange. */
+        boolean hasCompactableContent() {
+            if (assistant == null) {
+                for (Message message : followers) {
+                    if (message.isCompactable()) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            return compactable();
+        }
+
+        /** Whether an outgoing turn of the exchange carries a tool result. */
+        boolean carriesToolResults() {
+            for (Message message : followers) {
+                if (!toolResultIds(message).isEmpty()) {
                     return true;
                 }
             }
             return false;
         }
 
-        /**
-         * Checks if this segment has any compactable messages.
-         */
-        boolean hasCompactableMessages(List<Message> allMessages) {
-            for (int idx : messageIndices) {
-                if (allMessages.get(idx).isCompactable()) {
-                    return true;
+        /** The name of the tool a result answers, from the call on this exchange's assistant turn; null when the call is not here. */
+        String toolName(String toolUseId) {
+            if (assistant == null || !assistant.hasContentBlocks()) {
+                return null;
+            }
+            for (ContentBlock block : assistant.getContentBlocks()) {
+                if (block instanceof ToolUseBlock use && use.toolUseId().equals(toolUseId)) {
+                    return use.toolName();
                 }
             }
-            return false;
-        }
-
-        void calculateAgeWeight(int position, int total) {
-            this.ageWeight = (double)position / total;
+            return null;
         }
     }
 
-
     /**
-     * What one {@link CompactionJob} compacts: a segment, whose prompt the job composes from
-     * the segment and its surrounding window, or a prompt the compactor composed from the whole
-     * conversation.
+     * What one {@link CompactionJob} compacts: one tool result, one exchange, or a prompt the
+     * compactor composed from the whole history.
      */
-    sealed interface CompactionTask permits SegmentTask, SummaryTask {
+    sealed interface CompactionTask permits ToolResultTask, ExchangeTask, SummaryTask {
         CompactionType type();
+
+        /** The exchange the task belongs to; a composed summary has none. */
+        Exchange exchange();
     }
 
-
-    /**
-     * A segment of the conversation, compacted as {@link CompactionType#TOOL_RESULTS_ONLY} or {@link CompactionType#FULL_SEGMENT}.
-     */
-    record SegmentTask(MessageSegment segment, CompactionType type) implements CompactionTask {
+    /** One tool result of one outgoing message, compacted as {@link CompactionType#TOOL_RESULT}: the summary replaces its payload. */
+    record ToolResultTask(Exchange exchange, OutgoingMessage<?> message, ToolResultBlock result) implements CompactionTask {
+        @Override
+        public CompactionType type() {
+            return CompactionType.TOOL_RESULT;
+        }
     }
 
+    /** A whole exchange, compacted as {@link CompactionType#EXCHANGE}: one summary replaces every message of it. */
+    record ExchangeTask(Exchange exchange) implements CompactionTask {
+        @Override
+        public CompactionType type() {
+            return CompactionType.EXCHANGE;
+        }
+    }
 
-    /**
-     * A prompt already composed, for {@link CompactionType#AGGRESSIVE_SUMMARY} and {@link CompactionType#TOOL_RESULT_SUMMARY}.
-     */
+    /** A prompt already composed, for {@link CompactionType#AGGRESSIVE_SUMMARY} and {@link CompactionType#RECENT_EXCHANGE}. */
     record SummaryTask(String prompt, CompactionType type) implements CompactionTask {
+        @Override
+        public Exchange exchange() {
+            return null;
+        }
     }
 
-
-    /**
-     * Types of compaction.
-     */
+    /** Types of compaction. */
     enum CompactionType {
-        TOOL_RESULTS_ONLY,     // LIGHT mode - only compact tool results
-        FULL_SEGMENT,          // MODERATE mode - compact entire segment
-        AGGRESSIVE_SUMMARY,    // AGGRESSIVE mode - one narrative of every compactable message
-        TOOL_RESULT_SUMMARY    // AGGRESSIVE mode - the last outgoing tool result on its own
+        /** LIGHT: one tool result's payload becomes a summary inside its block. */
+        TOOL_RESULT,
+        /** MODERATE: an assistant turn and the turns that answered it become one summary. */
+        EXCHANGE,
+        /** AGGRESSIVE: one narrative of every compactable message before the anchor. */
+        AGGRESSIVE_SUMMARY,
+        /** AGGRESSIVE: the anchor exchange, call and results together, on its own. */
+        RECENT_EXCHANGE
     }
 }

@@ -22,10 +22,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * conversation. The channel contract: the main objective is the conversation's only system
  * content and reaches the wire exactly once, in the system channel; turns keep their roles.
  *
- * <p>This client previously made its own routing decision - it copied the objective into
- * system by reading the raw conversation, while the shared step had already placed it in a
- * user turn, so the objective shipped twice. It now renders what it is handed and decides
- * nothing; the total-count assertions here are what pin that.
+ * <p>The client renders what the shared preparation hands it and decides nothing about
+ * routing itself; the total-count assertions here are what pin that, since a client that read
+ * the raw conversation on its own would ship the objective twice.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-08-23)

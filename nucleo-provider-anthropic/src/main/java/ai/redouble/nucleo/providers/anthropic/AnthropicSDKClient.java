@@ -395,17 +395,14 @@ public class AnthropicSDKClient extends AbstractLLMClient<ContentBlockParam> {
         message.stopDetails().ifPresent(details -> recordRefusal(response, details));
 
         // Anthropic's Messages API reports usage as three additive counters (regular input, cache
-        // creation, cache read); setAdditiveUsage sums them into the grand-total contract.
+        // creation, cache read); the ledger sums them into the total the model read.
         com.anthropic.models.messages.Usage usage = message.usage();
         Integer cacheCreation = usage.cacheCreationInputTokens().map(Long::intValue).orElse(null);
         Integer cacheRead = usage.cacheReadInputTokens().map(Long::intValue).orElse(null);
-        int regularInput = (int)usage.inputTokens();
-        response.setAdditiveUsage(regularInput, cacheCreation, cacheRead, (int)usage.outputTokens());
+        response.setUsage(new AnthropicTokenLedger(model, (int)usage.inputTokens(), cacheCreation, cacheRead, (int)usage.outputTokens()));
 
-        // Set output tokens on the incoming message (separate field on IncomingMessage)
         IncomingMessage<T> incomingMessage = response.getResponseMessage();
         incomingMessage.setMessageId(message.id());
-        incomingMessage.setActualOutputTokens((int)message.usage().outputTokens());
 
         // Get the content blocks
         List<com.anthropic.models.messages.ContentBlock> anthropicBlocks = message.content();
@@ -756,8 +753,8 @@ public class AnthropicSDKClient extends AbstractLLMClient<ContentBlockParam> {
      * Streaming implementation. Parses {@code message_start} for initial input +
      * cache counters and the message ID; {@code message_delta} for the final
      * {@code output_tokens} and {@code stop_reason}; content-block deltas for
-     * text. Populates the response via {@link LLMResponse#setAdditiveUsage} once
-     * the stream completes. {@code rateLimitInfo} is not populated on streaming
+     * text. Sets the response's {@link AnthropicTokenLedger} once the stream completes.
+     * {@code rateLimitInfo} is not populated on streaming
      * because the SSE transport doesn't expose HTTP response headers.
      */
     @Override
@@ -815,9 +812,8 @@ public class AnthropicSDKClient extends AbstractLLMClient<ContentBlockParam> {
         finally {
             request.setOutputJson(eventLog.toString());
         }
-        response.setAdditiveUsage(regularInput[0], cacheCreation[0], cacheRead[0], outputTokens[0]);
+        response.setUsage(new AnthropicTokenLedger(model, regularInput[0], cacheCreation[0], cacheRead[0], outputTokens[0]));
         response.setStopReason(LLMStopReason.from(stopReason[0]));
-        incomingMessage.setActualOutputTokens(outputTokens[0]);
     }
 
     /**

@@ -63,7 +63,6 @@ class DecisionResponseTest {
         IllegalArgumentException unasked = assertThrows(IllegalArgumentException.class, () -> response.noul("priority"));
         assertTrue(unasked.getMessage().contains("priority") && unasked.getMessage().contains("department"),
                 "the refusal names the id and what was asked: " + unasked.getMessage());
-        assertEquals(0, response.getLastOutputTokens(), "a decision generates nothing");
         assertSame(answers, response.getAnswers());
     }
 

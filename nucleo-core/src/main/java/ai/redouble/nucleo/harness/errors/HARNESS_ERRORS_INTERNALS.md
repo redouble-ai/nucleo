@@ -41,6 +41,7 @@ LLMReadableException (sealed, extends LLMReadable)
 |           JobTimeoutException          - the dispatcher stopped the job on its time budget
 |           TokenEstimateExceedsLimitException - the conversation cannot fit the model's window
 |           ContextOverflowException     - compaction could not make the conversation fit
+|           NonCompactableContextException - the conversation does not fit and may not be compacted
 |           PromptNotFoundException      - no prompt source holds the key a thinker asked for
 +-- LLMReadableRuntimeException (sealed, unchecked)
       +-- CorrectableRuntimeLLMException - correctable, unchecked
@@ -53,7 +54,8 @@ LLMReadableException (sealed, extends LLMReadable)
 
 Where they live: `GuardrailException` in `ai.redouble.nucleo.guardrails`;
 `JobContext.CancellationException` nested in
-`ai.redouble.nucleo.harness.JobContext`; `ContextOverflowException` in `harness.conversation`;
+`ai.redouble.nucleo.harness.JobContext`; `ContextOverflowException` and
+`NonCompactableContextException` in `harness.conversation`;
 `PromptNotFoundException` in `ai.redouble.nucleo.prompt`; `ModelNotFoundException` in
 `harness.models`; the `Http` classes in `http`; `JsonParseException`,
 `ResponseValidationException`, `TokenEstimateExceedsLimitException` and `QuotaExhaustedException`

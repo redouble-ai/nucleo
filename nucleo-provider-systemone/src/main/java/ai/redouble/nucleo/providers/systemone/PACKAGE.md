@@ -55,6 +55,14 @@ A failure reads by the status the endpoint answered: a rate limit waits for the 
 refusal fails naming the status, and a reply that is not an answer fails naming what was
 missing. Neither the key nor the state appears in any failure's message.
 
+## How it counts tokens
+
+A decision call sends a request body and generates no text, so its reservation is that body
+counted with the runtime's neutral `cl100k_base` encoding and no output. A response's usage
+carries the input tokens the endpoint reports and zero output; an endpoint that reports no
+count leaves the response without a usage ledger. How the runtime uses these numbers is in
+[Tokens](../../../../../../../../../nucleo-core/src/main/java/ai/redouble/nucleo/harness/tokens/PACKAGE.md).
+
 ## How it works inside
 
 The classes, how the listing answers what an endpoint serves, the failure classification

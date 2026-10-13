@@ -54,12 +54,9 @@ public class MessageSnapshot  {
             snapshot.messageType = "incoming";
             snapshot.rawContent = incoming.getRawContent();
             snapshot.actualOutputTokens = incoming.getActualOutputTokens();
-            // The assistant's blocks, tool_use among them. Persisting only rawContent lost every
-            // tool_use while the NEXT message's tool_result blocks were persisted faithfully, so a
-            // restored conversation held results referring to requests that no longer existed and the
-            // provider refused the following turn outright: "unexpected tool_use_id found in
-            // tool_result blocks - each tool_result must have a corresponding tool_use in the previous
-            // message". Any conversation whose turn called a tool could not be continued.
+            // The assistant's blocks, tool_use among them: the next message's tool_result blocks
+            // answer them by id, and a provider refuses a tool_result whose tool_use is not in the
+            // previous message, so a restored conversation needs both sides or it cannot continue.
             if (incoming.hasContentBlocks()) {
                 snapshot.contentBlocks = incoming.getContentBlocks().stream()
                     .map(ContentBlockSnapshot::fromBlock)
@@ -99,7 +96,7 @@ public class MessageSnapshot  {
                     switch (block) {
                         case TextBlock tb -> message.addText(tb.text());
                         case JsonBlock jb -> {
-                            // JSON blocks are treated as text for now
+                            // A JSON block restores as text; the model reads the two the same way
                             message.addText(jb.json());
                         }
                         case PojoBlock pb -> message.addPojo(pb.pojo());
@@ -157,7 +154,7 @@ public class MessageSnapshot  {
             message.overwriteRawContent(rawContent);
             message.setActualOutputTokens(actualOutputTokens);
             // Restored so the tool_use blocks are present for the tool_result blocks that follow.
-            // Older snapshots carry none; those conversations restore as text alone, exactly as before.
+            // A snapshot that carries no blocks restores as text alone.
             if (contentBlocks != null && !contentBlocks.isEmpty()) {
                 message.setContentBlocks(contentBlocks.stream()
                         .map(ContentBlockSnapshot::toBlock)

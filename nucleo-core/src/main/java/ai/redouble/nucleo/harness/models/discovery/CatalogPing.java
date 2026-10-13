@@ -13,6 +13,7 @@ import ai.redouble.nucleo.harness.decision.*;
 import ai.redouble.nucleo.harness.errors.*;
 import ai.redouble.nucleo.harness.errors.retry.*;
 import ai.redouble.nucleo.harness.llm.*;
+import ai.redouble.nucleo.harness.tokens.*;
 import java.time.*;
 import java.util.*;
 import java.util.concurrent.*;
@@ -134,8 +135,8 @@ public final class CatalogPing {
                 outcome.setStatus(response.isSuccessful() ? ProbeOutcome.Status.OK : ProbeOutcome.Status.FAILED);
                 outcome.setServedModelId(response.getServedModelId());
                 outcome.setProviderRequestId(response.getProviderRequestId());
-                if (response.getActualInputTokens() != null) {
-                    outcome.setInputTokens(Long.valueOf(response.getActualInputTokens()));
+                if (response.getUsage() != null && response.getUsage().inputTokens() != null) {
+                    outcome.setInputTokens(Long.valueOf(response.getUsage().inputTokens()));
                 }
                 return;
             }
@@ -184,11 +185,12 @@ public final class CatalogPing {
         outcome.setServedModelId(response.getServedModelId());
         outcome.setProviderRequestId(response.getProviderRequestId());
         outcome.setHeaders(response.getProviderHeaders());
-        if (response.getActualInputTokens() != null) {
-            outcome.setInputTokens(response.getActualInputTokens().longValue());
+        TokenLedger usage = response.getUsage();
+        if (usage != null && usage.inputTokens() != null) {
+            outcome.setInputTokens(usage.inputTokens().longValue());
         }
-        if (response.getActualOutputTokens() != null) {
-            outcome.setOutputTokens(response.getActualOutputTokens().longValue());
+        if (usage != null && usage.outputTokens() != null) {
+            outcome.setOutputTokens(usage.outputTokens().longValue());
         }
         if (response.getStopReason() != null) {
             outcome.setStopReason(response.getStopReason().name());

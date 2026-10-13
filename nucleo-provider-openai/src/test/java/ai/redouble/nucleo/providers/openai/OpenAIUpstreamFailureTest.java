@@ -347,7 +347,7 @@ class OpenAIUpstreamFailureTest {
                 AbstractOpenAIChatClient client = client(transport, Upstream.of(200, body));
                 LLMResponse<String> response = client.singleResponse(request());
                 assertEquals("ANSWER-MARKER", response.getResponseMessage().getRawContent());
-                assertNull(response.getActualInputTokens(), "no usage block, no usage recorded");
+                assertNull(response.getUsage(), "no usage block, no usage recorded");
             }));
         }
         return tests;

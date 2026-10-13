@@ -6,7 +6,9 @@
 
 package ai.redouble.nucleo.harness.models;
 
+import ai.redouble.nucleo.harness.conversation.*;
 import ai.redouble.nucleo.harness.llm.*;
+import ai.redouble.nucleo.harness.tokens.*;
 
 import java.util.*;
 
@@ -324,5 +326,36 @@ public interface ModelSpec {
         Double cache = getCacheWritePricePerMillion();
         Double in = getInputPricePerMillion();
         return cache != null && in != null && in > 0.0 ? cache / in : getCacheWriteMultiplier();
+    }
+
+    /**
+     * The estimator for this model: the one its provider module supplies through
+     * {@link ClientProvider#contextEstimator}, or the core default when no provider is
+     * registered for {@link #getProviderKey()}. Resolved by key, so it needs no credential and
+     * no client, and runs before either exists.
+     */
+    default ContextEstimator contextEstimator() {
+        ClientProvider<?> provider = ClientProviders.find(getProviderKey());
+        return provider != null ? provider.contextEstimator(this) : DefaultContextEstimator.INSTANCE;
+    }
+
+    /**
+     * What the next call on this conversation costs this model: the ledger of input by part
+     * and the output reserve, counted by the provider over the conversation as its client will
+     * send it. The one door for every purpose: the compaction trigger and fit check, the
+     * admission reservation, the client's pre-flight.
+     */
+    default TokenLedger estimate(ConversationContext conversation) {
+        return contextEstimator().estimate(conversation, this);
+    }
+
+    /**
+     * The density of this model's tokenizer, for a text that is not a conversation: a prompt
+     * counted for a flat reservation, a chunk sized for a summary. The provider's counter, or the
+     * core default when no provider is registered for the key.
+     */
+    default TokenCounter tokenCounter() {
+        ClientProvider<?> provider = ClientProviders.find(getProviderKey());
+        return provider != null ? provider.tokenCounter(this) : TiktokenCounter.DEFAULT;
     }
 }

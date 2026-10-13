@@ -8,6 +8,7 @@ package ai.redouble.nucleo.harness.models;
 
 import ai.redouble.nucleo.harness.conversation.*;
 import ai.redouble.nucleo.harness.errors.*;
+import ai.redouble.nucleo.harness.tokens.*;
 
 import java.util.*;
 
@@ -66,9 +67,7 @@ public class ModelBinding {
     private Set<Input> sends;
     private ConversationContext conversation;
     private volatile ModelSpec spec;
-    private volatile Integer reservation;
-    private volatile int reservedInput;
-    private volatile int reservedOutput;
+    private volatile TokenLedger reservation;
 
     /** Wired-conversation form: sizes come from the conversation once it is attached. */
     public ModelBinding(Grade grade, Depth depth) {
@@ -325,62 +324,62 @@ public class ModelBinding {
     }
 
     /**
-     * Prices the resolved binding: the tokens it reserves against the resolved spec's
+     * Prices the resolved binding: the ledger of tokens it reserves against the resolved spec's
      * limiter. Called once by the harness after {@link #resolve(ModelSpec)}, before any
-     * acquisition; the result is stored for {@link #getReservation()}. Output and thinking
-     * are priced the same way on every LLM form, as the wire will carry them: a wired
-     * conversation resolves its own reserve, the prompt and flat forms take the declared
+     * acquisition; the ledger is stored for {@link #getReservation()}. A wired conversation is
+     * estimated by the resolved spec ({@link ModelSpec#estimate}): the input as the provider's
+     * estimator counts the rendered conversation, the output as the conversation's reserve. The
+     * prompt and flat forms count their text under the spec's counter and take the declared
      * output plus the spec's thinking budget for the declared depth, clamped at the output
      * ceiling exactly as the wire clamps. An embeddings or decision call has input only. A
      * payload that cannot fit the resolved spec's context window fails here, with the counts
-     * named, instead of burning a reservation on a request the provider must reject.
+     * named, instead of burning a reservation on a request the provider must reject. What the
+     * limiter is then asked for is the ledger's {@link TokenLedger#meteredTokens()}: the
+     * provider's rule for what its limit counts.
+     *
+     * @return the tokens reserved against the limiter
      */
     public int price() {
         ModelSpec resolved = getModel();
-        int in;
-        int out;
+        TokenLedger ledger;
         if (kind != ModelKind.LLM) {
             // the vector or the distribution is not output the limiter meters
-            in = promptText != null ? TokenizerFactory.get().forModel(resolved).countTokens(promptText) : inTokens;
-            out = 0;
+            int in = promptText != null ? resolved.tokenCounter().countTokens(promptText) : inTokens;
+            ledger = new DefaultTokenLedger(resolved, in, null, null, 0);
         }
         else if (conversation != null) {
-            in = conversation.getTotalTokens(resolved);
-            out = conversation.outputReserve(resolved);
+            ledger = resolved.estimate(conversation);
         }
         else {
-            in = promptText != null ? TokenizerFactory.get().forModel(resolved).countTokens(promptText) : inTokens;
-            out = ConversationContext.outputReserve(resolved, output.tokens(resolved), depth);
+            int in = promptText != null ? resolved.tokenCounter().countTokens(promptText) : inTokens;
+            int out = ConversationContext.outputReserve(resolved, output.tokens(resolved), depth);
+            ledger = new DefaultTokenLedger(resolved, in, null, null, out);
         }
-        if (in + out > resolved.getMaxContextTokens()) {
-            throw new UncorrectableRuntimeLLMException("Input (" + in + " tokens) plus the declared output reserve (" + out
-                    + ") exceeds the context window of " + resolved.getId() + " (" + resolved.getMaxContextTokens() + ")");
+        int whole = ledger.inputTokens() + ledger.outputTokens();
+        if (whole > resolved.getMaxContextTokens()) {
+            throw new UncorrectableRuntimeLLMException("Input (" + ledger.inputTokens() + " tokens) plus the declared output reserve ("
+                    + ledger.outputTokens() + ") exceeds the context window of " + resolved.getId() + " (" + resolved.getMaxContextTokens() + ")");
         }
-        reservedInput = in;
-        reservedOutput = out;
-        reservation = in + out;
-        return reservation;
+        reservation = ledger;
+        return ledger.meteredTokens();
     }
 
-    /** The input half of the priced reservation, for a spend gate that prices input and output at their own rates. */
-    public int getReservedInput() {
-        getReservation();
-        return reservedInput;
-    }
-
-    /** The output half of the priced reservation. */
-    public int getReservedOutput() {
-        getReservation();
-        return reservedOutput;
-    }
-
-    /** The priced reservation. Throws if {@link #price()} has not run - reading an unpriced binding is a harness bug. */
-    public int getReservation() {
-        Integer priced = reservation;
+    /**
+     * The priced reservation: the ledger of what this binding took from the limiter, to compare
+     * with the ledger the call reports. Throws if {@link #price()} has not run - reading an
+     * unpriced binding is a harness bug.
+     */
+    public TokenLedger getReservation() {
+        TokenLedger priced = reservation;
         if (priced == null) {
             throw new IllegalStateException("Model binding for " + getModel().getId()
                     + " has not been priced - the harness prices each binding after resolution, before acquisition");
         }
         return priced;
+    }
+
+    /** The tokens the reservation holds on the limiter: what the model's limit meters, by the ledger's rule. */
+    public int getReservedTokens() {
+        return getReservation().meteredTokens();
     }
 }

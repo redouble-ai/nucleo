@@ -53,6 +53,18 @@ go: `BedrockOnlyModelPicker`, whose substitutes are always Bedrock endpoints and
 provider's direct API, and `ZdrOnlyModelPicker`, which also keeps every model it serves, its
 own choices included, to ones that run at zero data retention.
 
+## How it counts tokens
+
+Converse serves every vendor, so the count follows the family the entry's wire id names:
+Claude at `cl100k_base` times 1.10 with an image floor of 1600, Cohere at 1.20, anything else
+at the neutral encoding. Tool calls, tool results and definitions reach Converse as text and
+are counted as that text; thinking is not sent and not counted. The Cohere embeddings provider
+counts at Cohere's density too, so an embedding request is reserved at what Bedrock meters. A
+response's usage sums Converse's input, cache-write and cache-read counters into the total the
+model read, with the cache counters kept as facets of their own. How the runtime uses these
+numbers is in
+[Tokens](../../../../../../../../../nucleo-core/src/main/java/ai/redouble/nucleo/harness/tokens/PACKAGE.md).
+
 ## How it works inside
 
 The encoders, the transport's timeouts and the detail of the account listings are in

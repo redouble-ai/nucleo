@@ -75,7 +75,8 @@ budget, asked for by `OutputTruncationRetryException`. A reply cut off again fai
 - `TokenEstimateExceedsLimitException` - before sending, Nucleo estimated that the
   conversation does not fit the model's window. It carries the estimate, the limit, and the
   overflow as an amount and a ratio. A thinker answers it by compacting the conversation and
-  trying again, and fails with `ContextOverflowException` when even that does not fit
+  trying again, and fails with `ContextOverflowException` when even that does not fit, or
+  with `NonCompactableContextException` when the conversation may not be compacted at all
   ([Compaction](../../conversation/compaction/PACKAGE.md)).
 
 ## How it works inside

@@ -10,6 +10,7 @@ import ai.redouble.nucleo.events.*;
 import ai.redouble.nucleo.harness.llm.*;
 import ai.redouble.nucleo.harness.models.*;
 import ai.redouble.nucleo.harness.observability.*;
+import ai.redouble.nucleo.harness.tokens.*;
 
 import java.util.*;
 
@@ -37,8 +38,9 @@ final class RunMeasure {
     synchronized Map<String, Object> add(AbstractTerminalEvent<?> terminal, boolean own) {
         for (LLMResponse<?> response : terminal.getLlmResponses()) {
             calls++;
-            inputTokens += tokens(response.getActualInputTokens());
-            outputTokens += tokens(response.getActualOutputTokens());
+            TokenLedger usage = response.getUsage();
+            inputTokens += tokens(usage != null ? usage.inputTokens() : null);
+            outputTokens += tokens(usage != null ? usage.outputTokens() : null);
             latencyMs += response.getLatencyMs();
             Cost priced = price(response);
             if (priced != null) {
@@ -68,10 +70,11 @@ final class RunMeasure {
         Map<String, Object> line = new LinkedHashMap<>();
         line.put("model", response.getModel());
         line.put("servedModel", response.getServedModelId());
-        line.put("inputTokens", tokens(response.getActualInputTokens()));
-        line.put("cacheWriteTokens", tokens(response.getCacheCreationInputTokens()));
-        line.put("cacheReadTokens", tokens(response.getCacheReadInputTokens()));
-        line.put("outputTokens", tokens(response.getActualOutputTokens()));
+        TokenLedger usage = response.getUsage();
+        line.put("inputTokens", tokens(usage != null ? usage.inputTokens() : null));
+        line.put("cacheWriteTokens", tokens(usage != null ? usage.cacheWriteTokens() : null));
+        line.put("cacheReadTokens", tokens(usage != null ? usage.cacheReadTokens() : null));
+        line.put("outputTokens", tokens(usage != null ? usage.outputTokens() : null));
         line.put("latencyMs", response.getLatencyMs());
         Cost priced = price(response);
         line.put("cost", priced != null ? priced.amount() : null);
@@ -87,8 +90,12 @@ final class RunMeasure {
         if (spec == null) {
             return null;
         }
-        return Cost.of(spec, tokens(response.getActualInputTokens()), tokens(response.getCacheCreationInputTokens()),
-                tokens(response.getCacheReadInputTokens()), tokens(response.getActualOutputTokens()));
+        TokenLedger usage = response.getUsage();
+        if (usage == null) {
+            return Cost.of(spec, 0, 0, 0, 0);
+        }
+        return Cost.of(spec, tokens(usage.inputTokens()), tokens(usage.cacheWriteTokens()),
+                tokens(usage.cacheReadTokens()), tokens(usage.outputTokens()));
     }
 
     private static long tokens(Integer count) {

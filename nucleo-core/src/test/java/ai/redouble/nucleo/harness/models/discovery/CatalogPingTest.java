@@ -12,6 +12,7 @@ import ai.redouble.nucleo.harness.conversation.*;
 import ai.redouble.nucleo.harness.errors.*;
 import ai.redouble.nucleo.harness.errors.retry.*;
 import ai.redouble.nucleo.harness.llm.*;
+import ai.redouble.nucleo.harness.tokens.*;
 import org.junit.jupiter.api.*;
 
 import java.io.*;
@@ -88,7 +89,7 @@ class CatalogPingTest {
         response.setServedModelId("gpt-5.6-sol");
         response.setProviderRequestId("req-123");
         response.setProviderHeaders(Map.of("x-ratelimit-limit-tokens", "40000000"));
-        response.setUsage(42, null, null, 7);
+        response.setUsage(new DefaultTokenLedger(TestModels.small(), 42, null, null, 7));
         response.setStopReason(LLMStopReason.END_TURN);
         response.setRateLimitInfo(new RateLimitInfo("gpt-5.6", 40000000, 39999000, null, 15000, 14999, null, false));
         ProbeOutcome outcome = new ProbeOutcome();

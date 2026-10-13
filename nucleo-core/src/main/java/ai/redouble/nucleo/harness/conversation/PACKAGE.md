@@ -120,9 +120,10 @@ OpenAI caches the start of a request on its own, with nothing to mark and no cha
 the write. Whatever the provider, the fixed objective is what keeps the cache valid from
 one call to the next.
 
-Each `LLMResponse` reports what the cache did for that call: `getCacheCreationInputTokens()`
-for what was written, `getCacheReadInputTokens()` for what was read, and
-`getCacheHitRate()`. The price of cached tokens comes from the model's catalog entry.
+Each `LLMResponse` reports what the cache did for that call on its usage ledger
+(`getUsage()`): `cacheWriteTokens()` for what was written, `cacheReadTokens()` for what was
+read, and `cacheHitRate()`. The price of cached tokens comes from the model's catalog entry
+([Tokens](../tokens/PACKAGE.md)).
 
 ## How much the model may answer
 
@@ -140,14 +141,16 @@ larger limit does not exist.
 ## When a conversation grows too long
 
 A model reads only so much at once, and it answers worse well before that limit. Nucleo
-estimates the size of the conversation before each call (`getTotalTokens`), and when it
-comes close to the limit, older parts are summarized to make room:
+estimates the size of the conversation before each call, as the model's own provider counts
+it (`ModelSpec.estimate`, [Tokens](../tokens/PACKAGE.md)), and when it comes close to the
+limit, older parts are summarized to make room:
 [Compaction](compaction/PACKAGE.md). You choose what must survive word for word. A message
 marked `setCompactable(false)` is never summarized; the chat thinkers mark the user's
 messages and the final answers that way. `ConversationContext.setCompactable(false)`
-keeps a whole conversation as it is. A conversation that cannot fit even after the
-strongest compaction fails with `ContextOverflowException`, which the parent agent sees
-and can act on.
+keeps a whole conversation as it is; when such a conversation does not fit, the call fails
+with `NonCompactableContextException`. A conversation that cannot fit even after the
+strongest compaction fails with `ContextOverflowException`. The parent agent sees either
+and can act on it.
 
 ## Keeping a conversation beyond one run
 

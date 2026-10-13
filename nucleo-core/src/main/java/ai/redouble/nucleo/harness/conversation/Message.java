@@ -6,14 +6,17 @@
 
 package ai.redouble.nucleo.harness.conversation;
 
-import ai.redouble.nucleo.harness.models.*;
-
 import java.time.*;
 
 /**
  * Base interface for all messages in a conversation.
  * This is a minimal interface that allows ConversationContext to store
  * both OutgoingMessage and IncomingMessage instances in a single list.
+ *
+ * <p>A message does not count its own tokens. What a conversation costs a model is the
+ * model's estimate of the whole rendered conversation ({@code ModelSpec.estimate}), and the
+ * text a model reads for one message is {@code ModelText.render}; {@link #getRawContent()}
+ * is the short placeholder form for logs and persistence.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2025-10-23)
@@ -97,40 +100,11 @@ public interface Message {
     }
 
     /**
-     * Gets actual token count from API if available.
-     * Only IncomingMessage has actual tokens (output only).
+     * The per-call output override this message carries, the first layer of
+     * {@code ConversationContext.resolveOutputBudget()}.
      *
-     * @return actual token count or null
-     */
-    default Integer getActualTokens() {
-        return null;
-    }
-
-    /**
-     * Estimates token count using model's tokenizer.
-     *
-     * @param model the model to use for estimation
-     * @return estimated token count
-     */
-    default int getEstimatedTokens(ModelSpec model) {
-        return TokenizerFactory.get().forModel(model).countTokens(this);
-    }
-
-    /**
-     * Returns actual tokens if available, otherwise estimates.
-     *
-     * @param model the model to use for estimation if needed
-     * @return token count
-     */
-    default int getTokens(ModelSpec model) {
-        Integer actual = getActualTokens();
-        return actual != null ? actual : getEstimatedTokens(model);
-    }
-
-    /**
-     * Gets requested output tokens for rate limiter reservation.
-     *
-     * @return requested output tokens or null to use default
+     * @return the override, or null when the message declares none and the conversation's
+     *         or the binding's declaration decides
      */
     default Integer getRequestedOutputTokens() {
         return null;

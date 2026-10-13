@@ -10,6 +10,7 @@ import ai.redouble.nucleo.secrets.*;
 import ai.redouble.nucleo.harness.llm.*;
 import ai.redouble.nucleo.harness.models.*;
 import ai.redouble.nucleo.harness.models.discovery.*;
+import ai.redouble.nucleo.harness.tokens.*;
 import java.io.*;
 import java.util.*;
 
@@ -35,6 +36,10 @@ public class OpenAIChatCompletionsProvider extends AbstractClientProvider<OpenAI
 
     @Override
     public List<CredentialShape> credentialShapes() {return List.of(OpenAIProvider.SHAPE);}
+    @Override
+    public ContextEstimator contextEstimator(ModelSpec spec) {return OpenAIContextEstimator.OPENAI;}
+    @Override
+    public TokenCounter tokenCounter(ModelSpec spec) {return OpenAIContextEstimator.O200K_COUNTER;}
     @Override
     protected OpenAISDKClient newClient() {return new OpenAISDKClient(WireApi.CHAT_COMPLETIONS);}
     @Override

@@ -78,7 +78,7 @@ public class SummarizationTool extends AbstractModelDependentTool<SummarizationI
         OutputDeclaration output = OutputDeclaration.of(sizeToBackstopTokens(size));
         if (pinnedModel() != null) {
             // a pin names the tokenizer up front, so the prompt is counted under it here
-            int inTokens = TokenizerFactory.get().forModel(pinnedModel()).countTokens(input.getText());
+            int inTokens = pinnedModel().tokenCounter().countTokens(input.getText());
             binding = req.requireModel(pinnedModel(), Depth.IMMEDIATE, inTokens, output);
         }
         else {
@@ -143,7 +143,7 @@ public class SummarizationTool extends AbstractModelDependentTool<SummarizationI
                                        int[] maxLevel, int currentLevel) throws Exception {
         maxLevel[0] = Math.max(maxLevel[0], currentLevel + 1);
         ModelSpec model = binding.getModel();
-        int textTokens = TokenizerFactory.get().forModel(model).countTokens(text);
+        int textTokens = model.tokenCounter().countTokens(text);
         int maxInputTokens = (int) (model.getMaxContextTokens() * (1 - CONTEXT_RESERVE));
         if (textTokens <= maxInputTokens) {
             // Text fits in context - direct summarization
@@ -210,14 +210,13 @@ public class SummarizationTool extends AbstractModelDependentTool<SummarizationI
      * output, so it must sit well above what a correctly-steered summary actually
      * produces - otherwise it stops being a backstop and becomes a truncation gate.
      *
-     * <p>The original sizes (256/512/1024) were set from an estimate of the prose
-     * alone (a couple of paragraphs ~= 250-350 tokens). Measured against real
-     * traffic that estimate was wrong by 4-5x: on gpt-oss-120b the PARAGRAPHS
-     * output that exceeded the old 1024 ceiling ran p50 1148, p90 1399, p99 1778
-     * tokens (the models emit structure and analysis the prose count never
-     * included), and 19.4% of PARAGRAPHS calls truncated at 1024 and paid a full
-     * second call to retry at the model max. The backstops now clear the measured
-     * p99 with headroom; the truncation retry remains only for the genuine tail.
+     * <p>The sizes come from measured traffic, not from an estimate of the prose: a
+     * summary of a couple of paragraphs reads as 250-350 tokens, but the models emit
+     * structure and analysis the prose count never includes. On gpt-oss-120b the
+     * PARAGRAPHS output ran p50 1148, p90 1399, p99 1778 tokens, and a backstop of
+     * 1024 truncated 19.4% of PARAGRAPHS calls, each paying a full second call at the
+     * model max. Each backstop clears the measured p99 with headroom, so the truncation
+     * retry serves only the genuine tail.
      *
      * <ul>
      *   <li>{@code BRIEF}: one or two sentences. Backstop 768.</li>
@@ -246,7 +245,7 @@ public class SummarizationTool extends AbstractModelDependentTool<SummarizationI
         StringBuilder currentChunk = new StringBuilder();
         int currentTokens = 0;
         for (String para : paragraphs) {
-            int paraTokens = TokenizerFactory.get().forModel(binding.getModel()).countTokens(para);
+            int paraTokens = binding.getModel().tokenCounter().countTokens(para);
             if (paraTokens > maxTokens) {
                 // Single paragraph too large - split by sentences
                 if (!currentChunk.isEmpty()) {
@@ -290,7 +289,7 @@ public class SummarizationTool extends AbstractModelDependentTool<SummarizationI
         StringBuilder currentChunk = new StringBuilder();
         int currentTokens = 0;
         for (String sentence : sentences) {
-            int sentenceTokens = TokenizerFactory.get().forModel(binding.getModel()).countTokens(sentence);
+            int sentenceTokens = binding.getModel().tokenCounter().countTokens(sentence);
             if (sentenceTokens > maxTokens) {
                 // Single sentence too large - force split by character count
                 if (!currentChunk.isEmpty()) {

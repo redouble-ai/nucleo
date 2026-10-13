@@ -96,7 +96,7 @@ class DecisionCallTest {
         ModelBinding body = ModelBinding.decision(SystemOneWire.encode(null, request()));
         body.resolve(spec);
         assertEquals(body.price(), binding.price(), "the wire body, counted under the resolved entry's tokenizer");
-        assertEquals(0, binding.getReservedOutput(), "a decision generates nothing");
+        assertEquals(0, binding.getReservation().outputTokens(), "a decision generates nothing");
         DecisionCall pinned = new DecisionCall(Job.workflow("test-user", "decision-call"), request());
         pinned.pinModel(spec);
         ModelBinding pinnedBinding = pinned.getRequirements().getModelBindings().get(0);
@@ -132,7 +132,7 @@ class DecisionCallTest {
             assertEquals(1, recorded.size(), "the call is on the job's record");
             assertInstanceOf(DecisionResponse.class, recorded.get(0));
             assertTrue(recorded.get(0).isSuccessful());
-            assertEquals(0, recorded.get(0).getLastOutputTokens(), "a decision generates nothing");
+            assertEquals(0, recorded.get(0).getUsage().outputTokens(), "a decision generates nothing");
         }
         finally {
             subscription.unsubscribe();

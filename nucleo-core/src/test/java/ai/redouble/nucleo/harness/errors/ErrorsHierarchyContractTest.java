@@ -55,7 +55,7 @@ public class ErrorsHierarchyContractTest {
             UnauthorizedException.class, Http401Exception.class, Http403Exception.class,
             PermissionDeniedException.class, SystemException.class,
             JobCancelledException.class, JobContext.CancellationException.class, JobTimeoutException.class,
-            TokenEstimateExceedsLimitException.class, ContextOverflowException.class, PromptNotFoundException.class,
+            TokenEstimateExceedsLimitException.class, ContextOverflowException.class, NonCompactableContextException.class, PromptNotFoundException.class,
             QuotaExhaustedException.class, SpendCapExceededException.class, ModelNotFoundException.class,
             ProviderRefusalException.class);
 
@@ -160,6 +160,17 @@ public class ErrorsHierarchyContractTest {
         assertEquals("API key rejected (HTTP 401)", unauthorized.getReason());
         PermissionDeniedException denied = new PermissionDeniedException("User deletion requires admin privileges");
         assertEquals("Permission denied: User deletion requires admin privileges", denied.getLLMMessage());
+        ContextOverflowException overflow = new ContextOverflowException("12,000 > 8,000");
+        assertEquals("Conversation context is too large even after compaction. Start a new conversation or reduce the amount of context.",
+                overflow.getLLMMessage(), "compaction was tried and was not enough");
+        NonCompactableContextException pinned = new NonCompactableContextException(12_000, 8_000, "small-model");
+        assertEquals("Conversation context is too large and this conversation may not be compacted. Start a new conversation or reduce the amount of context.",
+                pinned.getLLMMessage(), "compaction was never allowed");
+        assertTrue(pinned.getMessage().contains("12,000") && pinned.getMessage().contains("8,000") && pinned.getMessage().contains("small-model"),
+                "the log names the estimate, the window and the model: " + pinned.getMessage());
+        TokenEstimateExceedsLimitException estimate = new TokenEstimateExceedsLimitException(12_000, 8_000, "small-model");
+        assertEquals("Conversation context (12,000 tokens) exceeds small-model limit of 8,000 tokens. Context must be reduced before retrying.",
+                estimate.getLLMMessage(), "the pre-flight refusal, before any compaction");
     }
 
     @Test

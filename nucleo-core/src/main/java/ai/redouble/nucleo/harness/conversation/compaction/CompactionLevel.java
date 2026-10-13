@@ -21,16 +21,16 @@ package ai.redouble.nucleo.harness.conversation.compaction;
  */
 public enum CompactionLevel {
     /**
-     * Light compaction - summarize tool results only.
-     * Verbose tool output shrinks to concise summaries; every other message,
-     * and every non-compactable tool result, is preserved verbatim.
+     * Light compaction - summarize tool results only. Every tool result of an exchange that
+     * may be compacted shrinks to a summary inside its own block; every other message, and
+     * every exchange pinned by a non-compactable message, is preserved verbatim.
      */
     LIGHT,
     /**
-     * Moderate compaction - whole segments collapse into summaries.
-     * Each compactable segment (the outgoing messages between assistant responses)
-     * becomes one summary message, with age-weighted detail: the older the segment,
-     * the terser its summary. Non-compactable messages survive verbatim.
+     * Moderate compaction - whole exchanges collapse into summaries. Each exchange that may
+     * be compacted (an assistant turn and the outgoing turns that answer it) becomes one
+     * summary message, with age-weighted detail: the older the exchange, the terser its
+     * summary. Non-compactable messages survive verbatim, with their exchange.
      */
     MODERATE,
     /**

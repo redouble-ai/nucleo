@@ -17,9 +17,13 @@ import ai.redouble.nucleo.harness.conversation.ContentBlocks.*;
  * @since 0.1 (2026-06-18)
  */
 public class ToolUseBlockEncoder<B> extends BlockEncoder<B> {
+    /** The text form of a tool call: what this encoder sends, and what an estimate counts for it. */
+    public static String renderText(ToolUseBlock block) {
+        return "[Tool Use " + block.toolName() + "] " + block.inputJson();
+    }
+
     @Override
     public B encode(ContentBlock block) {
-        ToolUseBlock u = (ToolUseBlock) block;
-        return textWrapper.wrap("[Tool Use " + u.toolName() + "] " + u.inputJson());
+        return textWrapper.wrap(renderText((ToolUseBlock) block));
     }
 }

@@ -251,7 +251,7 @@ public final class DecisionTrace implements JobObserver<JobEvent> {
         Map<String, Object> call = new LinkedHashMap<>();
         call.put("model", response.getModel());
         call.put("servedModel", response.getServedModelId());
-        call.put("inputTokens", response.getActualInputTokens());
+        call.put("inputTokens", response.getUsage() != null ? response.getUsage().inputTokens() : null);
         call.put("latencyMs", response.getLatencyMs());
         Cost priced = Totals.price(response);
         call.put("cost", priced != null ? priced.amount() : null);
@@ -369,7 +369,7 @@ public final class DecisionTrace implements JobObserver<JobEvent> {
         synchronized Map<String, Object> add(AbstractTerminalEvent<?> terminal, boolean own) {
             for (LLMResponse<?> response : terminal.getLlmResponses()) {
                 calls++;
-                inputTokens += response.getActualInputTokens() != null ? response.getActualInputTokens() : 0;
+                inputTokens += inputTokens(response);
                 latencyMs += response.getLatencyMs();
                 Cost priced = price(response);
                 if (priced != null) {
@@ -404,7 +404,12 @@ public final class DecisionTrace implements JobObserver<JobEvent> {
             if (spec == null) {
                 return null;
             }
-            return Cost.of(spec, response.getActualInputTokens() != null ? response.getActualInputTokens() : 0, 0, 0, 0);
+            return Cost.of(spec, inputTokens(response), 0, 0, 0);
+        }
+
+        /** The input the provider reported, or zero when it reported nothing: a decision generates no output. */
+        static long inputTokens(LLMResponse<?> response) {
+            return response.getUsage() != null && response.getUsage().inputTokens() != null ? response.getUsage().inputTokens() : 0;
         }
     }
 }

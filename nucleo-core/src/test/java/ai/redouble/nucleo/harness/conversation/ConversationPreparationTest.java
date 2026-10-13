@@ -26,7 +26,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * in insertion order, the schema-notation legend follows the response contract (a handler
  * declaring {@code usesSchemaNotation()}) and never a plain-prose conversation, declared
  * tools convert at first render (head) or arrive as stream announcements after it, and the
- * head freezes at first render - divergent mutations are loudly logged no-ops.
+ * head freezes at first render - divergent mutations are loudly logged no-ops. A pure render
+ * ({@code ConversationContext.render}) places the legend where the next real render will and
+ * commits nothing; a declared tool is converted once, at the first render or estimate after
+ * its declaration, and never again.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-08-23)
@@ -127,6 +130,50 @@ public class ConversationPreparationTest {
         assertTrue(systemText.indexOf(OBJECTIVE) < systemText.indexOf("EXTRA-MARKER"),
                 "and keeps the slot's original position - render order is insertion order,"
                         + " so a refresh never reorders the prefix");
+    }
+
+    @Test
+    void aPureRenderPlacesTheLegendWhereTheNextRealRenderWill_andCommitsNothing() {
+        ConversationContext conversation = TestModels.conversation(TestModels.small());
+        conversation.getMessages().add(structuredAsk(USER_TURN));
+        PreparedConversation rendered = conversation.render(new GenericContentFormatter(), false);
+        assertTrue(rendered.systemText().contains("keys beginning with @"), "the legend renders in the head of an unfrozen conversation");
+        assertEquals(1, conversation.getMessages().size(), "rendering wrote no message");
+        assertEquals(rendered, prepare(conversation), "and the real render sends exactly that");
+        conversation.getMessages().add(message("user", "plain follow-up"));
+        conversation.getMessages().add(structuredAsk("structured again"));
+        assertEquals(3, conversation.getMessages().size());
+        PreparedConversation renderedAgain = conversation.render(new GenericContentFormatter(), false);
+        assertEquals(3, conversation.getMessages().size(), "a legend already in the frozen head is announced nowhere, and the pure render adds nothing either way");
+        assertEquals(renderedAgain, prepare(conversation));
+    }
+
+    @Test
+    void aDeclaredToolIsConvertedOnce_atTheFirstRenderOrEstimate() {
+        ConversationContext conversation = TestModels.conversation(TestModels.small());
+        int[] conversions = new int[1];
+        ContentBlocks.ToolDefinitionBlock definition = new ContentBlocks.ToolDefinitionBlock("counted", "counts conversions", "{\"type\":\"object\"}");
+        conversation.addTool(new DeclaredTool() {
+            @Override
+            public String name() {
+                return "counted";
+            }
+
+            @Override
+            public ContentBlocks.ToolDefinitionBlock definition() {
+                conversions[0]++;
+                return definition;
+            }
+        });
+        conversation.getMessages().add(message("user", USER_TURN));
+        assertEquals(0, conversions[0], "declaring converts nothing");
+        PreparedConversation estimated = conversation.render(new GenericContentFormatter(), false);
+        assertEquals(1, conversions[0], "the first render, pure or real, converts");
+        assertEquals(List.of(definition), estimated.toolDefinitions());
+        conversation.render(new GenericContentFormatter(), false);
+        prepare(conversation);
+        prepare(conversation);
+        assertEquals(1, conversions[0], "and never again");
     }
 
     @Test
@@ -297,8 +344,7 @@ public class ConversationPreparationTest {
     void systemRoleMessageIsRefused() {
         // System content goes through putMainObjective, never through a message. A message
         // claiming the system role is a corrupted conversation, and silently relabelling it
-        // (the old behavior on two of three providers) is how instruction text ends up
-        // indistinguishable from user input.
+        // is how instruction text ends up indistinguishable from user input.
         ConversationContext conversation = conversation();
         conversation.getMessages().add(message("system", "smuggled instruction"));
 

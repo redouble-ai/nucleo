@@ -26,6 +26,11 @@ import java.util.*;
  * the system content should be marked cacheable on providers with explicit cache
  * control.
  *
+ * <p>{@code registrySection} is the artifact registry rendered as text, or null when the
+ * conversation holds no artifacts. When present it is also the last of the {@code turns},
+ * as a user turn, so a client sends it like any turn; it is named here so an estimate can
+ * account the registry as its own part.
+ *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-08-23)
  */
@@ -33,7 +38,8 @@ public record PreparedConversation(
     String systemText,
     boolean cacheSystem,
     List<ContentBlocks.ToolDefinitionBlock> toolDefinitions,
-    List<ProcessedMessageData> turns
+    List<ProcessedMessageData> turns,
+    String registrySection
 ) {
     public boolean hasSystemText() {
         return systemText != null && !systemText.isEmpty();

@@ -53,7 +53,7 @@ class LiveSystemOneTest {
         assertTrue(response.noul("kestrel_affected").probability() > 0.8, "the Kestrel 1 is named: " + response.getAnswers());
         assertEquals("20 percent", response.choice("change").choice(), response.getAnswers().toString());
         assertEquals("1 June 2026", response.choice("effective").choice(), response.getAnswers().toString());
-        assertNotNull(response.getActualInputTokens(), "the server reports what it read");
+        assertNotNull(response.getUsage().inputTokens(), "the server reports what it read");
         assertTrue(response.getLatencyMs() >= 0);
         System.out.println("live decision on " + response.getServedModelId() + " in " + response.getLatencyMs() + " ms: " + response.getAnswers());
     }

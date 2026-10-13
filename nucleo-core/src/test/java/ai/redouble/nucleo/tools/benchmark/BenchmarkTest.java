@@ -12,6 +12,7 @@ import ai.redouble.nucleo.harness.errors.*;
 import ai.redouble.nucleo.harness.llm.*;
 import ai.redouble.nucleo.harness.models.*;
 import ai.redouble.nucleo.harness.observability.*;
+import ai.redouble.nucleo.harness.tokens.*;
 import ai.redouble.nucleo.tools.*;
 import org.junit.jupiter.api.*;
 import java.time.*;
@@ -156,8 +157,7 @@ class BenchmarkTest {
     static <T> LLMResponse<T> canned(LLMRequest<T> request, String model, int inputTokens, int outputTokens) {
         LLMResponse<T> response = new LLMResponse<>(request);
         response.setModel(model);
-        response.setActualInputTokens(inputTokens);
-        response.setActualOutputTokens(outputTokens);
+        response.setUsage(new DefaultTokenLedger(Models.spec(model), inputTokens, null, null, outputTokens));
         response.setStartTime(Instant.now().minusMillis(250));
         response.setEndTime(Instant.now());
         return response;

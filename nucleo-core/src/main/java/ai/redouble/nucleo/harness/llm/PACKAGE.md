@@ -32,9 +32,11 @@ pages say what each one serves: [Anthropic](../../../../../../../../../nucleo-pr
 
 Each client does only what differs between providers: how each part of a message is
 written in the provider's format ([Per-block encoding](encode/PACKAGE.md)), how the
-provider's errors are read, how it authenticates, and how it reports tokens. Everything
-the providers share lives once, in `AbstractLLMClient`: the rate-limit lifecycle, the
-retries, the limit on the answer, the record of each call. A model called through any
+provider's errors are read, how it authenticates, and how it reports tokens. A provider
+module also supplies how its models count tokens before a call, the estimator and the
+density its `ClientProvider` hands out and the spec reaches ([Tokens](../tokens/PACKAGE.md)).
+Everything the providers share lives once, in `AbstractLLMClient`: the rate-limit lifecycle,
+the retries, the limit on the answer, the record of each call. A model called through any
 provider behaves the same to the code above.
 
 ## Rate limits are respected before a request is sent
@@ -46,10 +48,12 @@ transaction, and it holds them while it sleeps. Ten jobs refused together sleep 
 and retry together, and are refused together again.
 
 Nucleo reserves before it sends. A job declares the model call it is about to make, with
-`requireModel` on its `JobRequirements`, and the call is priced at its input tokens plus
-the limit on its answer. [Admission](../admission/PACKAGE.md) grants that reservation
-together with everything else the job needs, or the job waits holding nothing. When the job
-runs, the capacity is already its own.
+`requireModel` on its `JobRequirements`, and the call is priced from the model's own estimate
+of the conversation: its input as the provider counts what will be sent, plus the limit on
+its answer, the amount the model's per-minute limit meters ([Tokens](../tokens/PACKAGE.md)).
+[Admission](../admission/PACKAGE.md) grants that reservation together with everything else
+the job needs, or the job waits holding nothing. When the job runs, the capacity is already
+its own.
 
 The account behind the reservation is a `TokenBucketRateLimiter` per model, sized from the
 `tpm` and `rpm` of its catalog entry. It refills continuously, and a waiting job is woken at
@@ -89,8 +93,8 @@ What caching saves and how a conversation marks what is cached are on the
 [Conversations](../conversation/PACKAGE.md) page. The providers differ in how it works:
 Anthropic, direct or on Bedrock, caches what is marked, with up to four marks per request;
 OpenAI caches the start of every request on its own; Bedrock Converse reports cache reads
-and writes in its usage. Each response carries the cache tokens its provider reported, and
-the catalog entry prices them.
+and writes in its usage. Each response carries the tokens its provider reported as one
+ledger, `getUsage()`, cache reads and writes among them, and the catalog entry prices them.
 
 ## Embeddings and decisions
 

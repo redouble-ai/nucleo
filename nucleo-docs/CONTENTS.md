@@ -91,6 +91,7 @@ vendor's request, admitted against the provider's rate limits before it is sent.
   - [When a conversation outgrows its window](../nucleo-core/src/main/java/ai/redouble/nucleo/harness/conversation/compaction/PACKAGE.md)
 - [Model clients and rate limits](../nucleo-core/src/main/java/ai/redouble/nucleo/harness/llm/PACKAGE.md)
   - [How each part of a message reaches a provider](../nucleo-core/src/main/java/ai/redouble/nucleo/harness/llm/encode/PACKAGE.md)
+- [Tokens: what a call costs, before and after](../nucleo-core/src/main/java/ai/redouble/nucleo/harness/tokens/PACKAGE.md)
 
 ## Decision models
 

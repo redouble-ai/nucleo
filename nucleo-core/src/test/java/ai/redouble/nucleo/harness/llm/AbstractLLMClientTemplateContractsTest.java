@@ -13,6 +13,7 @@ import ai.redouble.nucleo.harness.errors.*;
 import ai.redouble.nucleo.harness.errors.retry.*;
 import ai.redouble.nucleo.harness.llm.encode.*;
 import ai.redouble.nucleo.harness.models.*;
+import ai.redouble.nucleo.harness.tokens.*;
 import org.junit.jupiter.api.*;
 
 import java.util.*;
@@ -65,6 +66,62 @@ public class AbstractLLMClientTemplateContractsTest {
                 "the pre-flight gate refuses an estimate above the context window");
         assertEquals(0, client.providerCalls.get(),
                 "the refusal happens before any provider call is spent");
+    }
+
+    @Test
+    void theStreamingTemplateRunsTheSamePreFlight() {
+        ModelSpec model = TestModels.micro();
+        String oversized = "a ".repeat(model.getMaxContextTokens() * 4);
+        ConversationContext conversation = declared(model, oversized);
+        StreamingStubClient client = new StreamingStubClient(LLMStopReason.END_TURN);
+        client.setModel(model);
+        assertThrows(TokenEstimateExceedsLimitException.class,
+                () -> client.streamResponse(new LLMRequest<>(conversation), chunk -> {}),
+                "a stream that cannot fit is refused before the provider is called, like a single call");
+    }
+
+    /** A conversation declaring a small answer, so a near-full input still passes the pre-flight. */
+    private static ConversationContext nearlyFull(ModelSpec model) {
+        ConversationContext conversation = TestModels.conversation(model);
+        conversation.setDepth(Depth.IMMEDIATE);
+        conversation.setOutputDeclaration(OutputDeclaration.of(100));
+        OutgoingMessage<String> message = new OutgoingMessage<>(StringResponseHandler.instance);
+        message.setRole("user");
+        message.addText("a ".repeat((int)(model.getMaxContextTokens() * 0.8)));
+        conversation.getMessages().add(message);
+        return conversation;
+    }
+
+    @Test
+    void anEstimatePastThreeQuartersOfTheWindowConsultsTheProvidersExactCount_onTheSinglePath() throws Exception {
+        ModelSpec model = TestModels.micro();
+        ExactCountingClient refusing = new ExactCountingClient(model.getMaxContextTokens());
+        refusing.setModel(model);
+        TokenLedger estimate = model.estimate(nearlyFull(model));
+        assertTrue(estimate.inputTokens() > model.getMaxContextTokens() * 0.75 && estimate.inputTokens() + estimate.outputTokens() <= model.getMaxContextTokens(),
+                "fixture: past three quarters of the window yet under it, so the estimate alone passes: " + estimate);
+        assertThrows(TokenEstimateExceedsLimitException.class, () -> refusing.singleResponse(new LLMRequest<>(nearlyFull(model))),
+                "the exact count plus the output reserve does not fit, so the call is refused");
+        assertEquals(1, refusing.exactCounts.get(), "the exact count was consulted once");
+        assertEquals(0, refusing.providerCalls.get(), "and no provider call was spent");
+        ExactCountingClient unsupported = new ExactCountingClient(-1);
+        unsupported.setModel(model);
+        unsupported.singleResponse(new LLMRequest<>(nearlyFull(model)));
+        assertEquals(1, unsupported.exactCounts.get(), "a provider with no server-side count is asked once");
+        assertEquals(1, unsupported.providerCalls.get(), "and answers -1, so the estimate stands and the call goes out");
+        ExactCountingClient streaming = new ExactCountingClient(model.getMaxContextTokens());
+        streaming.setModel(model);
+        streaming.streamResponse(new LLMRequest<>(nearlyFull(model)), chunk -> {});
+        assertEquals(0, streaming.exactCounts.get(), "the streaming template never consults the exact count");
+    }
+
+    @Test
+    void aResponseWithoutAUsageRecordStampsNothingOnItsMessage() throws Exception {
+        NoUsageClient client = new NoUsageClient();
+        client.setModel(TestModels.small());
+        LLMResponse<String> response = client.singleResponse(new LLMRequest<>(declared(TestModels.small(), "question")));
+        assertNull(response.getUsage(), "the provider reported no usage, so there is no ledger");
+        assertNull(response.getResponseMessage().getActualOutputTokens(), "and nothing is stamped on the message, never a zero");
     }
 
     @Test
@@ -216,29 +273,18 @@ public class AbstractLLMClientTemplateContractsTest {
     }
 
     @Test
-    void additiveUsage_sumsRegularAndCacheCountersIntoTheGrandTotal() {
-        ConversationContext conversation = declared(TestModels.small(), "question");
-        LLMResponse<String> response = new LLMResponse<>(new LLMRequest<>(conversation));
-
-        response.setAdditiveUsage(100, 20, 30, 5);
-
-        assertEquals(150, response.getActualInputTokens(),
-                "additive providers report cache counters outside their input field, so the total is the sum");
-        assertEquals(20, response.getCacheCreationInputTokens());
-        assertEquals(30, response.getCacheReadInputTokens());
-        assertEquals(5, response.getActualOutputTokens());
-    }
-
-    @Test
-    void plainUsage_takesTheGrandTotalAsReported() {
-        ConversationContext conversation = declared(TestModels.small(), "question");
-        LLMResponse<String> response = new LLMResponse<>(new LLMRequest<>(conversation));
-
-        response.setUsage(100, null, 40, 5);
-
-        assertEquals(100, response.getActualInputTokens(),
-                "a provider whose input field already includes the cached subset is taken at its word");
-        assertEquals(40, response.getCacheReadInputTokens());
+    void theUsageLedgerStampsTheResponseMessagesOutputCount_onBothTemplates() throws Exception {
+        TemplateStubClient single = new TemplateStubClient(LLMStopReason.END_TURN);
+        single.setModel(TestModels.small());
+        LLMResponse<String> answered = single.singleResponse(new LLMRequest<>(declared(TestModels.small(), "question")));
+        assertEquals(5, answered.getUsage().outputTokens(), "the provider's ledger rides the response");
+        assertEquals(5, answered.getResponseMessage().getActualOutputTokens(),
+                "the template stamps the assistant message with what it took to generate, once");
+        StreamingStubClient streaming = new StreamingStubClient(LLMStopReason.END_TURN);
+        streaming.setModel(TestModels.small());
+        LLMResponse<String> streamed = streaming.streamResponse(new LLMRequest<>(declared(TestModels.small(), "question")), chunk -> {});
+        assertEquals(5, streamed.getResponseMessage().getActualOutputTokens(),
+                "a streamed response is stamped at completion, where its usage arrives");
     }
 
     /** A {@link TextBlockEncoder} that counts its constructions, to pin the per-client cache. */
@@ -275,7 +321,7 @@ public class AbstractLLMClientTemplateContractsTest {
             providerCalls.incrementAndGet();
             LLMResponse<T> response = new LLMResponse<>(request);
             response.setStopReason(stopReason);
-            response.setUsage(10, null, null, 5);
+            response.setUsage(new DefaultTokenLedger(getModel(), 10, null, null, 5));
             return response;
         }
 
@@ -314,7 +360,39 @@ public class AbstractLLMClientTemplateContractsTest {
         protected <T> void doStreamResponse(LLMRequest<T> request, LLMResponse<T> response,
                 PreparedConversation prepared, java.util.function.Consumer<StreamChunk> chunkHandler) {
             response.setStopReason(stopReason);
-            response.setUsage(10, null, null, 5);
+            response.setUsage(new DefaultTokenLedger(getModel(), 10, null, null, 5));
+        }
+    }
+
+    /** A client whose provider counts server-side and answers the given exact count, or -1 for no such count. */
+    private static class ExactCountingClient extends StreamingStubClient {
+        final AtomicInteger exactCounts = new AtomicInteger();
+        private final int exact;
+
+        private ExactCountingClient(int exact) {
+            super(LLMStopReason.END_TURN);
+            this.exact = exact;
+        }
+
+        @Override
+        protected int countTokensExact(LLMRequest<?> request) {
+            exactCounts.incrementAndGet();
+            return exact;
+        }
+    }
+
+    /** A client whose provider returns no usage record. */
+    private static class NoUsageClient extends TemplateStubClient {
+        private NoUsageClient() {
+            super(LLMStopReason.END_TURN);
+        }
+
+        @Override
+        protected <T> LLMResponse<T> doSingleResponse(LLMRequest<T> request, PreparedConversation prepared) {
+            providerCalls.incrementAndGet();
+            LLMResponse<T> response = new LLMResponse<>(request);
+            response.setStopReason(LLMStopReason.END_TURN);
+            return response;
         }
     }
 

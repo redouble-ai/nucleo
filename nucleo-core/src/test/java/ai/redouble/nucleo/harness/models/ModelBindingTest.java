@@ -79,7 +79,7 @@ class ModelBindingTest {
         String prompt = "Summarize the quarterly numbers in one sentence.";
         ModelBinding binding = new ModelBinding(Grade.SMALL, Depth.IMMEDIATE, prompt, OutputDeclaration.of(500));
         binding.resolve(TestModels.small());
-        int counted = TokenizerFactory.get().forModel(TestModels.small()).countTokens(prompt);
+        int counted = TestModels.small().tokenCounter().countTokens(prompt);
         assertEquals(counted + 500, binding.price());
     }
 
@@ -94,9 +94,13 @@ class ModelBindingTest {
         message.addText("What is the capital of France?");
         conversation.getMessages().add(message);
         binding.resolve(TestModels.small());
-        int expected = conversation.getTotalTokens(TestModels.small())
+        int expected = TestModels.small().estimate(conversation).inputTokens()
                 + conversation.resolveOutputBudget() + conversation.resolveThinkingBudget();
         assertEquals(expected, binding.price());
+        assertEquals(TestModels.small().estimate(conversation).inputTokens(), binding.getReservation().inputTokens(),
+                "the reservation holds the estimate itself, facet by facet");
+        assertEquals(binding.getReservation().meteredTokens(), binding.getReservedTokens(),
+                "what the bucket is asked for is what the ledger says the model's limit meters");
     }
 
     @Test

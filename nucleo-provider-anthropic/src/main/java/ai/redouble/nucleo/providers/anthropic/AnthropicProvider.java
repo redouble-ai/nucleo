@@ -9,6 +9,7 @@ package ai.redouble.nucleo.providers.anthropic;
 import ai.redouble.nucleo.*;
 import ai.redouble.nucleo.harness.llm.*;
 import ai.redouble.nucleo.harness.models.*;
+import ai.redouble.nucleo.harness.tokens.*;
 import java.util.*;
 
 /**
@@ -34,6 +35,17 @@ public abstract class AnthropicProvider<E extends AnthropicSDKClient> extends Ab
     @Override
     public Map<String, Class<? extends AbstractModelSpec>> specTypes() {
         return Map.of("anthropic", AnthropicModelSpec.class);
+    }
+
+    /** Claude's counting rules, the same on every channel the Anthropic SDK reaches. */
+    @Override
+    public ContextEstimator contextEstimator(ModelSpec spec) {
+        return AnthropicContextEstimator.INSTANCE;
+    }
+
+    @Override
+    public TokenCounter tokenCounter(ModelSpec spec) {
+        return AnthropicContextEstimator.COUNTER;
     }
 
     /** The channel suffix of this provider's catalog ids: {@code direct}, {@code bedrock}, {@code mantle}. */

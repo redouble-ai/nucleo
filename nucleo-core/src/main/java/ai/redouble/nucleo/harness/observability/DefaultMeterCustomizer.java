@@ -9,6 +9,7 @@ package ai.redouble.nucleo.harness.observability;
 import ai.redouble.nucleo.events.*;
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.llm.*;
+import ai.redouble.nucleo.harness.tokens.*;
 import io.micrometer.core.instrument.*;
 
 import java.util.*;
@@ -104,17 +105,18 @@ public class DefaultMeterCustomizer implements MeterCustomizer {
         for (LLMResponse<?> r : responses) {
             String model = r.getModel() != null ? r.getModel() : "unknown";
             registry.counter("nucleo.llm.calls", "model", model).increment();
-            if (r.getActualInputTokens() != null) {
-                registry.counter("nucleo.llm.input_tokens", "model", model).increment(r.getActualInputTokens());
+            TokenLedger usage = r.getUsage();
+            if (usage != null && usage.inputTokens() != null) {
+                registry.counter("nucleo.llm.input_tokens", "model", model).increment(usage.inputTokens());
             }
-            if (r.getActualOutputTokens() != null) {
-                registry.counter("nucleo.llm.output_tokens", "model", model).increment(r.getActualOutputTokens());
+            if (usage != null && usage.outputTokens() != null) {
+                registry.counter("nucleo.llm.output_tokens", "model", model).increment(usage.outputTokens());
             }
-            if (r.getCacheReadInputTokens() != null) {
-                registry.counter("nucleo.llm.cache_read_tokens", "model", model).increment(r.getCacheReadInputTokens());
+            if (usage != null && usage.cacheReadTokens() != null) {
+                registry.counter("nucleo.llm.cache_read_tokens", "model", model).increment(usage.cacheReadTokens());
             }
-            if (r.getCacheCreationInputTokens() != null) {
-                registry.counter("nucleo.llm.cache_creation_tokens", "model", model).increment(r.getCacheCreationInputTokens());
+            if (usage != null && usage.cacheWriteTokens() != null) {
+                registry.counter("nucleo.llm.cache_creation_tokens", "model", model).increment(usage.cacheWriteTokens());
             }
             registry.timer("nucleo.llm.latency", "model", model)
                     .record(r.getLatencyMs(), TimeUnit.MILLISECONDS);

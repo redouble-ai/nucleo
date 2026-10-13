@@ -63,6 +63,18 @@ by name and is never passed on as empty. A rate limit, an exhausted quota, a ser
 and an unreachable endpoint each reach the runtime as what they are, so it waits, retries or
 stops accordingly. Neither the key nor the conversation appears in any failure's message.
 
+## How it counts tokens
+
+OpenAI's own chat models tokenize with `o200k_base`, which the runtime ships, so the `openai`,
+`openai-chat-completions` and `azure-foundry-openai` providers count a conversation exactly.
+An OpenAI-compatible endpoint serves models of other families whose tokenizers are not known
+here, so `openai-compatible` and the embeddings providers count with the neutral `cl100k_base`
+at 1.0. A thinking block is never sent and costs nothing; a reasoning item the Responses API
+returned is replayed and counted as the JSON it carries. A response's usage takes the
+provider's prompt total as the input and its cached count as the cache reads; OpenAI bills no
+cache writes, so that facet is zero. How the runtime uses these numbers is in
+[Tokens](../../../../../../../../../nucleo-core/src/main/java/ai/redouble/nucleo/harness/tokens/PACKAGE.md).
+
 ## How it works inside
 
 The encoders, the two dialects and their transports, the Azure Foundry wiring, the rules a

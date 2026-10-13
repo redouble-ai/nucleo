@@ -77,9 +77,4 @@ public class DecisionResponse extends LLMResponse<Void> {
         }
         return type.cast(answer);
     }
-
-    @Override
-    public int getLastOutputTokens() {
-        return 0;
-    }
 }

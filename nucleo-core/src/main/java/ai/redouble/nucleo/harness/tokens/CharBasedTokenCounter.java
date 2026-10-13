@@ -4,15 +4,14 @@
  * Licensed under the Apache-2.0 license (https://www.apache.org/licenses/LICENSE-2.0).
  */
 
-package ai.redouble.nucleo.harness.models;
+package ai.redouble.nucleo.harness.tokens;
 
 import ai.redouble.nucleo.harness.conversation.ContentBlocks.*;
-import ai.redouble.nucleo.harness.conversation.*;
 
 import java.util.*;
 
 /**
- * Character-count / 4 fallback counter for providers with no known tokenizer.
+ * Character-count / 4 fallback counter for a provider with no known tokenizer.
  * Image and file heuristics are configurable via constructor arguments.
  *
  * @author Andrey Santrosyan
@@ -35,11 +34,6 @@ public class CharBasedTokenCounter implements TokenCounter {
             return 0;
         }
         return text.length() / 4;
-    }
-
-    @Override
-    public int countTokens(Message message) {
-        return TokenCountingSupport.countMessage(message, this);
     }
 
     @Override

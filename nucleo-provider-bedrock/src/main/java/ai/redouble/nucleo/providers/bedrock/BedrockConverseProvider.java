@@ -9,6 +9,7 @@ package ai.redouble.nucleo.providers.bedrock;
 import ai.redouble.nucleo.harness.llm.*;
 import ai.redouble.nucleo.harness.models.*;
 import ai.redouble.nucleo.harness.models.discovery.*;
+import ai.redouble.nucleo.harness.tokens.*;
 import java.util.*;
 
 /**
@@ -34,6 +35,13 @@ public class BedrockConverseProvider extends AbstractClientProvider<BedrockConve
     }
     @Override
     public List<DiscoveredModel> listModels() {return BedrockDiscovery.runtimeModels();}
+
+    /** Converse serves every vendor, so the count follows the family the wire id names. */
+    @Override
+    public ContextEstimator contextEstimator(ModelSpec spec) {return BedrockContextEstimator.forSpec(spec);}
+
+    @Override
+    public TokenCounter tokenCounter(ModelSpec spec) {return BedrockContextEstimator.counterFor(spec);}
 
     @Override
     protected BedrockConverseClient newClient() {return new BedrockConverseClient();}

@@ -35,11 +35,12 @@ import java.util.function.*;
  * where ResponseHandlers are null. This is transparent for most operations since handlers
  * are only needed for active request/response cycles, not for historical messages.
  *
- * <h2>Token Tracking for Context Window Management</h2>
- * <p>{@link #getTotalTokens(ModelSpec)} is the context-window number: a fresh estimate
- * from scratch using the tokenizer, for compaction and overflow decisions. For billing
- * and cache metrics use {@link ai.redouble.nucleo.harness.llm.LLMResponse}, which tracks
- * billable tokens (with cache pricing adjustments) and cache performance.
+ * <h2>Tokens</h2>
+ * <p>A conversation carries no token number of its own. What it will cost a model is that
+ * model's estimate, {@link ModelSpec#estimate(ConversationContext)}, a fresh
+ * {@link ai.redouble.nucleo.harness.tokens.TokenLedger} built from {@link #render} on every
+ * call; compaction and overflow decisions read it. What a call did cost is the usage ledger on
+ * its {@link ai.redouble.nucleo.harness.llm.LLMResponse}.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2025-09-19)
@@ -466,6 +467,16 @@ public class ConversationContext implements Serializable {
      * side field.
      */
     private void reconcileLegend() {
+        placeLegend(mainObjective, messages);
+    }
+
+    /**
+     * Where the legend goes, applied either to the live head and stream (the reconciliation
+     * at a real render) or to copies of them (a pure {@link #render}): in the head while the
+     * conversation is unfrozen, as a note at the end of the stream once it is frozen, and
+     * nowhere when no message asks for the notation or the legend is already in place.
+     */
+    private void placeLegend(Map<String, ContentBlock> head, List<Message> stream) {
         boolean needed = false;
         for (Message message : messages) {
             if (message instanceof OutgoingMessage<?> outgoing
@@ -479,17 +490,17 @@ public class ConversationContext implements Serializable {
             return;
         }
         if (!frozen) {
-            mainObjective.put(KEY_LEGEND, new TextBlock(SCHEMA_NOTATION_GUIDANCE));
+            head.put(KEY_LEGEND, new TextBlock(SCHEMA_NOTATION_GUIDANCE));
             return;
         }
-        if (mainObjective.containsKey(KEY_LEGEND) || legendInStream()) {
+        if (head.containsKey(KEY_LEGEND) || legendInStream()) {
             return;
         }
         OutgoingMessage<Void> note = new OutgoingMessage<>(null);
         note.setRole("user");
         note.setTimestamp(Instant.now());
         note.addText(SCHEMA_NOTATION_GUIDANCE);
-        messages.add(note);
+        stream.add(note);
     }
 
     /** Whether a prior stream message already carries the legend; the text is a fixed constant, so containment is deterministic. */
@@ -525,6 +536,19 @@ public class ConversationContext implements Serializable {
      * announced with no extra state to restore.
      */
     private void reconcileDeclaredTools() {
+        placeDeclaredTools(mainObjective, messages);
+    }
+
+    /**
+     * Where declared-but-unannounced tools go, applied either to the live head and stream
+     * (the reconciliation at a real render) or to copies of them (a pure {@link #render}): in
+     * the head while the conversation is unfrozen, as an announcement at the end of the stream
+     * once it is frozen. The conversion of a declaration to its definition is written back to
+     * {@link #declaredTools} in both cases: a definition is its own DeclaredTool, so the first
+     * caller to need it, render or estimate, converts it once and every later one reads it.
+     * That write changes nothing the model sees, which is what a pure render promises.
+     */
+    private void placeDeclaredTools(Map<String, ContentBlock> head, List<Message> stream) {
         Map<String, ToolDefinitionBlock> announced = announcedTools();
         List<ToolDefinitionBlock> pending = declaredTools.values().stream()
             .filter(declared -> !announced.containsKey(declared.name()))
@@ -533,15 +557,13 @@ public class ConversationContext implements Serializable {
         if (pending.isEmpty()) {
             return;
         }
-        // A definition is its own DeclaredTool: replacing the source with what it produced
-        // makes this the one and only conversion, whatever asks for the definition later
         for (ToolDefinitionBlock td : pending) {
             declaredTools.put(td.name(), td);
         }
         if (!frozen) {
-            mainObjective.putIfAbsent(KEY_TOOL_WEIGHTS, new TextBlock("Available tools:\n" + TOOL_WEIGHT_GUIDANCE));
+            head.putIfAbsent(KEY_TOOL_WEIGHTS, new TextBlock("Available tools:\n" + TOOL_WEIGHT_GUIDANCE));
             for (ToolDefinitionBlock td : pending) {
-                mainObjective.put(TOOL_KEY_PREFIX + td.name(), td);
+                head.put(TOOL_KEY_PREFIX + td.name(), td);
             }
         }
         else {
@@ -552,7 +574,7 @@ public class ConversationContext implements Serializable {
             for (ToolDefinitionBlock td : pending) {
                 announcement.addToolDefinition(td);
             }
-            messages.add(announcement);
+            stream.add(announcement);
         }
     }
 
@@ -750,17 +772,30 @@ public class ConversationContext implements Serializable {
     }
 
     /**
+     * The depth this conversation declares, through its own declaration or the wired binding's,
+     * or null when no seat has declared one yet. The question without the refusal: an estimate of
+     * the input reads it, because a conversation with no seat still has an input to count.
+     */
+    public Depth declaredDepth() {
+        if (depth != null) {
+            return depth;
+        }
+        if (modelBinding != null && modelBinding.getDepth() != null) {
+            return modelBinding.getDepth();
+        }
+        return null;
+    }
+
+    /**
      * Resolves depth once: the conversation's own declaration, else the wired binding's
      * (a job that attaches its resolved binding declared the depth there). Nothing
      * declaring anywhere is uncorrectable: the seat never said how hard to think.
      * Kill switch and model capability are applied downstream, not here.
      */
     public Depth resolveDepth() {
-        if (depth != null) {
-            return depth;
-        }
-        if (modelBinding != null && modelBinding.getDepth() != null) {
-            return modelBinding.getDepth();
+        Depth declared = declaredDepth();
+        if (declared != null) {
+            return declared;
         }
         throw new UncorrectableRuntimeLLMException("Conversation " + conversationId + " declares no depth"
                 + describeObjective() + ". A thinker's conversation is stamped by ConversationService; a job that"
@@ -869,45 +904,6 @@ public class ConversationContext implements Serializable {
         messages.add(message);
     }
 
-    // Token counting methods for context window management
-
-    /**
-     * Gets total tokens counting against the context window.
-     * Always estimates from scratch using the tokenizer for accuracy.
-     *
-     * <p>Use this method to determine if you're approaching context window limits.
-     * This count represents what the LLM provider will see as your context size.
-     *
-     * @param model the model for estimation
-     * @return total estimated tokens counting against context window
-     */
-    public int getTotalTokens(ModelSpec model) {
-        if (model == null) {
-            throw new IllegalArgumentException("Model is necessary to calculate tokens, cannot be null");
-        }
-        int total = 0;
-        ContentProcessor processor = createContentProcessor();
-        TokenCounter counter = TokenizerFactory.get().forModel(model);
-
-        // Count main objective blocks (always sent, regardless of cache setting)
-        for (ContentBlock block : mainObjective.values()) {
-            total += countBlockTokens(block, processor, counter);
-        }
-
-        // Estimate all messages
-        for (Message message : messages) {
-            total += message.getEstimatedTokens(model);
-        }
-
-        // Always add artifact registry estimate - it's appended during prepareMessagesForLLM()
-        // and can grow between API calls as new artifacts are discovered
-        String registrySection = processor.buildArtifactRegistrySection();
-        if (!registrySection.isEmpty()) {
-            total += counter.countTokens(registrySection);
-        }
-        return total;
-    }
-
     /**
      * Resolves the output token budget for the next LLM call on this conversation.
      * Single source of truth consumed by both the job reservation and the API payload
@@ -990,31 +986,6 @@ public class ConversationContext implements Serializable {
     }
 
     /**
-     * Counts tokens for a single content block, delegating to the ContentProcessor for
-     * PojoBlocks so they see exactly the serialized form that will reach the LLM.
-     */
-    private int countBlockTokens(ContentBlock block, ContentProcessor processor, TokenCounter counter) {
-        if (block instanceof TextBlock(String text)) {
-            return counter.countTokens(text);
-        }
-        if (block instanceof PojoBlock pb) {
-            ContentBlock processed = processor.processForLLM(pb);
-            if (processed instanceof JsonBlock(String json)) {
-                return counter.countTokens(json);
-            }
-            return 0;
-        }
-        if (block instanceof JsonBlock(String json)) {
-            return counter.countTokens(json);
-        }
-        if (block instanceof ToolDefinitionBlock td) {
-            // the counted string IS the text-fallback wire form, one authority for both
-            return counter.countTokens(ai.redouble.nucleo.harness.llm.encode.ToolDefinitionBlockEncoder.renderText(td));
-        }
-        return 0;
-    }
-
-    /**
      * Prepares all conversation messages for LLM consumption.
      *
      * <p>This method is the mandatory pipeline for processing conversation content
@@ -1037,6 +1008,10 @@ public class ConversationContext implements Serializable {
      * nothing else; a message carrying any other role is refused here, at the single
      * point where roles become wire roles.
      *
+     * <p>This is the render that commits: the framework's voice lands in the conversation
+     * (the legend, the definitions of tools declared since the last render), and the head
+     * freezes. {@link #render} is the same rendering without the commitment.
+     *
      * @param formatter the content formatter for the target LLM dialect
      * @param thinkingActive true if a native thinking block is guaranteed for this call, in which
      *                       case the handler omits the envelope's prose reasoning field from the schema
@@ -1050,8 +1025,28 @@ public class ConversationContext implements Serializable {
         reconcileLegend();
         reconcileDeclaredTools();
         frozen = true;
+        return render(formatter, thinkingActive);
+    }
+
+    /**
+     * The conversation as a client would send it now, without committing anything: the
+     * rendering {@link #prepareMessagesForLLM} produces, with the head left unfrozen and the
+     * stream unchanged. What the next real render would add, the legend and the definitions of
+     * tools declared but not yet announced, is rendered where that render will place it, in the
+     * head of an unfrozen conversation and as an announcement turn at the end of a frozen one,
+     * so an estimate of this rendering is an estimate of the payload the next call carries.
+     * This is what a {@link ModelSpec#estimate} counts.
+     *
+     * @param formatter      the formatter of the client that will send the conversation
+     * @param thinkingActive whether a native thinking block is guaranteed for the next call
+     */
+    public PreparedConversation render(ContentFormatter formatter, boolean thinkingActive) {
+        LinkedHashMap<String, ContentBlock> head = new LinkedHashMap<>(mainObjective);
+        List<Message> stream = new ArrayList<>(messages);
+        placeLegend(head, stream);
+        placeDeclaredTools(head, stream);
         ContentProcessor processor = createContentProcessor();
-        List<ContentBlock> objectiveBlocks = new ArrayList<>(mainObjective.values());
+        List<ContentBlock> objectiveBlocks = new ArrayList<>(head.values());
         String systemText = objectiveBlocks.isEmpty()
             ? ""
             : processor.buildTextContent(objectiveBlocks, formatter);
@@ -1063,44 +1058,8 @@ public class ConversationContext implements Serializable {
             .map(ToolDefinitionBlock.class::cast)
             .toList();
         List<ProcessedMessageData> result = new ArrayList<>();
-        // Process each conversation message
-        for (Message message : messages) {
-            if (message instanceof OutgoingMessage<?> outgoing) {
-                // Get content blocks and process them through artifact replacement
-                List<ContentBlock> blocks = outgoing.getContentBlocks();
-                List<ContentBlock> processedBlocks;
-                if (!blocks.isEmpty()) {
-                    // Process blocks to replace artifacts with refs
-                    processedBlocks = new ArrayList<>(processor.processForLLM(blocks));
-                }
-                else {
-                    // No blocks, create from raw content
-                    String rawContent = message.getRawContent();
-                    processedBlocks = (rawContent != null && !rawContent.isEmpty())
-                        ? new ArrayList<>(List.of(new TextBlock(rawContent)))
-                        : new ArrayList<>();
-                }
-                // Append response instructions as a TextBlock if present
-                ResponseHandler<?> handler = outgoing.getResponseHandler();
-                if (handler != null) {
-                    String instructions = handler.responseInstructions(formatter.supportsNativeToolCalling(), thinkingActive);
-                    if (instructions != null && !instructions.isEmpty()) {
-                        processedBlocks.add(new TextBlock(instructions));
-                    }
-                }
-                result.add(new ProcessedMessageData(TurnRole.of(message.getRole()), processedBlocks, message.isEnableCache()));
-            }
-            else if (message instanceof IncomingMessage<?> incoming) {
-                // Use content blocks directly (already in correct format)
-                List<ContentBlock> blocks = (incoming.getContentBlocks() != null && !incoming.getContentBlocks().isEmpty())
-                    ? incoming.getContentBlocks()
-                    : List.of(new TextBlock(incoming.getRawContent()));
-                result.add(new ProcessedMessageData(TurnRole.of(message.getRole()), blocks, message.isEnableCache()));
-            }
-            else {
-                // Other message types - pass through without processing
-                result.add(ProcessedMessageData.textOnly(TurnRole.of(message.getRole()), message.getRawContent(), message.isEnableCache()));
-            }
+        for (Message message : stream) {
+            result.add(renderTurn(message, processor, formatter, thinkingActive));
         }
         // Append artifact registry at the end if not empty
         String registrySection = processor.buildArtifactRegistrySection();
@@ -1109,7 +1068,40 @@ public class ConversationContext implements Serializable {
             // user turn - never system content
             result.add(ProcessedMessageData.textOnly(TurnRole.USER, registrySection, false));
         }
-        return new PreparedConversation(systemText, cacheMainObjective, palette, result);
+        return new PreparedConversation(systemText, cacheMainObjective, palette, result, registrySection.isEmpty() ? null : registrySection);
+    }
+
+    /** One message as a wire turn: artifacts lowered to refs, the response instructions appended. */
+    private ProcessedMessageData renderTurn(Message message, ContentProcessor processor, ContentFormatter formatter, boolean thinkingActive) {
+        if (message instanceof OutgoingMessage<?> outgoing) {
+            List<ContentBlock> blocks = outgoing.getContentBlocks();
+            List<ContentBlock> processedBlocks;
+            if (!blocks.isEmpty()) {
+                processedBlocks = new ArrayList<>(processor.processForLLM(blocks));
+            }
+            else {
+                String rawContent = message.getRawContent();
+                processedBlocks = (rawContent != null && !rawContent.isEmpty())
+                    ? new ArrayList<>(List.of(new TextBlock(rawContent)))
+                    : new ArrayList<>();
+            }
+            ResponseHandler<?> handler = outgoing.getResponseHandler();
+            if (handler != null) {
+                String instructions = handler.responseInstructions(formatter.supportsNativeToolCalling(), thinkingActive);
+                if (instructions != null && !instructions.isEmpty()) {
+                    processedBlocks.add(new TextBlock(instructions));
+                }
+            }
+            return new ProcessedMessageData(TurnRole.of(message.getRole()), processedBlocks, message.isEnableCache());
+        }
+        if (message instanceof IncomingMessage<?> incoming) {
+            // the provider's blocks as they came back, so a tool call or a thinking block travels intact
+            List<ContentBlock> blocks = (incoming.getContentBlocks() != null && !incoming.getContentBlocks().isEmpty())
+                ? incoming.getContentBlocks()
+                : List.of(new TextBlock(incoming.getRawContent()));
+            return new ProcessedMessageData(TurnRole.of(message.getRole()), blocks, message.isEnableCache());
+        }
+        return ProcessedMessageData.textOnly(TurnRole.of(message.getRole()), message.getRawContent(), message.isEnableCache());
     }
 
     /**

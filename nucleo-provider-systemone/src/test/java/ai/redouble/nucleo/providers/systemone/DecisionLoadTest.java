@@ -105,7 +105,7 @@ class DecisionLoadTest {
         for (JobHandle<DecisionResponse> handle : handles) {
             DecisionResponse response = handle.get(120, TimeUnit.SECONDS);
             assertEquals(0.9, response.noul("ok").probability(), 1e-9);
-            assertEquals(5, response.getActualInputTokens());
+            assertEquals(5, response.getUsage().inputTokens());
         }
         assertEquals(200, served.get() - before, "every decision reached the server exactly once");
         assertEquals(1, peak.get(), "an entry of max_concurrent 1 never has two requests in flight");

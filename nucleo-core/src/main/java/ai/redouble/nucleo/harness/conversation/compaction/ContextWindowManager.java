@@ -9,6 +9,7 @@ package ai.redouble.nucleo.harness.conversation.compaction;
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.conversation.*;
 import ai.redouble.nucleo.harness.models.*;
+import ai.redouble.nucleo.harness.tokens.*;
 import ai.redouble.nucleo.util.*;
 import org.slf4j.*;
 
@@ -29,9 +30,12 @@ import org.slf4j.*;
  *       compaction starts. A ratio with no model in it, so it has no catalog level.
  *       Resolution: the thinker's override, else {@link #DEFAULT_COMPACTION_TRIGGER}.
  * </ul>
- * Compaction keeps a conversation under the effective limit; the absolute fit check keeps
- * the whole call - input plus the seat's declared output reserve - inside the model's hard
- * context, and only that failure is an overflow.
+ * Every decision reads one {@link TokenLedger}, the model's estimate of the conversation
+ * ({@link ModelSpec#estimate}), and reads its input alone: compaction shrinks input and
+ * nothing else, so the room a call needs for its answer is no part of its arithmetic. The
+ * trigger compares the input to the effective limit times the trigger; the absolute fit check
+ * compares it to the model's hard context, and only that failure is an overflow. A caller
+ * that already holds the estimate passes it in, so one estimate serves one decision.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2025-11-15)
@@ -73,78 +77,70 @@ public class ContextWindowManager {
         return Math.min(comfortContextTokens, model.getMaxContextTokens());
     }
 
-    /**
-     * Checks if the context needs compaction.
-     *
-     * @param context the context to check
-     * @return true if compaction is needed
-     */
-    public boolean needsCompaction(ConversationContext context) {
-        // Never compact non-compactable conversations
-        if (!context.isCompactable()) {
-            return false;
-        }
-        int total = context.getTotalTokens(model);
-        return total > effectiveLimit() * compactionTrigger;
+    /** The model's estimate of the conversation as it stands. */
+    public TokenLedger estimate(ConversationContext context) {
+        return model.estimate(context);
     }
 
     /**
-     * Ensures the context fits within acceptable limits, compacting if needed. The ladder
-     * walks LIGHT, MODERATE and AGGRESSIVE as best-effort rungs (a failed summary keeps
-     * the originals and the walk continues), then MAXIMUM, whose failures propagate
-     * loudly instead of degrading.
+     * Whether the conversation needs compaction: compactable, and its estimated input above
+     * the effective limit times the trigger.
+     *
+     * @param context  the conversation
+     * @param estimate the model's estimate of it, as the caller holds it
+     */
+    public boolean needsCompaction(ConversationContext context, TokenLedger estimate) {
+        if (!context.isCompactable()) {
+            return false;
+        }
+        return estimate.inputTokens() > effectiveLimit() * compactionTrigger;
+    }
+
+    /**
+     * Ensures the conversation fits within acceptable limits, compacting if needed. The ladder
+     * walks LIGHT, MODERATE and AGGRESSIVE as best-effort rungs (a failed summary keeps the
+     * originals and the walk continues), then MAXIMUM, whose failures propagate loudly instead
+     * of degrading. Each rung is measured once, by a fresh estimate of the compacted
+     * conversation.
      *
      * @TODO gh-1: MAXIMUM currently performs the same collapse as AGGRESSIVE, so this
      * method cannot yet GUARANTEE a fit - a conversation whose non-compactable messages
      * alone exceed the hard limit still ends in the overflow refusal below.
      *
-     * @param context the context to check and potentially compact
-     * @return the original context if it fits, or a compacted version
-     * @throws ContextOverflowException if context cannot be made to fit
+     * @param context  the conversation to check and potentially compact
+     * @param estimate the model's estimate of it, as the caller holds it
+     * @return the original conversation if it fits, or a compacted version
+     * @throws ContextOverflowException if the conversation cannot be made to fit
      */
-    public ConversationContext ensureFits(ConversationContext context) throws ContextOverflowException {
-        if (!needsCompaction(context)) {
+    public ConversationContext ensureFits(ConversationContext context, TokenLedger estimate) throws ContextOverflowException {
+        if (!needsCompaction(context, estimate)) {
             return context;
         }
-
-        log.info("Context needs compaction: {} tokens exceeds threshold", Formats.compactNumber(context.getTotalTokens(model)));
-
-        // Try progressive compaction
+        log.info("Context needs compaction: {} tokens exceeds threshold", Formats.compactNumber(estimate.inputTokens()));
         CompactionLevel[] levels = {
                 CompactionLevel.LIGHT, CompactionLevel.MODERATE, CompactionLevel.AGGRESSIVE, CompactionLevel.MAXIMUM};
-
         ConversationContext current = context;
+        TokenLedger measured = estimate;
         ContextCompactor compactor = newCompactor();
         for (CompactionLevel level : levels) {
             current = compactor.compact(current, level);
-
-            if (!needsCompaction(current)) {
-                log.info("Context compacted with {} to {} tokens", level, Formats.compactNumber(current.getTotalTokens(model)));
+            measured = estimate(current);
+            if (!needsCompaction(current, measured)) {
+                log.info("Context compacted with {} to {} tokens", level, Formats.compactNumber(measured.inputTokens()));
                 return current;
             }
-
-            log.info("After {} compaction: {} tokens (still too large)", level, Formats.compactNumber(current.getTotalTokens(model)));
+            log.info("After {} compaction: {} tokens (still too large)", level, Formats.compactNumber(measured.inputTokens()));
         }
-
-        // Above the comfort window even now: acceptable as long as the whole call - input plus
-        // the seat's declared output reserve - still fits the model's hard context
-        int absoluteLimit = absoluteLimit(current);
-        if (current.getTotalTokens(model) <= absoluteLimit) {
-            log.warn("Context {} exceeds optimal but fits model limit", Formats.compactNumber(current.getTotalTokens(model)));
+        // Above the comfort window even now: acceptable as long as the input fits the model's
+        // hard context. Whether the call's answer also fits is the pre-flight's question.
+        int absoluteLimit = model.getMaxContextTokens();
+        if (measured.inputTokens() <= absoluteLimit) {
+            log.warn("Context {} exceeds optimal but fits model limit", Formats.compactNumber(measured.inputTokens()));
             return current;
         }
-
         throw new ContextOverflowException(
-                "Cannot fit context even with maximum compaction. Size: " + Formats.compactNumber(current.getTotalTokens(model)) +
-                ", limit: " + Formats.compactNumber(absoluteLimit));
-    }
-
-    /**
-     * The input the model's hard context leaves for this conversation once the seat's declared
-     * output and thinking reserve is set aside - the same reserve the wire will carry.
-     */
-    public int absoluteLimit(ConversationContext context) {
-        return model.getMaxContextTokens() - context.outputReserve(model);
+                "Cannot fit context even with maximum compaction. Size: " + Formats.compactNumber(measured.inputTokens())
+                + ", limit: " + Formats.compactNumber(absoluteLimit) + "; by part: " + measured.inputByPart());
     }
 
     /** The compactor the ladder runs. Package-private so tests can drive the ladder deterministically. */
@@ -153,30 +149,12 @@ public class ContextWindowManager {
     }
 
     /**
-     * Gets the current usage percentage of the context window.
+     * The estimated input as a share of the effective limit.
      *
-     * @param context the context to check
+     * @param estimate the model's estimate of the conversation
      * @return usage percentage (0.0 to 1.0+)
      */
-    public double getUsagePercentage(ConversationContext context) {
-        int total = context.getTotalTokens(model);
-        return total / (double)effectiveLimit();
-    }
-
-    /**
-     * Checks if the context is approaching limits and logs warnings.
-     *
-     * @param context the context to check
-     */
-    public void checkAndWarn(ConversationContext context) {
-        int total = context.getTotalTokens(model);
-        int effectiveLimit = effectiveLimit();
-        double usage = total / (double)effectiveLimit;
-        if (usage > 0.9) {
-            log.warn("Context critically high: {} ({}/{})", String.format("%.0f%%", usage * 100), Formats.compactNumber(total), Formats.compactNumber(effectiveLimit));
-        }
-        else if (usage > 0.7) {
-            log.info("Context usage: {} ({}/{})", String.format("%.0f%%", usage * 100), Formats.compactNumber(total), Formats.compactNumber(effectiveLimit));
-        }
+    public double getUsagePercentage(TokenLedger estimate) {
+        return estimate.inputTokens() / (double)effectiveLimit();
     }
 }

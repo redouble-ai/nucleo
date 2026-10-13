@@ -12,6 +12,7 @@ import ai.redouble.nucleo.harness.conversation.*;
 import ai.redouble.nucleo.harness.errors.*;
 import ai.redouble.nucleo.harness.llm.*;
 import ai.redouble.nucleo.harness.models.*;
+import ai.redouble.nucleo.harness.tokens.*;
 import org.junit.jupiter.api.*;
 
 import java.time.*;
@@ -69,10 +70,9 @@ class CostLedgerTest {
         LLMResponse<String> response = new LLMResponse<>(new LLMRequest<>(conversation));
         response.setModel(modelId);
         response.setServedModelId(modelId != null ? modelId + ":served" : null);
-        response.setActualInputTokens(input);
-        response.setCacheCreationInputTokens(cacheWrite);
-        response.setCacheReadInputTokens(cacheRead);
-        response.setActualOutputTokens(output);
+        // the ledger names the spec the client ran under; an id the catalog does not know still has one
+        ModelSpec ran = modelId != null && CATALOG.containsKey(modelId) ? CATALOG.get(modelId) : spec(modelId != null ? modelId : "unknown", null, null, null);
+        response.setUsage(new DefaultTokenLedger(ran, input, cacheRead, cacheWrite, output));
         response.setStartTime(Instant.now().minusMillis(250));
         response.setEndTime(Instant.now());
         return response;
@@ -114,6 +114,30 @@ class CostLedgerTest {
         assertEquals(2_000_000, spend.getByModel().get("usd-model").getInputTokens());
         assertNull(spend.getByModel().get("unpriced-model").getCost());
         assertNull(ledger.workflow("other"), "a workflow that finished nothing has no spend");
+    }
+
+    @Test
+    void aCallWithoutAUsageRecordOrAFacetIsCountedAtZeroForWhatIsMissing() {
+        CostLedger ledger = ledger();
+        LLMResponse<String> noUsage = response("usd-model", 1, 0, 0, 1);
+        noUsage.setUsage(null);
+        finish(ledger, "wf", "job-1", noUsage);
+        CostLedger.Workflow spend = ledger.workflow("wf");
+        assertEquals(1, spend.getCalls().size(), "the call is on the record");
+        assertEquals(0.0, spend.getTotal("USD").amount(), 1e-12, "with nothing reported, it cost nothing the ledger can see");
+        assertEquals(0, spend.getUnpricedCalls(), "the model is priced; the counts are what is missing");
+        ConversationContext conversation = new ConversationContext();
+        OutgoingMessage<String> message = new OutgoingMessage<>(StringResponseHandler.instance);
+        message.setRole("user");
+        message.addText("ping");
+        conversation.getMessages().add(message);
+        LLMResponse<String> noCache = new LLMResponse<>(new LLMRequest<>(conversation));
+        noCache.setModel("usd-model");
+        noCache.setUsage(new DefaultTokenLedger(USD_MODEL, 1_000_000, null, null, 0));
+        noCache.setStartTime(Instant.now());
+        noCache.setEndTime(Instant.now());
+        finish(ledger, "wf2", "job-2", noCache);
+        assertEquals(2.0, ledger.workflow("wf2").getTotal("USD").amount(), 1e-9, "unreported cache facets price as zero cached: every input token at the full rate");
     }
 
     /** A job whose context names the workflow, for the gate; the ledger reads nothing else from it. */
@@ -259,7 +283,7 @@ class CostLedgerTest {
         assertThrows(SpendCapExceededException.class, () -> ledger.admit(context, List.of(tooMany)),
                 "0.12 committed plus 0.96 reserved crosses the cap of 1.0");
         EmbeddingsResponse call = new EmbeddingsResponse(embeddings, EmbeddingPurpose.DOCUMENT);
-        call.setActualInputTokens(1_000_000);
+        call.setUsage(new DefaultTokenLedger(embeddings, 1_000_000, null, null, 0));
         call.setEndTime(Instant.now());
         call.setSuccessful(true);
         finish(ledger, workflowId, context.getJobId(), call, response("usd-model", 1_000_000, 0, 0, 0));

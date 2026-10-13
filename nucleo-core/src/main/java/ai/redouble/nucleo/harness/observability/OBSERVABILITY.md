@@ -35,8 +35,8 @@ torn down half-done.
 
 Staying under the cap is best effort in one bounded sense: a reservation is the runtime's
 token count and the declared output, and the provider's invoice can differ from both per call.
-[Why admission has this shape](../admission/ADMISSION.md), in "The money wall is a refusal,
-never a stop", follows this through.
+[Why admission has this shape](../admission/ADMISSION.md), in "The money wall refuses; it
+never stops", follows this through.
 
 ## Exporters are callbacks
 

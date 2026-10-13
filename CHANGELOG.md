@@ -5,6 +5,31 @@ group `ai.redouble`; a published version is never changed in place.
 
 ## Unreleased
 
+- Token accounting is one `TokenLedger` per call, in the new `ai.redouble.nucleo.harness.tokens`
+  package: `ModelSpec.estimate(conversation)` returns the estimate the compaction trigger, the
+  reservation and the client's pre-flight all read, and `LLMResponse.getUsage()` returns the
+  usage the provider reported in the same shape. Counting is the provider module's: each
+  `ClientProvider` supplies a `ContextEstimator` and a `TokenCounter` for its models, so tool
+  calls, tool results, images, thinking blocks and cache counters are counted by the provider's
+  own rules, and OpenAI's own endpoints count on `o200k_base`. Breaking: `LLMResponse` loses its
+  scalar usage getters and setters (`getActualInputTokens`, `getActualOutputTokens`,
+  `getCacheCreationInputTokens`, `getCacheReadInputTokens`, `getLastOutputTokens`, `hasCache`,
+  `getCacheHitRate`, `setUsage(int, ...)`, `setAdditiveUsage`, `setActualInputTokens`);
+  `ConversationContext.getTotalTokens`, `Message.getEstimatedTokens`, `Message.getTokens`,
+  `Message.getActualTokens`, `TokenizerFactory` and `ContextWindowManager.absoluteLimit` are
+  gone; `ModelBinding.getReservation()` returns the ledger; the token counters move to the new
+  package and `Cl100kTokenCounter` becomes `TiktokenCounter`; `PreparedConversation` carries its
+  registry section as a component; the pre-flight now reserves the thinking budget on a thinking
+  model ([#1](https://github.com/redouble-ai/nucleo/issues/1)).
+- Compaction works on exchanges, an assistant turn with the turns that answer it, so a tool call
+  and its result leave or stay together and the provider never sees one without the other; a
+  tool result is detected by its block, its payload is what the summary model reads, LIGHT
+  shrinks the payload inside the block, and every level checks the pairing before it replaces
+  the conversation. Compaction measures the input alone: the room a call needs for its answer is
+  the pre-flight's question. A conversation marked non-compactable is never compacted on any
+  path; when it does not fit the model it fails with the new `NonCompactableContextException`,
+  distinct from `ContextOverflowException`, which says compaction was tried and was not enough
+  ([#1](https://github.com/redouble-ai/nucleo/issues/1)).
 - A thinker's input reaches the model as the JSON of its fields inside the objective, and
   `ThinkerInput` has no rendering method to override
   ([#2](https://github.com/redouble-ai/nucleo/issues/2)).
