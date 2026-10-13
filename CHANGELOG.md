@@ -21,12 +21,19 @@ group `ai.redouble`; a published version is never changed in place.
   package and `Cl100kTokenCounter` becomes `TiktokenCounter`; `PreparedConversation` carries its
   registry section as a component; the pre-flight now reserves the thinking budget on a thinking
   model ([#1](https://github.com/redouble-ai/nucleo/issues/1)).
+- An image is priced by its provider's published rule from the pixel size in its header: OpenAI's
+  85 tokens plus 170 per 512-pixel tile after scaling, Anthropic's pixels over 750 after scaling
+  with a ceiling of 1600, on Bedrock too. Breaking: `TiktokenCounter` takes four constructor
+  arguments, the per-tile allowance is gone, and `Cost.reserved` is removed, since a reservation
+  is a `TokenLedger` that prices itself ([#1](https://github.com/redouble-ai/nucleo/issues/1)).
 - Compaction works on exchanges, an assistant turn with the turns that answer it, so a tool call
   and its result leave or stay together and the provider never sees one without the other; a
   tool result is detected by its block, its payload is what the summary model reads, LIGHT
   shrinks the payload inside the block, and every level checks the pairing before it replaces
-  the conversation. Compaction measures the input alone: the room a call needs for its answer is
-  the pre-flight's question. A conversation marked non-compactable is never compacted on any
+  the conversation. A summary model's answer must be the asked-for object; an answer outside that
+  shape is a failed summary, never prose that replaces content. Compaction measures the input
+  alone: the room a call needs for its answer is the pre-flight's question. A conversation
+  marked non-compactable is never compacted on any
   path; when it does not fit the model it fails with the new `NonCompactableContextException`,
   distinct from `ContextOverflowException`, which says compaction was tried and was not enough
   ([#1](https://github.com/redouble-ai/nucleo/issues/1)).

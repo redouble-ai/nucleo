@@ -316,13 +316,12 @@ class CostLedgerTest {
     }
 
     @Test
-    void aReservationIsPricedWithNothingCachedAndRendersSixDecimals() {
-        // 1,000,000 input at 2.0 plus 100,000 output at 10.0, no cache rate applied to any of it
-        Cost reserved = Cost.reserved(USD_MODEL, 1_000_000, 100_000);
-        assertEquals(3.0, reserved.amount(), 1e-12);
-        assertEquals("USD", reserved.currency());
-        assertNull(Cost.reserved(FREE_MODEL, 1_000_000, 100_000), "no price is no reservation cost, never zero");
-        assertEquals("3.000000 USD", reserved.toString(), "six decimals and the currency");
+    void aCostRendersSixDecimalsAndTheCurrency() {
+        // 1,000,000 input at 2.0 plus 100,000 output at 10.0, nothing cached
+        Cost priced = Cost.of(USD_MODEL, 1_000_000, 0, 0, 100_000);
+        assertEquals(3.0, priced.amount(), 1e-12);
+        assertEquals("USD", priced.currency());
+        assertEquals("3.000000 USD", priced.toString(), "six decimals and the currency");
         assertEquals("0.002727 USD", new Cost(0.0027274, "USD").toString());
         assertTrue(new Cost(5.0, "USD").exceeds(new Cost(4.999999, "USD")));
         assertFalse(new Cost(5.0, "USD").exceeds(new Cost(5.0, "USD")), "at the cap is not past it");

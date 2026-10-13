@@ -78,7 +78,7 @@ sends and counts:
 | Text, JSON, POJO | sent as text, counted | same | same |
 | Tool definition | text form, counted | native, counted as its text form | native, counted as its text form |
 | Tool call, tool result | text form, counted | native, counted as their text form | native, counted as their text form |
-| Image | the counter's image rule, floor 85 | floor 1600 | floor 85 |
+| Image | the counter's image rule, floor 85; Claude on Converse by Anthropic's rule | pixels over 750 after scaling, at most 1600 | 85 plus 170 per 512-pixel tile after scaling |
 | File | the counter's file rule | same | same |
 | Thinking | not sent, not counted | replayed on every assistant turn, counted on the newest only | not sent, not counted |
 | Redacted thinking | not sent, not counted | as thinking | replayed as a reasoning item, counted as its JSON |
@@ -97,12 +97,17 @@ Cohere at 1.20, anything else neutral. `TiktokenCounter` is the counter class be
 them; `CharBasedTokenCounter` is the fallback with no encoding at all, a quarter of a token
 per character with an image floor of 1000.
 
-An image costs the counter's floor or four tokens per KB of its bytes, whichever is more; an
-image whose bytes do not decode costs the floor plus four tiles' allowance where the counter
-has one (170 per tile on the neutral counter), the floor alone where it has none. A file costs
-450 tokens per KB when it is a PDF, the image rule when it is an image, 100 per KB otherwise,
-and 4500 when its bytes do not decode. These rules are the same on every shipped counter; only
-the floors and densities differ.
+An image is priced by the provider's published rule from its pixel size, which
+`ImageDimensions` reads from the header of a PNG, JPEG, GIF or WebP payload. OpenAI scales an
+image to fit 2048 pixels on its long side and 768 on its short side, cuts it into 512-pixel
+tiles, and charges 85 tokens plus 170 per tile. Anthropic, direct or on Bedrock, scales an
+image to 1568 pixels on its long side and charges its pixel count over 750, at most 1600. An
+image whose size cannot be read, and every image on the neutral counter, costs the counter's
+floor or four tokens per KB of its bytes, whichever is more, and the floor alone when the bytes
+do not decode; the floor is 85 on the neutral counter and 1600 on Claude's, so an unreadable
+image errs high on Claude. A file costs 450 tokens per KB when it is a PDF, the image rule when
+it is an image, 100 per KB otherwise, and 4500 when its bytes do not decode; the file rule is
+the same on every shipped counter.
 
 `ModelText` is the text a model reads for a block or a message, the form the generic encoders
 send: a tool call with its name and input, a tool result with its payload. The default walk
@@ -122,8 +127,9 @@ content, which is the short placeholder for logs and persistence.
 | `ContextPart` | Objective, tool definitions, messages, artifact registry |
 | `TurnPlace` | Where a block sits, for billing rules that depend on the turn |
 | `TokenCounter` | The density of a tokenizer: text, images, files |
-| `TiktokenCounter` | A tiktoken encoding times a density, with image and PDF rules |
+| `TiktokenCounter` | A tiktoken encoding times a density, with the generic image and PDF rules; a provider's counter overrides the image rule |
 | `CharBasedTokenCounter` | Characters over four, for a provider with no known tokenizer |
+| `ImageDimensions` | The pixel size of an image from its header, what a provider's image rule prices |
 | `ModelText` | A block or message as the model reads it |
 
 Related: [conversation](../conversation/PACKAGE.md) for `render` and the output reserve,

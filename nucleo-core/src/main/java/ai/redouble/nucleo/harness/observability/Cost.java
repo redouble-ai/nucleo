@@ -70,15 +70,6 @@ public record Cost(double amount, String currency) {
         return new Cost(amount, spec.getCurrency());
     }
 
-    /** What a reservation would cost at most: every reserved token at its own price, none of it cached. */
-    public static Cost reserved(ModelSpec spec, long inputTokens, long outputTokens) {
-        if (!spec.isPriced()) {
-            return null;
-        }
-        double out = spec.getOutputPricePerMillion() != null ? spec.getOutputPricePerMillion() : 0.0;
-        return new Cost(inputTokens / MILLION * spec.getInputPricePerMillion() + outputTokens / MILLION * out, spec.getCurrency());
-    }
-
     @Override
     public String toString() {
         return String.format("%.6f %s", amount, currency);

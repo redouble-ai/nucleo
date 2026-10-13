@@ -100,11 +100,29 @@ class OpenAITokenAccountingTest {
         assertSame(TiktokenCounter.DEFAULT, new OpenAICompatibleProvider().tokenCounter(gpt("openai-compatible")));
     }
 
+    private static String png(int width, int height) {
+        byte[] header = new byte[]{(byte)0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13, 'I', 'H', 'D', 'R',
+                (byte)(width >>> 24), (byte)(width >>> 16), (byte)(width >>> 8), (byte)width,
+                (byte)(height >>> 24), (byte)(height >>> 16), (byte)(height >>> 8), (byte)height, 8, 6, 0, 0, 0};
+        return java.util.Base64.getEncoder().encodeToString(header);
+    }
+
     @Test
-    void anImageCostsTheNeutralFloor_andTheSpecReachesTheEstimatorByKey() {
-        String smallImage = java.util.Base64.getEncoder().encodeToString(new byte[2 * 1024]);
-        assertEquals(85, OpenAIContextEstimator.O200K_COUNTER.countImageTokens(new ai.redouble.nucleo.harness.conversation.ContentBlocks.ImageBlock(smallImage, "image/png", null)),
-                "an image costs at least 85 on OpenAI's own counter");
+    void anImageCostsOpenAIsPublishedTilePrice() {
+        OpenAITokenCounter counter = OpenAIContextEstimator.O200K_COUNTER;
+        assertEquals(85 + 170, counter.countImageTokens(new ImageBlock(png(100, 100), "image/png", null)), "a thumbnail is one tile");
+        assertEquals(85 + 170 * 4, counter.countImageTokens(new ImageBlock(png(1024, 1024), "image/png", null)), "1024 square is four tiles");
+        assertEquals(85 + 170 * 6, counter.countImageTokens(new ImageBlock(png(2048, 4096), "image/png", null)),
+                "scaled to 1024 x 2048 to fit the long side, then to 768 x 1536 for the short side: two by three tiles");
+        assertEquals(85 + 170 * 4, counter.countImageTokens(new ImageBlock(png(1000, 1000), "image/png", null)), "1000 square is still four tiles");
+        String noHeader = java.util.Base64.getEncoder().encodeToString(new byte[2 * 1024]);
+        assertEquals(85, counter.countImageTokens(new ImageBlock(noHeader, "image/png", null)), "an image whose size cannot be read falls back to the generic floor");
+        assertEquals(400, counter.countImageTokens(new ImageBlock(java.util.Base64.getEncoder().encodeToString(new byte[100 * 1024]), "image/png", null)),
+                "or to four tokens per KB when that is more");
+    }
+
+    @Test
+    void theSpecReachesTheEstimatorByKey() {
         StandardModelSpec openai = new StandardModelSpec();
         openai.setId("gpt-test");
         openai.setIdentity("gpt-test");

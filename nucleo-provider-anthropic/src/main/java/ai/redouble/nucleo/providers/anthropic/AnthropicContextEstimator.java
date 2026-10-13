@@ -15,7 +15,8 @@ import com.knuddels.jtokkit.api.*;
  * text is counted with {@code cl100k_base} at the density Anthropic's own usage reports show
  * for it, a tenth more tokens than the encoding says. Tool calls, tool results and tool
  * definitions go to Anthropic as native blocks and are counted as their text form, the name or
- * id with the JSON they carry. An image costs at least 1600 tokens and a PDF 450 per KB.
+ * id with the JSON they carry. An image costs what Anthropic publishes, its pixels over 750 up
+ * to 1600 tokens ({@link AnthropicTokenCounter}), and a PDF 450 per KB.
  *
  * <p>Thinking blocks, redacted or not, are replayed on every assistant turn
  * ({@link AnthropicThinkingBlockEncoder}) and Anthropic bills only the newest assistant turn's,
@@ -26,14 +27,8 @@ import com.knuddels.jtokkit.api.*;
  * @since 0.1 (2026-10-09)
  */
 public class AnthropicContextEstimator extends AbstractContextEstimator {
-    /** Claude tokens per cl100k token, measured against Anthropic's usage reports. */
-    public static final double CLAUDE_DENSITY = 1.10;
-    /** The floor one image costs on Claude. */
-    public static final int IMAGE_BASE_TOKENS = 1600;
-    /** What a KB of PDF costs on Claude. */
-    public static final int PDF_TOKENS_PER_KB = 450;
-    /** The density every Anthropic-served entry counts text with, for prompts that are not a conversation. */
-    public static final TiktokenCounter COUNTER = new TiktokenCounter(EncodingType.CL100K_BASE, CLAUDE_DENSITY, IMAGE_BASE_TOKENS, 0, PDF_TOKENS_PER_KB);
+    /** The counter every Anthropic-served entry uses: Claude's density, Anthropic's image rule. */
+    public static final AnthropicTokenCounter COUNTER = new AnthropicTokenCounter();
     public static final AnthropicContextEstimator INSTANCE = new AnthropicContextEstimator();
 
     public AnthropicContextEstimator() {

@@ -56,8 +56,8 @@ own choices included, to ones that run at zero data retention.
 ## How it counts tokens
 
 Converse serves every vendor, so the count follows the family the entry's wire id names:
-Claude at `cl100k_base` times 1.10 with an image floor of 1600, Cohere at 1.20, anything else
-at the neutral encoding. Tool calls, tool results and definitions reach Converse as text and
+Claude at `cl100k_base` times 1.10 with Anthropic's image rule (pixels over 750 after scaling
+to 1568 on the long side, at most 1600), Cohere at 1.20, anything else at the neutral encoding. Tool calls, tool results and definitions reach Converse as text and
 are counted as that text; thinking is not sent and not counted. The Cohere embeddings provider
 counts at Cohere's density too, so an embedding request is reserved at what Bedrock meters. A
 response's usage sums Converse's input, cache-write and cache-read counters into the total the

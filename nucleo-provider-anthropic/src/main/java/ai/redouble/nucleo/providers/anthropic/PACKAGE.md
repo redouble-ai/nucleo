@@ -33,7 +33,9 @@ headers, and the discovery's one call per model writes them into the catalog.
 ## How it counts tokens
 
 Claude's tokenizer is not public, so the provider counts text with `cl100k_base` at a density
-of 1.10, the ratio Anthropic's usage reports show, and gives an image a floor of 1600 tokens.
+of 1.10, the ratio Anthropic's usage reports show, and prices an image by Anthropic's rule:
+scaled to 1568 pixels on its long side, its pixel count over 750, at most 1600 tokens, and the
+1600 alone when the image's size cannot be read from its header.
 A thinking block is replayed on every assistant turn and counted on the newest one only, the
 one Anthropic bills. The same counting serves every channel the Anthropic SDK reaches, direct
 and on Bedrock. A response's usage sums Anthropic's three input counters, the uncached input

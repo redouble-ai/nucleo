@@ -26,7 +26,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * the surrounding context is clipped to 300 characters a message; a summary task's prompt
  * passes through verbatim; the job is a utility job at STANDARD depth and STANDARD output
  * that builds its one conversation once and re-wires a fresh binding per attempt under its
- * 6-minute hung-call guard; and a blank summary is refused rather than inserted.
+ * 6-minute hung-call guard; and a blank summary, or an answer outside the required shape, is
+ * refused rather than inserted.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-09-17)
@@ -193,6 +194,10 @@ class CompactionPromptContractTest {
         CompactionResult absent = new CompactionResult();
         assertThrows(ai.redouble.nucleo.harness.errors.UncorrectableRuntimeLLMException.class,
                 () -> LLMContextCompactor.requireSummary(absent));
+        ai.redouble.nucleo.harness.errors.UncorrectableRuntimeLLMException wrongShape = assertThrows(ai.redouble.nucleo.harness.errors.UncorrectableRuntimeLLMException.class,
+                () -> LLMContextCompactor.requireSummary(null),
+                "an answer outside the required shape is a failed summary, never prose that replaces content");
+        assertTrue(wrongShape.getMessage().contains("required shape"), wrongShape.getMessage());
         CompactionResult real = new CompactionResult();
         real.setSummary("a real summary");
         assertEquals("a real summary", LLMContextCompactor.requireSummary(real));

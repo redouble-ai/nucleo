@@ -45,8 +45,8 @@ uncached input at the input price, cache writes and reads at the entry's effecti
 multipliers, output at the output price, an embeddings entry pricing input alone; it is null on
 an unpriced entry, never zero. The most a reservation can cost is its estimate ledger's
 `cost()`, every token at its own price and none of it cached, null on an unpriced entry; the
-spend gate reads it from `ModelBinding.getReservation()`. `Cost.reserved(spec, input, output)`
-prices the same ceiling from two counts. `toString` renders six decimals and the currency.
+spend gate reads it from `ModelBinding.getReservation()`. `toString` renders six decimals and
+the currency.
 
 ## The ledger
 

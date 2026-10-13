@@ -21,7 +21,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * Anthropic's counting as the provider module states it: the usage ledger sums the three
  * additive input counters into the total the model read; the estimator counts a thinking block,
  * redacted or not, on the newest assistant turn and on no earlier one; text counts at
- * {@code cl100k_base} times 1.10 and an image at a floor of 1600; what it counts is the
+ * {@code cl100k_base} times 1.10 and an image by Anthropic's rule, its pixels over 750 after
+ * scaling to 1568 on the long side, capped at 1600, the cap alone when its size cannot be
+ * read; what it counts is the
  * rendering the Anthropic client sends, formatter included; and a spec on the provider's key
  * reaches that estimator and counter.
  *
@@ -138,6 +140,13 @@ class AnthropicTokenAccountingTest {
                 "the newest turn's redacted thinking is replayed and billed");
     }
 
+    private static String png(int width, int height) {
+        byte[] header = new byte[]{(byte)0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13, 'I', 'H', 'D', 'R',
+                (byte)(width >>> 24), (byte)(width >>> 16), (byte)(width >>> 8), (byte)width,
+                (byte)(height >>> 24), (byte)(height >>> 16), (byte)(height >>> 8), (byte)height, 8, 6, 0, 0, 0};
+        return Base64.getEncoder().encodeToString(header);
+    }
+
     private static IncomingMessage<String> redacted(String text, String data) {
         IncomingMessage<String> message = new IncomingMessage<>(StringResponseHandler.instance);
         message.setContentBlocks(List.of(new RedactedThinkingBlock(data), new TextBlock(text)));
@@ -150,8 +159,15 @@ class AnthropicTokenAccountingTest {
         String text = "The quick brown fox jumps over the lazy dog. ".repeat(20);
         assertEquals((int)(TiktokenCounter.DEFAULT.countTokens(text) * 1.10), AnthropicContextEstimator.COUNTER.countTokens(text),
                 "cl100k_base at 1.10");
-        String smallImage = Base64.getEncoder().encodeToString(new byte[2 * 1024]);
-        assertEquals(1600, AnthropicContextEstimator.COUNTER.countImageTokens(new ImageBlock(smallImage, "image/png", null)), "an image costs at least 1600");
+        String noHeader = Base64.getEncoder().encodeToString(new byte[2 * 1024]);
+        assertEquals(1600, AnthropicContextEstimator.COUNTER.countImageTokens(new ImageBlock(noHeader, "image/png", null)),
+                "an image whose size cannot be read is estimated at Anthropic's ceiling");
+        assertEquals(14, AnthropicContextEstimator.COUNTER.countImageTokens(new ImageBlock(png(100, 100), "image/png", null)), "pixels over 750, rounded up");
+        assertEquals(1334, AnthropicContextEstimator.COUNTER.countImageTokens(new ImageBlock(png(1000, 1000), "image/png", null)));
+        assertEquals(1600, AnthropicContextEstimator.COUNTER.countImageTokens(new ImageBlock(png(2000, 2000), "image/png", null)),
+                "scaled to 1568 on the long side and capped at 1600, as Anthropic scales");
+        assertEquals(820, AnthropicContextEstimator.COUNTER.countImageTokens(new ImageBlock(png(4000, 1000), "image/png", null)),
+                "a wide image is scaled to 1568 x 392 first, then priced by its pixels");
         ModelSpec claude = claude();
         assertSame(AnthropicContextEstimator.INSTANCE, claude.contextEstimator(), "the spec finds the anthropic-direct provider by key");
         assertSame(AnthropicContextEstimator.COUNTER, claude.tokenCounter());

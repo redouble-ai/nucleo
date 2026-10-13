@@ -143,8 +143,9 @@ the compactor's grade (`Grade.SMALL` unless the constructor says otherwise), res
 admitted and recorded like any other call, with a 6-minute hung-call ceiling. It builds
 its one conversation once and re-wires a fresh binding per attempt, so the client's
 truncation escalation reaches a re-run. `CompactionResult` is the typed answer: one
-required `summary` field; when the typed parse yields no object, the response text itself
-stands as the summary.
+required `summary` field. An answer that does not parse into that object, or whose summary
+is blank, is a failed summary (`requireSummary`), never a summary: the shape is enforced, and
+a model that cannot produce it is the wrong model for the job.
 
 ## Classes
 

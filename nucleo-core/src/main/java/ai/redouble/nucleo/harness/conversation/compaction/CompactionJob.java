@@ -94,17 +94,10 @@ class CompactionJob extends AbstractJob<CompactionResult> {
         LLMClient llm = resources.getLLMClient(binding.getModel());
         LLMResponse<CompactionResult> response = llm.singleResponse(new LLMRequest<>(conversation));
 
-        // Extract the result
-        CompactionResult result = response.getResponseMessage().getResponse();
-
-        if (result == null) {
-            // Fallback if parsing failed
-            String rawResponse = response.getResponseMessage().getRawContent();
-            result = new CompactionResult();
-            result.setSummary(rawResponse);
-        }
-
-        return result;
+        // The typed answer, or null when the model answered outside the required shape; the
+        // compactor refuses a null as a failed summary, since prose that is not the asked-for
+        // object may be anything and must never replace content
+        return response.getResponseMessage().getResponse();
     }
 
     /**

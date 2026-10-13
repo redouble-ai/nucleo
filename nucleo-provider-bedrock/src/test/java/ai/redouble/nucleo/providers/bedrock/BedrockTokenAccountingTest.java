@@ -22,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * Bedrock's counting as the provider module states it: the Converse usage ledger sums the
  * input, cache-write and cache-read counters into the total the model read and leaves a counter
  * Converse omits null; the estimator follows the family the wire id names, Claude at 1.10 with
- * an image floor of 1600, Cohere at 1.20, anything else at the neutral encoding; it counts the
+ * Anthropic's image rule, Cohere at 1.20, anything else at the neutral encoding; it counts the
  * generic rendering the Converse client sends; the Converse provider hands out that estimator
  * and counter, and the Cohere embeddings provider counts at Cohere's density through both of its
  * doors.
@@ -76,9 +76,18 @@ class BedrockTokenAccountingTest {
         int neutral = TiktokenCounter.DEFAULT.countTokens(TEXT);
         assertEquals((int)(neutral * 1.10), BedrockContextEstimator.CLAUDE_COUNTER.countTokens(TEXT), "Claude at 1.10 on the same encoding");
         assertEquals((int)(neutral * 1.20), BedrockContextEstimator.COHERE_COUNTER.countTokens(TEXT), "Cohere at 1.20 on the same encoding");
-        String smallImage = Base64.getEncoder().encodeToString(new byte[2 * 1024]);
-        assertEquals(1600, BedrockContextEstimator.CLAUDE_COUNTER.countImageTokens(new ImageBlock(smallImage, "image/png", null)), "Claude's image floor");
-        assertEquals(85, BedrockContextEstimator.COHERE_COUNTER.countImageTokens(new ImageBlock(smallImage, "image/png", null)), "the neutral image floor elsewhere");
+        String noHeader = Base64.getEncoder().encodeToString(new byte[2 * 1024]);
+        assertEquals(1600, BedrockContextEstimator.CLAUDE_COUNTER.countImageTokens(new ImageBlock(noHeader, "image/png", null)), "Claude's ceiling for an image whose size cannot be read");
+        assertEquals(1334, BedrockContextEstimator.CLAUDE_COUNTER.countImageTokens(new ImageBlock(png(1000, 1000), "image/png", null)), "pixels over 750, Anthropic's rule, on Converse too");
+        assertEquals(1600, BedrockContextEstimator.CLAUDE_COUNTER.countImageTokens(new ImageBlock(png(2000, 2000), "image/png", null)), "capped at 1600");
+        assertEquals(85, BedrockContextEstimator.COHERE_COUNTER.countImageTokens(new ImageBlock(noHeader, "image/png", null)), "the neutral image floor elsewhere");
+    }
+
+    private static String png(int width, int height) {
+        byte[] header = new byte[]{(byte)0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A, 0, 0, 0, 13, 'I', 'H', 'D', 'R',
+                (byte)(width >>> 24), (byte)(width >>> 16), (byte)(width >>> 8), (byte)width,
+                (byte)(height >>> 24), (byte)(height >>> 16), (byte)(height >>> 8), (byte)height, 8, 6, 0, 0, 0};
+        return Base64.getEncoder().encodeToString(header);
     }
 
     @Test
