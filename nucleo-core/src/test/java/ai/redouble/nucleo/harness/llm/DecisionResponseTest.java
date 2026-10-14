@@ -17,8 +17,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * A decision's answers are read by the shape they were asked in: {@code choice}, {@code noul}
  * and {@code score} each answer their own kind, an id asked another way or not at all is
- * refused by name, a call that answered nothing refuses with its reason, and the response
- * counts zero output tokens because a decision generates nothing.
+ * refused by name, and a call that answered nothing refuses with its reason.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-09-25)

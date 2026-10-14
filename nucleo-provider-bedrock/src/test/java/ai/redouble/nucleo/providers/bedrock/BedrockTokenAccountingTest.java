@@ -77,7 +77,9 @@ class BedrockTokenAccountingTest {
         assertEquals((int)(neutral * 1.10), BedrockContextEstimator.CLAUDE_COUNTER.countTokens(TEXT), "Claude at 1.10 on the same encoding");
         assertEquals((int)(neutral * 1.20), BedrockContextEstimator.COHERE_COUNTER.countTokens(TEXT), "Cohere at 1.20 on the same encoding");
         String noHeader = Base64.getEncoder().encodeToString(new byte[2 * 1024]);
-        assertEquals(1600, BedrockContextEstimator.CLAUDE_COUNTER.countImageTokens(new ImageBlock(noHeader, "image/png", null)), "Claude's ceiling for an image whose size cannot be read");
+        assertEquals(1600, BedrockContextEstimator.CLAUDE_COUNTER.countImageTokens(new ImageBlock(noHeader, "image/png", null)), "Claude's ceiling as the floor for an image whose size cannot be read");
+        assertEquals(2000, BedrockContextEstimator.CLAUDE_COUNTER.countImageTokens(new ImageBlock(Base64.getEncoder().encodeToString(new byte[500 * 1024]), "image/png", null)),
+                "or four tokens per KB of its bytes when that is more");
         assertEquals(1334, BedrockContextEstimator.CLAUDE_COUNTER.countImageTokens(new ImageBlock(png(1000, 1000), "image/png", null)), "pixels over 750, Anthropic's rule, on Converse too");
         assertEquals(1600, BedrockContextEstimator.CLAUDE_COUNTER.countImageTokens(new ImageBlock(png(2000, 2000), "image/png", null)), "capped at 1600");
         assertEquals(85, BedrockContextEstimator.COHERE_COUNTER.countImageTokens(new ImageBlock(noHeader, "image/png", null)), "the neutral image floor elsewhere");

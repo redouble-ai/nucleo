@@ -16,8 +16,8 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * {@link ImageDimensions} reads the pixel size from the header of a PNG, JPEG, GIF or WebP
- * payload and answers null for anything else, bytes that are not an image and text that is
- * not base64 alike.
+ * payload, the three WebP chunk kinds among them, and answers null for anything else, bytes
+ * that are not an image and text that is not base64 alike.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-10-13)
@@ -75,12 +75,41 @@ class ImageDimensionsTest {
         assertEquals(new ImageDimensions(1024, 512), ImageDimensions.of(webp));
     }
 
+    private static byte[] webp(String chunk) {
+        byte[] webp = new byte[30];
+        System.arraycopy("RIFF".getBytes(), 0, webp, 0, 4);
+        System.arraycopy("WEBP".getBytes(), 0, webp, 8, 4);
+        System.arraycopy(chunk.getBytes(), 0, webp, 12, 4);
+        return webp;
+    }
+
+    @Test
+    void aWebpLosslessHeaderPacksFourteenBitSizesMinusOne() {
+        byte[] webp = webp("VP8L");
+        webp[20] = 0x2F;
+        // 1023 in the low fourteen bits, 767 in the next fourteen: 0x00BFC3FF little-endian
+        webp[21] = (byte)0xFF;
+        webp[22] = (byte)0xC3;
+        webp[23] = (byte)0xBF;
+        webp[24] = 0x00;
+        assertEquals(new ImageDimensions(1024, 768), ImageDimensions.of(webp));
+    }
+
+    @Test
+    void aWebpLossyHeaderCarriesFourteenBitSizes() {
+        byte[] webp = webp("VP8 ");
+        webp[26] = (byte)0x80;
+        webp[27] = 0x02;
+        webp[28] = (byte)0xE0;
+        webp[29] = 0x01;
+        assertEquals(new ImageDimensions(640, 480), ImageDimensions.of(webp));
+        assertNull(ImageDimensions.of(webp("ALPH")), "a WebP whose first chunk is none of the three has no readable size");
+    }
+
     @Test
     void anythingElseHasNoDimensions() {
         assertNull(ImageDimensions.of(new byte[3 * 1024]), "bytes that are no image header");
         assertNull(ImageDimensions.of(new ImageBlock("%%not base64%%", "image/png", null)), "text that is not base64");
-        assertNull(ImageDimensions.of(new ImageBlock(null, "image/png", null)));
-        assertNull(ImageDimensions.of((ImageBlock)null));
         assertNull(ImageDimensions.of(new byte[]{(byte)0xFF, (byte)0xD8, 0, 0}), "a JPEG that ends before any frame");
     }
 }

@@ -17,7 +17,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * rather than guessed at. The thinking blocks matter most: Anthropic requires the
  * signature (and a redacted block's data) echoed back VERBATIM when the block appears
  * in a later turn's history, or the request is refused with a 400 - so a snapshot
- * that loses either makes the stored conversation unanswerable.
+ * that loses either makes the stored conversation unanswerable. An assistant message's own
+ * output count, the one per-message actual, rides {@link MessageSnapshot} with the message,
+ * and stays null when the provider reported none.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-09-17)

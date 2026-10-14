@@ -23,7 +23,12 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Unit tests for the promises {@code AbstractLLMClient}'s templates make regardless of provider:
- * the pre-flight estimate gate refuses an oversized request before the provider is called, the
+ * the pre-flight estimate gate refuses an oversized request before the provider is called on both
+ * paths with a message that says it was an estimate, each template estimates a call exactly once,
+ * a client without a model refuses before estimating, an estimate above a tenth of the
+ * model's per-minute budget is logged at WARN, the single path alone consults the provider's exact
+ * count past three quarters of the window, the usage ledger stamps the response message's output
+ * count and a missing ledger stamps nothing, the
  * single and streaming templates stamp the same per-response facts (catalog model id, provider
  * key, requested ceiling, success), the streaming template runs the same truncation gate as the
  * single path, a stream refused before its first chunk rides the same typed failure signals as
@@ -61,11 +66,41 @@ public class AbstractLLMClientTemplateContractsTest {
         TemplateStubClient client = new TemplateStubClient(LLMStopReason.END_TURN);
         client.setModel(model);
 
-        assertThrows(TokenEstimateExceedsLimitException.class,
+        TokenEstimateExceedsLimitException refusal = assertThrows(TokenEstimateExceedsLimitException.class,
                 () -> client.singleResponse(new LLMRequest<>(conversation)),
                 "the pre-flight gate refuses an estimate above the context window");
         assertEquals(0, client.providerCalls.get(),
                 "the refusal happens before any provider call is spent");
+        assertTrue(refusal.getMessage().toLowerCase().contains("estimate"), "the refusal says it was an estimate: " + refusal.getMessage());
+    }
+
+    @Test
+    void eachTemplateEstimatesTheCallOnce() throws Exception {
+        int[] estimates = {0};
+        StandardModelSpec counting = new StandardModelSpec() {
+            @Override
+            public TokenLedger estimate(ConversationContext conversation) {
+                estimates[0]++;
+                return super.estimate(conversation);
+            }
+        };
+        counting.setId("counting-estimates");
+        counting.setIdentity("counting-estimates");
+        counting.setProviderKey("test");
+        counting.setWireModelId("counting-estimates");
+        counting.setGrade(Grade.SMALL);
+        counting.setMaxContextTokens(100_000);
+        counting.setMaxOutputTokens(20_000);
+        counting.setTpm(1_000_000);
+        counting.setRpm(100);
+        TemplateStubClient client = new TemplateStubClient(LLMStopReason.END_TURN);
+        client.setModel(counting);
+        client.singleResponse(new LLMRequest<>(declared(counting, "question")));
+        assertEquals(1, estimates[0], "one estimate serves the whole single call");
+        StreamingStubClient streaming = new StreamingStubClient(LLMStopReason.END_TURN);
+        streaming.setModel(counting);
+        streaming.streamResponse(new LLMRequest<>(declared(counting, "question")), chunk -> {});
+        assertEquals(2, estimates[0], "and one serves the whole stream");
     }
 
     @Test
@@ -78,6 +113,59 @@ public class AbstractLLMClientTemplateContractsTest {
         assertThrows(TokenEstimateExceedsLimitException.class,
                 () -> client.streamResponse(new LLMRequest<>(conversation), chunk -> {}),
                 "a stream that cannot fit is refused before the provider is called, like a single call");
+    }
+
+    @Test
+    void aClientWithoutAModelRefusesBeforeEstimating() {
+        TemplateStubClient client = new TemplateStubClient(LLMStopReason.END_TURN);
+        ConversationContext conversation = declared(TestModels.small(), "question");
+        assertThrows(IllegalStateException.class, () -> client.singleResponse(new LLMRequest<>(conversation)),
+                "a client is built for a spec by its provider; without one there is nothing to estimate against");
+        assertThrows(IllegalStateException.class, () -> client.streamResponse(new LLMRequest<>(conversation), chunk -> {}),
+                "the streaming template refuses the same way");
+        assertEquals(0, client.providerCalls.get(), "and no provider call was spent");
+    }
+
+    /** A spec whose per-minute budget an ordinary call takes a tenth of, while its window still fits the call. */
+    private static StandardModelSpec tightBudget() {
+        StandardModelSpec s = new StandardModelSpec();
+        s.setId("tight-budget");
+        s.setIdentity("tight-budget");
+        s.setProviderKey("test");
+        s.setWireModelId("tight-budget");
+        s.setGrade(Grade.SMALL);
+        s.setMaxContextTokens(100_000);
+        s.setMaxOutputTokens(2_000);
+        s.setTpm(1_000);
+        s.setRpm(100);
+        return s;
+    }
+
+    @Test
+    void anEstimateAboveATenthOfTheModelsPerMinuteBudgetIsLoggedAtWarn() throws Exception {
+        StandardModelSpec model = tightBudget();
+        ConversationContext conversation = declared(model, "question");
+        TokenLedger estimate = model.estimate(conversation);
+        int whole = estimate.inputTokens() + estimate.outputTokens();
+        assertTrue(whole > model.getTpm() / 10 && whole <= model.getMaxContextTokens(),
+                "fixture: above a tenth of the per-minute budget yet inside the window: " + estimate);
+        ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(AbstractLLMClient.class);
+        ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> appender = new ch.qos.logback.core.read.ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            TemplateStubClient client = new TemplateStubClient(LLMStopReason.END_TURN);
+            client.setModel(model);
+            client.singleResponse(new LLMRequest<>(conversation));
+        }
+        finally {
+            logger.detachAppender(appender);
+        }
+        List<ch.qos.logback.classic.spi.ILoggingEvent> large = appender.list.stream()
+                .filter(event -> event.getFormattedMessage().startsWith("Large token estimate for " + model.getId()))
+                .toList();
+        assertEquals(1, large.size(), "one warning for the one call, naming the model: " + appender.list);
+        assertEquals(ch.qos.logback.classic.Level.WARN, large.get(0).getLevel(), "at WARN: one such call starves the fleet for that minute");
     }
 
     /** A conversation declaring a small answer, so a near-full input still passes the pre-flight. */

@@ -34,8 +34,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * every other event of a job with an active span reaches the {@link SpanCustomizer}, and an
  * event without a snapshot, a job id or an active span reaches nothing; a customizer that
  * throws is logged and the observer goes on. {@link DefaultSpanCustomizer}: the identity
- * attributes on start, the attempt, duration and LLM totals on the terminal event, a span
- * event per progress message, a {@code limiter.<type>} span event per limiter transition.
+ * attributes on start, the attempt, duration and LLM totals on the terminal event (a response
+ * without a usage ledger counts as a call and adds nothing to the totals), a span event per
+ * progress message, a {@code limiter.<type>} span event per limiter transition.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-09-16)
@@ -308,16 +309,18 @@ class OpenTelemetryObserverTest {
         Map<AttributeKey<?>, Object> rejected = span.eventAttributes.get("limiter.rejected").asMap();
         assertEquals("circuit_blocked", rejected.get(AttributeKey.stringKey("limiter.reject_reason")));
         assertFalse(rejected.containsKey(AttributeKey.longKey("limiter.wait_ms")), "no wait, no attribute");
+        LLMResponse<String> silent = response("m3", 9, 9, 9, 9, 10);
+        silent.setUsage(null);
         observer.observe(new JobCompletedEvent<>(job, "ok", 2,
-                List.of(response("m1", 100, 20, 30, 40, 250), response("m2", 1, 1, 0, 0, 50)), Map.of()));
+                List.of(response("m1", 100, 20, 30, 40, 250), response("m2", 1, 1, 0, 0, 50), silent), Map.of()));
         assertEquals(2L, span.attributes.get("job.attempts"));
         assertTrue((Long) span.attributes.get("job.duration_ms") >= 0);
-        assertEquals(2L, span.attributes.get("llm.calls"));
-        assertEquals(101L, span.attributes.get("llm.input_tokens"));
+        assertEquals(3L, span.attributes.get("llm.calls"), "a call without a usage ledger is still a call");
+        assertEquals(101L, span.attributes.get("llm.input_tokens"), "and adds nothing to the token totals");
         assertEquals(21L, span.attributes.get("llm.output_tokens"));
         assertEquals(30L, span.attributes.get("llm.cache_read_tokens"));
         assertEquals(40L, span.attributes.get("llm.cache_creation_tokens"));
         assertTrue((Long) span.attributes.get("llm.latency_ms") >= 300, "latencies sum");
-        assertEquals("m1,m2", span.attributes.get("llm.models"), "the models, comma-separated");
+        assertEquals("m1,m2,m3", span.attributes.get("llm.models"), "the models, comma-separated");
     }
 }

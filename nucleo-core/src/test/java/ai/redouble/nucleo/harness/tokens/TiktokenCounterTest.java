@@ -44,7 +44,6 @@ public class TiktokenCounterTest {
     @Test
     void an_image_costs_its_floor_or_four_tokens_per_kb_whichever_is_more() {
         TiktokenCounter counter = TiktokenCounter.DEFAULT;
-        assertEquals(0, counter.countImageTokens(null), "no image, nothing");
         assertEquals(85, counter.countImageTokens(new ImageBlock(bytes(3), "image/png", null)), "a small image costs the floor");
         assertEquals(400, counter.countImageTokens(new ImageBlock(bytes(100), "image/png", null)), "a large image costs four tokens per KB");
         TiktokenCounter highFloor = new TiktokenCounter(EncodingType.CL100K_BASE, 1.10, 1600, 450);
@@ -56,7 +55,6 @@ public class TiktokenCounterTest {
     @Test
     void a_file_costs_by_its_kind_and_size() {
         TiktokenCounter counter = TiktokenCounter.DEFAULT;
-        assertEquals(0, counter.countFileTokens(null), "no file, nothing");
         assertEquals(10 * 450, counter.countFileTokens(new FileBlock(bytes(10), "application/pdf", "doc.pdf")), "a PDF costs 450 per KB");
         assertEquals(85, counter.countFileTokens(new FileBlock(bytes(10), "image/png", "shot.png")), "an image file follows the image rule");
         assertEquals(10 * 100, counter.countFileTokens(new FileBlock(bytes(10), "text/plain", "notes.txt")), "any other file costs 100 per KB");

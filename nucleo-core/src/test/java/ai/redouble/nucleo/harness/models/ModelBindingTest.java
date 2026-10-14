@@ -8,13 +8,16 @@ package ai.redouble.nucleo.harness.models;
 
 import ai.redouble.nucleo.harness.conversation.*;
 import ai.redouble.nucleo.harness.errors.*;
+import ai.redouble.nucleo.harness.tokens.*;
 import org.junit.jupiter.api.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * The binding cell's contract: write-once resolution, loud pre-resolution reads, the
- * three pricing forms, and the prior stamp that makes stickiness survive restarts.
+ * three pricing forms (a wired binding holding the spec's estimate, a prompt or flat one a
+ * ledger of its counts, and an overflow refused naming the counts and the window), and the
+ * prior stamp that makes stickiness survive restarts.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-08-28)
@@ -64,6 +67,9 @@ class ModelBindingTest {
         ModelBinding noThinking = new ModelBinding(Grade.SMALL, Depth.IMMEDIATE, 100, OutputDeclaration.of(200));
         noThinking.resolve(small);
         assertEquals(300, noThinking.price(), "IMMEDIATE books no reasoning on an Anthropic mode");
+        assertInstanceOf(DefaultTokenLedger.class, noThinking.getReservation(), "a flat binding holds a ledger of its counts");
+        assertEquals(100, noThinking.getReservation().inputTokens(), "the declared input");
+        assertEquals(200, noThinking.getReservation().outputTokens(), "the declared output");
         ModelBinding thinking = new ModelBinding(Grade.SMALL, Depth.STANDARD, 100, OutputDeclaration.of(200));
         thinking.resolve(small);
         assertEquals(100 + ConversationContext.outputReserve(small, 200, Depth.STANDARD), thinking.price(),
@@ -81,6 +87,9 @@ class ModelBindingTest {
         binding.resolve(TestModels.small());
         int counted = TestModels.small().tokenCounter().countTokens(prompt);
         assertEquals(counted + 500, binding.price());
+        assertInstanceOf(DefaultTokenLedger.class, binding.getReservation(), "a prompt binding holds a ledger of its counts");
+        assertEquals(counted, binding.getReservation().inputTokens(), "the prompt as the resolved spec's counter counts it");
+        assertEquals(500, binding.getReservation().outputTokens(), "the declared output");
     }
 
     @Test
@@ -133,7 +142,8 @@ class ModelBindingTest {
         conversation.getMessages().add(message);
         binding.resolve(tiny);
         UncorrectableRuntimeLLMException overflow = assertThrows(UncorrectableRuntimeLLMException.class, binding::price);
-        assertTrue(overflow.getMessage().contains("context window"), overflow.getMessage());
+        assertTrue(overflow.getMessage().matches("Input \\(\\d+ tokens\\) plus the declared output reserve \\(\\d+\\) exceeds the context window of tiny-window-fake \\(5\\)"),
+                "the refusal names the input count, the output reserve, the model and its window: " + overflow.getMessage());
     }
 
     @Test

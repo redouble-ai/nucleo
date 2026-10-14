@@ -34,13 +34,17 @@ headers, and the discovery's one call per model writes them into the catalog.
 
 Claude's tokenizer is not public, so the provider counts text with `cl100k_base` at a density
 of 1.10, the ratio Anthropic's usage reports show, and prices an image by Anthropic's rule:
-scaled to 1568 pixels on its long side, its pixel count over 750, at most 1600 tokens, and the
-1600 alone when the image's size cannot be read from its header.
+scaled to 1568 pixels on its long side, its pixel count over 750, at most 1600 tokens. An
+image whose size cannot be read from its header costs 1600 or four tokens per KB of its bytes,
+whichever is more, so the estimate errs high; a PDF costs 450 tokens per KB. Tool definitions,
+tool calls and tool results go to Anthropic as native blocks and are counted as their text
+form, the name or call id with the JSON they carry.
 A thinking block is replayed on every assistant turn and counted on the newest one only, the
 one Anthropic bills. The same counting serves every channel the Anthropic SDK reaches, direct
 and on Bedrock. A response's usage sums Anthropic's three input counters, the uncached input
 plus the cache writes plus the cache reads, into the total the model read, with the cache
-counters kept as facets of their own. How the runtime uses these numbers is in
+counters kept as facets of their own; a cache counter the response does not carry adds nothing
+to the total and stays null as a facet. How the runtime uses these numbers is in
 [Tokens](../../../../../../../../../nucleo-core/src/main/java/ai/redouble/nucleo/harness/tokens/PACKAGE.md).
 
 ## How it works inside

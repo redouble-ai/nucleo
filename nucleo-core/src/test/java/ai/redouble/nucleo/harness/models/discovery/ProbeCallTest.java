@@ -22,9 +22,9 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * A probe call is a model-dependent tool pinned to the entry under probe, with what is a
- * probe's own: no transparent retries, the cap it is given as its timeout, a client built
- * straight from the entry's provider for the one call and closed after it, and the provider's
- * response kept for the harvest.
+ * probe's own: no transparent retries, the cap it is given as its timeout, no transaction, a
+ * client built straight from the entry's provider for the one call and closed after it, and the
+ * provider's response kept for the harvest.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-10-13)
@@ -131,6 +131,7 @@ class ProbeCallTest {
         assertEquals(0, call.getUpstreamRetries(), "a probe asks whether the call succeeds NOW: an upstream signal fails it at once");
         assertEquals(Duration.ofMinutes(2), call.getTimeout(), "the cap is the probe's timeout");
         assertEquals(JobType.UTILITY, call.getJobType());
+        assertFalse(call.getRequirements().requiresTransaction(), "a probe touches no database");
         ModelBinding binding = call.getRequirements().getModelBindings().getFirst();
         assertTrue(binding.isPinned());
         assertEquals(Depth.IMMEDIATE, binding.getDepth(), "the depth the probe was given");

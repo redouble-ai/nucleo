@@ -16,7 +16,7 @@ package ai.redouble.nucleo.harness.tokens;
 public enum ContextPart {
     /** The system content: the prompt and input object, the legend and the tool guidance. */
     OBJECTIVE,
-    /** Every tool definition the request carries, counted in its text form. */
+    /** The tool definitions in the request's palette, each counted in its text form; a definition announced in a turn after the head froze is a message. */
     TOOL_DEFINITIONS,
     /** The conversation turns: user, assistant, tool calls and tool results. */
     MESSAGES,

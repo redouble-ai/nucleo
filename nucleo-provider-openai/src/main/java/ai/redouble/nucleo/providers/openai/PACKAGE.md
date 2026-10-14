@@ -68,14 +68,17 @@ stops accordingly. Neither the key nor the conversation appears in any failure's
 OpenAI's own chat models tokenize with `o200k_base`, which the runtime ships, so the `openai`,
 `openai-chat-completions` and `azure-foundry-openai` providers count a conversation exactly.
 An OpenAI-compatible endpoint serves models of other families whose tokenizers are not known
-here, so `openai-compatible` and the embeddings providers count with the neutral `cl100k_base`
-at 1.0. An image is priced by OpenAI's published rule: scaled to fit 2048 pixels on its long
+here, so `openai-compatible`, `openai-compatible-responses` and the embeddings providers count
+with the neutral `cl100k_base` at 1.0. Tool definitions, tool calls and tool results go as
+native JSON and are counted as their text form, the name or call id with the JSON they carry.
+An image is priced by OpenAI's published rule: scaled to fit 2048 pixels on its long
 side and 768 on its short side, cut into 512-pixel tiles, 85 tokens plus 170 per tile; an
 image whose size cannot be read from its header costs 85 or four tokens per KB of its bytes,
 whichever is more. A thinking block is never sent and costs nothing; a reasoning item the
 Responses API returned is replayed and counted as the JSON it carries. A response's usage takes the
-provider's prompt total as the input and its cached count as the cache reads; OpenAI bills no
-cache writes, so that facet is zero. How the runtime uses these numbers is in
+provider's prompt total as the input and its cached count as the cache reads, null when the
+response carries no cached detail; OpenAI bills no cache writes, so that facet is zero. How the
+runtime uses these numbers is in
 [Tokens](../../../../../../../../../nucleo-core/src/main/java/ai/redouble/nucleo/harness/tokens/PACKAGE.md).
 
 ## How it works inside

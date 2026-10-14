@@ -107,8 +107,8 @@ public class ConversationContext implements Serializable {
      * Tools declared to this conversation, by name, in declaration order. Add-only:
      * a name already declared is never replaced, whatever the new declaration would
      * produce - definitions are immutable once declared. Conversion to wire definitions
-     * happens at the first render after each declaration, never eagerly
-     * ({@link #reconcileDeclaredTools()}).
+     * happens at the first render or estimate after each declaration, never eagerly
+     * ({@link #placeDeclaredTools}).
      */
     private final LinkedHashMap<String, DeclaredTool> declaredTools = new LinkedHashMap<>();
 
@@ -440,8 +440,8 @@ public class ConversationContext implements Serializable {
      * already declared is a no-op, whatever the new declaration would produce, so
      * per-round refreshes and belt-and-suspenders declarations cost nothing. Tools are
      * never redefined or removed; conversion to a wire definition happens at the first
-     * render after the declaration ({@link #reconcileDeclaredTools()}), so churn before
-     * that render is free.
+     * render or estimate after the declaration ({@link #placeDeclaredTools}), so churn
+     * before that render is free.
      */
     public void addTool(DeclaredTool tool) {
         declaredTools.putIfAbsent(tool.name(), tool);

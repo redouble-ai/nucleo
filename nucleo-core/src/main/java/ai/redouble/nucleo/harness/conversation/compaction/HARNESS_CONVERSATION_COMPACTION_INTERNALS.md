@@ -42,8 +42,8 @@ window manager is never applied to them, so compaction does not recurse.
 `ensureFits` walks the levels until the conversation is back under the trigger. It is the
 one ladder the framework has: the thinker loop's per-turn check
 (`AbstractThinker.performCompactionLoop`) delegates here rather than walking levels of
-its own. That check also warns the user once the input reaches 80% of the effective limit,
-compactable or not, and on an overflow logs at DEBUG what filled the window, the input by
+its own. That check also warns the user, at every turn whose input is at or past 80% of the
+effective limit, compactable or not, and on an overflow logs at DEBUG what filled the window, the input by
 part, every objective block, every message's length as the model reads it and every
 artifact, before the refusal propagates. A conversation that never resolved a model and has
 no prior spec has nothing to account under and is returned unchanged; the compaction a

@@ -19,7 +19,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * Covers the spec-pinned dimension seam in {@link AbstractEmbeddingsClient}: a spec that
  * declares {@code embeddingDimensions} is coerced to that width (native vectors are only
  * normalized, never expand/folded against the canonical dimension), while a spec without
- * it is coerced to the canonical {@link EmbeddingsClient#DIMENSIONS} width.
+ * it is coerced to the canonical {@link EmbeddingsClient#DIMENSIONS} width. Also the usage the
+ * call records: the input tokens the provider billed and zero output, and no ledger at all when
+ * the provider reports no count.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-08-10)

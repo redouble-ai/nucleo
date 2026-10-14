@@ -23,11 +23,8 @@ import java.util.*;
  */
 public record ImageDimensions(int width, int height) {
 
-    /** The dimensions of the block's image, or null when its bytes are not a header this reader knows. */
+    /** The dimensions of the block's image, or null when its payload is not base64 or its bytes are not a header this reader knows. */
     public static ImageDimensions of(ImageBlock image) {
-        if (image == null || image.base64() == null) {
-            return null;
-        }
         byte[] bytes;
         try {
             bytes = Base64.getDecoder().decode(image.base64());
@@ -40,9 +37,6 @@ public record ImageDimensions(int width, int height) {
 
     /** The dimensions encoded in the header of a PNG, JPEG, GIF or WebP payload, or null for anything else. */
     public static ImageDimensions of(byte[] bytes) {
-        if (bytes == null) {
-            return null;
-        }
         if (startsWith(bytes, 0x89, 'P', 'N', 'G') && bytes.length >= 24) {
             return new ImageDimensions(be32(bytes, 16), be32(bytes, 20));
         }

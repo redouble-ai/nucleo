@@ -22,10 +22,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * additive input counters into the total the model read; the estimator counts a thinking block,
  * redacted or not, on the newest assistant turn and on no earlier one; text counts at
  * {@code cl100k_base} times 1.10 and an image by Anthropic's rule, its pixels over 750 after
- * scaling to 1568 on the long side, capped at 1600, the cap alone when its size cannot be
- * read; what it counts is the
- * rendering the Anthropic client sends, formatter included; and a spec on the provider's key
- * reaches that estimator and counter.
+ * scaling to 1568 on the long side, capped at 1600, with 1600 or four tokens per KB, whichever
+ * is more, when its size cannot be read, and a PDF at 450 per KB; a tool call and a tool result
+ * count as their text form; what it counts is the rendering the Anthropic client sends,
+ * formatter included; and a spec on the provider's key reaches that estimator and counter.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-10-09)
@@ -161,7 +161,11 @@ class AnthropicTokenAccountingTest {
                 "cl100k_base at 1.10");
         String noHeader = Base64.getEncoder().encodeToString(new byte[2 * 1024]);
         assertEquals(1600, AnthropicContextEstimator.COUNTER.countImageTokens(new ImageBlock(noHeader, "image/png", null)),
-                "an image whose size cannot be read is estimated at Anthropic's ceiling");
+                "an image whose size cannot be read is estimated at Anthropic's ceiling as a floor");
+        assertEquals(2000, AnthropicContextEstimator.COUNTER.countImageTokens(new ImageBlock(Base64.getEncoder().encodeToString(new byte[500 * 1024]), "image/png", null)),
+                "or at four tokens per KB of its bytes when that is more, erring high");
+        assertEquals(4500, AnthropicContextEstimator.COUNTER.countFileTokens(new FileBlock(Base64.getEncoder().encodeToString(new byte[10 * 1024]), "application/pdf", "brief.pdf")),
+                "a PDF costs 450 tokens per KB");
         assertEquals(14, AnthropicContextEstimator.COUNTER.countImageTokens(new ImageBlock(png(100, 100), "image/png", null)), "pixels over 750, rounded up");
         assertEquals(1334, AnthropicContextEstimator.COUNTER.countImageTokens(new ImageBlock(png(1000, 1000), "image/png", null)));
         assertEquals(1600, AnthropicContextEstimator.COUNTER.countImageTokens(new ImageBlock(png(2000, 2000), "image/png", null)),
@@ -182,6 +186,37 @@ class AnthropicTokenAccountingTest {
         PreparedConversation estimated = conversation.render(formatter, ThinkingMode.thinkingActive(claude, conversation.resolveDepth()));
         PreparedConversation sent = conversation.prepareMessagesForLLM(formatter, ThinkingMode.thinkingActive(claude, conversation.resolveDepth()));
         assertEquals(sent, estimated, "the provider's estimator counts the payload the provider's client carries");
+    }
+
+    @Test
+    void aToolCallAndAToolResultCountAsTheirTextForm() {
+        ModelSpec claude = claude();
+        ConversationContext conversation = conversation(claude);
+        IncomingMessage<String> call = new IncomingMessage<>(StringResponseHandler.instance);
+        call.setContentBlocks(List.of(new TextBlock("looking"), new ToolUseBlock("t1", "search", "{\"q\":\"ports\"}")));
+        call.overwriteRawContent("looking");
+        conversation.getMessages().add(call);
+        OutgoingMessage<String> result = new OutgoingMessage<>(StringResponseHandler.instance);
+        result.setRole("user");
+        result.addToolResult("t1", "{\"hits\":3}", false);
+        conversation.getMessages().add(result);
+        AnthropicTokenCounter counter = AnthropicContextEstimator.COUNTER;
+        PreparedConversation rendered = conversation.render(new AnthropicContentFormatter(), ThinkingMode.thinkingActive(claude, conversation.declaredDepth()));
+        int textForms = 0;
+        int toolBlocks = 0;
+        for (ProcessedMessageData turn : rendered.turns()) {
+            for (ContentBlock block : turn.contentBlocks()) {
+                if (block instanceof ToolUseBlock || block instanceof ToolResultBlock) {
+                    toolBlocks++;
+                }
+                textForms += counter.countTokens(ModelText.render(block));
+            }
+        }
+        assertEquals(2, toolBlocks, "the rendered turns carry the call and its result as native blocks");
+        assertEquals(textForms, AnthropicContextEstimator.INSTANCE.estimate(conversation, claude).inputByPart().get(ContextPart.MESSAGES),
+                "the call, name and input, and the result, id and payload, count as the text a model reads for them");
+        assertTrue(counter.countTokens(ModelText.render(new ToolUseBlock("t1", "search", "{\"q\":\"ports\"}"))) > counter.countTokens("search"),
+                "the text form carries the JSON, so a call costs more than its name");
     }
 
     @Test

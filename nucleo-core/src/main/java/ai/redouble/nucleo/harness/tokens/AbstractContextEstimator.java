@@ -42,6 +42,8 @@ public abstract class AbstractContextEstimator implements ContextEstimator {
     private final TokenCounter counter;
 
     /**
+     * Both are required; a null for either is refused.
+     *
      * @param formatter the formatter the provider's client renders with; the rendering is counted
      * @param counter   the density of the provider's tokenizer
      */

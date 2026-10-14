@@ -43,7 +43,6 @@ public class CharBasedTokenCounterTest {
     void an_image_costs_the_floor_or_four_per_kb_and_the_default_floor_is_1000() {
         CharBasedTokenCounter counter = new CharBasedTokenCounter(CharBasedTokenCounter.DEFAULT_IMAGE_BASE_TOKENS, CharBasedTokenCounter.DEFAULT_PDF_TOKENS_PER_KB);
         assertEquals(1000, CharBasedTokenCounter.DEFAULT_IMAGE_BASE_TOKENS);
-        assertEquals(0, counter.countImageTokens(null));
         assertEquals(1000, counter.countImageTokens(new ImageBlock(Base64.getEncoder().encodeToString(new byte[3 * 1024]), "image/png", null)), "a small image costs the floor");
         assertEquals(1200, counter.countImageTokens(new ImageBlock(Base64.getEncoder().encodeToString(new byte[300 * 1024]), "image/png", null)), "a large one four tokens per KB");
         assertEquals(1000, counter.countImageTokens(new ImageBlock("%%not base64%%", "image/png", null)), "bytes that do not decode cost the floor");

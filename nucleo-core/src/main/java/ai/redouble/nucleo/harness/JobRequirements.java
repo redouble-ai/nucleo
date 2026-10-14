@@ -72,8 +72,8 @@ public class JobRequirements {
 
     /**
      * Declares an LLM need whose sizes come from a wired conversation: mint the binding
-     * here, wire it with {@code conversation.setModelBinding(binding)}, and the harness
-     * counts input under the resolved spec's tokenizer at resolution time.
+     * here, wire it with {@code conversation.setModelBinding(binding)}, and at resolution
+     * time the resolved spec's own estimator counts the rendered conversation as the input.
      *
      * <p>One binding per invocation. The dispatcher captures requirements once per
      * attempt, and that capture is the last mint before resolution - so a job stashing

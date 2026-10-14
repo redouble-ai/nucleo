@@ -26,7 +26,9 @@ import java.util.function.*;
  * and enforced before each of its jobs acquires anything.
  *
  * <p>A call on an entry with no price is counted, with its tokens, and reported unpriced;
- * nothing is priced at a guess. A call on a model the catalog does not know is counted the
+ * nothing is priced at a guess. A response with no usage ledger, or a facet its provider did
+ * not report, counts zero for what is missing and is priced on what was reported, a priced
+ * call still. A call on a model the catalog does not know is counted the
  * same way under the model id the response named, with a warning; a call that named no
  * model at all is counted under {@code (unknown)}. Sums are per currency and never converted, so a workflow
  * runs under one cap per currency it pays in: a deployment paying Bedrock in dollars and
@@ -40,8 +42,8 @@ import java.util.function.*;
  * admitted its siblings' calls are running and have not been priced yet; the gate holds
  * each admitted reservation as committed until that job finishes, and judges a newcomer
  * against spent plus committed. Even so, staying under a cap is best effort, and the cap
- * is a ceiling on reservations rather than on the invoice: a reservation is the input as
- * the runtime counts it plus the output as declared, and a provider's bill can differ from
+ * is a ceiling on reservations rather than on the invoice: a reservation is the model's own
+ * estimate of the input plus the output as declared, and a provider's bill can differ from
  * both by the tokens it counts differently and the output it serves past the declaration.
  * The overshoot is bounded by one such difference per call, never by the fan-out.
  *

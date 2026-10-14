@@ -79,7 +79,7 @@ class CompactionJob extends AbstractModelDependentTool<Void, CompactionResult> {
         return req;
     }
 
-    /** A compaction summary distils an arbitrarily large segment into structured prose: the typical structured answer. */
+    /** A compaction summary distils an arbitrarily large exchange or tool result into structured prose: the typical structured answer. */
     private ConversationContext buildConversation() {
         ConversationContext built = new ConversationContext();
         built.setGrade(getGrade());

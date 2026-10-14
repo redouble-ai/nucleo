@@ -34,7 +34,9 @@ The unit of compaction is the exchange: one answer of the model together with th
 your side sent in reply to it, up to the model's next answer. When the model called a tool,
 the call is in its answer and the result in the reply, and a provider refuses a request that
 carries one without the other, so an exchange is compacted whole or kept whole. The messages
-before the model's first answer form the opening, which is compacted message by message.
+before the model's first answer form the opening, which has no call to pair and is compacted
+message by message: each message you marked stays where it is, the rest are summarized
+together.
 
 Compaction goes up a ladder of four levels, `CompactionLevel`, and stops at the first
 level after which the conversation is back under the trigger:

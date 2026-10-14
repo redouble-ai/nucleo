@@ -34,8 +34,10 @@ public enum CompactionLevel {
      */
     MODERATE,
     /**
-     * Aggressive compaction - keep only essential information.
-     * Every compactable message collapses into one comprehensive summary.
+     * Aggressive compaction - keep only essential information. Every compactable message
+     * before the newest exchange collapses into one comprehensive summary, behind the
+     * non-compactable messages kept verbatim; the newest exchange is summarized on its own
+     * when it may be compacted and carries tool results, and stays as it is otherwise.
      * May lose nuance but preserves core meaning.
      */
     AGGRESSIVE,

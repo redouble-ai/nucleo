@@ -54,7 +54,9 @@ public abstract class AbstractTokenLedger implements TokenLedger {
      * will book, resolved from the seat's declarations the first time {@link #outputTokens}
      * is read. A reader of the input alone, compaction, never needs the declarations; a reader
      * of the reserve meets the seat's refusal when it declared none, as the call itself would.
-     * Cache facets are not known before the call and stay null.
+     * Cache facets are not known before the call and stay null. The parts are copied, so a later
+     * change to the caller's map does not reach the ledger, and handed out read-only; an estimate
+     * without its parts or without a way to resolve its reserve is refused.
      */
     protected AbstractTokenLedger(ModelSpec spec, Map<ContextPart, Integer> inputByPart, IntSupplier outputReserve) {
         if (spec == null) {

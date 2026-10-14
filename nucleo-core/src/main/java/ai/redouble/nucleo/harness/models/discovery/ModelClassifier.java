@@ -135,10 +135,6 @@ public final class ModelClassifier {
             }
             throw cause instanceof Exception ex ? ex : e;
         }
-        if (!call.response().isSuccessful()) {
-            throw new UncorrectableRuntimeLLMException("The classification call on " + spec.getId()
-                    + " failed: " + call.response().getReasonForFailure());
-        }
         return answer;
     }
 

@@ -20,8 +20,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * OpenAI's counting as the provider module states it: the usage ledger takes the prompt count
  * as the total and the cached count as its subset, with cache writes at zero; the estimator
  * counts a replayed reasoning item and nothing for a thinking block; OpenAI's own endpoints
- * count on {@code o200k_base} while a compatible endpoint counts on the neutral encoding; and
- * what is counted is the rendering the OpenAI client sends.
+ * count on {@code o200k_base} while a compatible endpoint, on either dialect, counts on the
+ * neutral encoding; an image costs OpenAI's tile price; a tool call and a tool result count as
+ * their text form; and what is counted is the rendering the OpenAI client sends.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-10-09)
@@ -96,8 +97,12 @@ class OpenAITokenAccountingTest {
         assertSame(OpenAIContextEstimator.OPENAI, new OpenAIChatCompletionsProvider().contextEstimator(gpt("openai-chat-completions")));
         assertSame(OpenAIContextEstimator.OPENAI, new AzureFoundryOpenAIProvider().contextEstimator(gpt("azure-foundry-openai")));
         assertSame(OpenAIContextEstimator.COMPATIBLE, new OpenAICompatibleProvider().contextEstimator(gpt("openai-compatible")));
+        assertSame(OpenAIContextEstimator.COMPATIBLE, new OpenAICompatibleResponsesProvider().contextEstimator(gpt("openai-compatible-responses")),
+                "a compatible endpoint on the Responses dialect serves the same unknown families");
         assertSame(OpenAIContextEstimator.O200K_COUNTER, new OpenAIProvider().tokenCounter(gpt("openai")));
         assertSame(TiktokenCounter.DEFAULT, new OpenAICompatibleProvider().tokenCounter(gpt("openai-compatible")));
+        assertSame(TiktokenCounter.DEFAULT, new OpenAICompatibleResponsesProvider().tokenCounter(gpt("openai-compatible-responses")));
+        assertSame(TiktokenCounter.DEFAULT, OpenAIContextEstimator.COMPATIBLE.counter(), "the compatible estimator counts with the neutral counter it hands out");
     }
 
     private static String png(int width, int height) {
@@ -146,7 +151,39 @@ class OpenAITokenAccountingTest {
         conversation.putMainObjective("task", "answer briefly");
         OpenAIContentFormatter formatter = new OpenAIContentFormatter();
         boolean thinkingActive = ThinkingMode.thinkingActive(gpt, conversation.resolveDepth());
+        assertInstanceOf(OpenAIContentFormatter.class, new OpenAISDKClient(WireApi.RESPONSES).getFormatter(), "the OpenAI client renders with the OpenAI formatter");
         assertEquals(conversation.prepareMessagesForLLM(formatter, thinkingActive), conversation.render(formatter, thinkingActive),
                 "the provider's estimator counts the payload the provider's client carries");
+    }
+
+    @Test
+    void aToolCallAndAToolResultCountAsTheirTextForm() {
+        ModelSpec gpt = gpt("openai");
+        ConversationContext conversation = conversation(gpt);
+        IncomingMessage<String> call = new IncomingMessage<>(StringResponseHandler.instance);
+        call.setContentBlocks(List.of(new TextBlock("looking"), new ToolUseBlock("call_1", "search", "{\"q\":\"ports\"}")));
+        call.overwriteRawContent("looking");
+        conversation.getMessages().add(call);
+        OutgoingMessage<String> result = new OutgoingMessage<>(StringResponseHandler.instance);
+        result.setRole("user");
+        result.addToolResult("call_1", "{\"hits\":3}", false);
+        conversation.getMessages().add(result);
+        OpenAITokenCounter counter = OpenAIContextEstimator.O200K_COUNTER;
+        PreparedConversation rendered = conversation.render(new OpenAIContentFormatter(), ThinkingMode.thinkingActive(gpt, conversation.declaredDepth()));
+        int textForms = 0;
+        int toolBlocks = 0;
+        for (ProcessedMessageData turn : rendered.turns()) {
+            for (ContentBlock block : turn.contentBlocks()) {
+                if (block instanceof ToolUseBlock || block instanceof ToolResultBlock) {
+                    toolBlocks++;
+                }
+                textForms += counter.countTokens(ModelText.render(block));
+            }
+        }
+        assertEquals(2, toolBlocks, "the rendered turns carry the call and its result as native items");
+        assertEquals(textForms, OpenAIContextEstimator.OPENAI.estimate(conversation, gpt).inputByPart().get(ContextPart.MESSAGES),
+                "the call, name and arguments, and the result, id and output, count as the text a model reads for them");
+        assertTrue(counter.countTokens(ModelText.render(new ToolUseBlock("call_1", "search", "{\"q\":\"ports\"}"))) > counter.countTokens("search"),
+                "the text form carries the JSON, so a call costs more than its name");
     }
 }

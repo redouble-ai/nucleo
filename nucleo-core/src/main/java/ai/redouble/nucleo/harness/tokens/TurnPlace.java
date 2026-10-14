@@ -15,7 +15,7 @@ package ai.redouble.nucleo.harness.tokens;
  * @since 0.1 (2026-10-09)
  */
 public enum TurnPlace {
-    /** A user turn: the question, tool results, announcements, the registry section. */
+    /** A user turn: the question, tool results, tool announcements. The registry section is its own part and never a walked turn. */
     USER,
     /** An assistant turn other than the newest. */
     EARLIER_ASSISTANT,

@@ -10,9 +10,8 @@ looks them up and keeps them, and the invariants the encoders hold. The guide is
 
 A `ContentBlock` (text, image, tool-use, thinking, ...) has to become a provider-native object
 before it goes on the wire: Anthropic `ContentBlockParam`, OpenAI Jackson `ObjectNode`, Bedrock
-`ContentBlock`. That mapping used to live as a per-client `switch`/`instanceof` chain, which drifted
-between clients and silently dropped block types (a non-exhaustive chain handled 2 of 11). Here each
-block type owns one encoder class; a client only declares a `block.class -> Encoder.class` map and
+`ContentBlock`. Each block type owns one encoder class, so no client carries a type switch of its
+own that could drift from the others or drop a block type; a client only declares a `block.class -> Encoder.class` map and
 overwrites the few entries it renders natively. Adding a client or a block type is a new class, never
 an edit to a shared dispatch.
 
@@ -22,7 +21,7 @@ an edit to a shared dispatch.
 |-------|------|
 | `BlockEncoder<B>` | Abstract base: `encode(ContentBlock) -> B` (`null` = emit nothing), plus the injected `TextWrapper<B>` field |
 | `TextWrapper<B>` | Functional interface: wraps a string into the provider's native text block |
-| `TextBlockEncoder` / `JsonBlockEncoder` / `ToolUseBlockEncoder` / `ToolResultBlockEncoder` / `SkillBlockEncoder` / `ImageBlockEncoder` / `FileBlockEncoder` | Base text encoders: render the block's content string through the wrapper. Image/File default to a text placeholder for providers without that channel |
+| `TextBlockEncoder` / `JsonBlockEncoder` / `ToolUseBlockEncoder` / `ToolResultBlockEncoder` / `SkillBlockEncoder` / `ImageBlockEncoder` / `FileBlockEncoder` | Base text encoders: render the block's content string through the wrapper. `ToolUseBlockEncoder.renderText` and `ToolResultBlockEncoder.renderText` are the one text form of a tool call and a tool result, what the encoder sends and what an estimate counts for the block (`ModelText`). Image/File default to a text placeholder for providers without that channel |
 | `ThinkingBlockEncoder` / `RedactedThinkingBlockEncoder` | Base drop encoders: emit nothing (no thinking channel on the text path) |
 | `ToolDefinitionBlockEncoder` | Renders the tool's one text form (`renderText`, also the string every token count measures); a client with a native tools API overrides to null and sweeps the blocks into its tools parameter instead |
 | `PojoBlockEncoder` | Invariant guard: a `PojoBlock` reaching a client is a bug, thrown loudly |

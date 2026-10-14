@@ -66,22 +66,36 @@ public class ContentBlocks {
     }
     /**
      * Represents an image to be sent to the LLM.
-     * The image data is stored as base64-encoded string.
+     * The image data is stored as base64-encoded string. A block without its payload is
+     * malformed and refused at construction, so nothing downstream meets one.
      *
-     * @param base64 The base64-encoded image data
+     * @param base64 The base64-encoded image data, required
      * @param mimeType The MIME type of the image (e.g., "image/png", "image/jpeg")
      * @param description Optional description of the image for context
      */
-    public record ImageBlock(String base64, String mimeType, String description) implements ContentBlock {}
+    public record ImageBlock(String base64, String mimeType, String description) implements ContentBlock {
+        public ImageBlock {
+            if (base64 == null) {
+                throw new IllegalArgumentException("ImageBlock requires its base64 payload");
+            }
+        }
+    }
     /**
      * Represents a file (like PDF) to be sent to the LLM.
-     * The file data is stored as base64-encoded string.
+     * The file data is stored as base64-encoded string. A block without its payload is
+     * malformed and refused at construction, so nothing downstream meets one.
      *
-     * @param base64 The base64-encoded file data
+     * @param base64 The base64-encoded file data, required
      * @param mimeType The MIME type of the file (e.g., "application/pdf")
      * @param filename The original filename
      */
-    public record FileBlock(String base64, String mimeType, String filename) implements ContentBlock {}
+    public record FileBlock(String base64, String mimeType, String filename) implements ContentBlock {
+        public FileBlock {
+            if (base64 == null) {
+                throw new IllegalArgumentException("FileBlock requires its base64 payload");
+            }
+        }
+    }
 
     /**
      * Represents a tool invocation from the LLM.

@@ -154,7 +154,7 @@ public class ToolRegistry {
     /**
      * Builds the tool instance for the given name via the registered provider's factory.
      *
-     * @throws CorrectableRuntimeLLMException when no tool is registered with that name —
+     * @throws CorrectableRuntimeLLMException when no tool is registered with that name:
      *     LLM-correctable, the model can pick a different name and retry.
      * @throws LLMReadableCheckedException when the provider's factory itself fails (for
      *     example an MCP-bound provider cannot reach the underlying server).

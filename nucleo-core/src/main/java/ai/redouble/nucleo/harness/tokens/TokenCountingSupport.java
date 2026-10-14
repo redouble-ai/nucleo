@@ -26,9 +26,6 @@ final class TokenCountingSupport {
      * payload that does not decode counts as ten KB of PDF.
      */
     static int countFile(FileBlock file, int imageBaseTokens, int pdfTokensPerKB) {
-        if (file == null) {
-            return 0;
-        }
         try {
             byte[] decoded = Base64.getDecoder().decode(file.base64());
             int sizeKB = decoded.length / 1024;

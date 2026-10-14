@@ -18,7 +18,7 @@ import java.time.*;
 
 /**
  * One summarization exchange: a text rendered into the summarization prompt at a
- * {@link SummarySize}, sent to the model the seat resolves and answered as plain text.
+ * {@link SummarySize}, sent to the model the seat resolves and answered as plain text, trimmed.
  * {@link SummarizationTool} runs one for text that fits the model, and when it does not, one
  * per chunk and one over the chunk summaries. Whether the text fits is judged against the
  * resolved model, because only its tokenizer and window say so: text over the model's share,

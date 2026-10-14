@@ -118,8 +118,8 @@ public class AbstractLLMClientTruncationTest {
         LLMResponse<String> response = client.singleResponse(new LLMRequest<>(conversation));
 
         assertTrue(response.getEndTime() != null,
-                "the template stamps the end time for every client - a per-client convention left"
-                        + " every single-path success with a null end time and a zero latency");
+                "the template stamps the end time for every client, so a single-path success never"
+                        + " carries a null end time or a zero latency");
         assertTrue(!response.getEndTime().isBefore(response.getStartTime()),
                 "and the stamp follows the start, so latency is non-negative");
     }

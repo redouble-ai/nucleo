@@ -45,10 +45,14 @@ class BlockEncoderTest {
         CapturingWrapper w = new CapturingWrapper();
         assertEquals("hello", encode(new TextBlockEncoder<>(), w, new TextBlock("hello")));
         assertEquals("{\"a\":1}", encode(new JsonBlockEncoder<>(), w, new JsonBlock("{\"a\":1}")));
-        assertEquals("[Tool Use search] {\"q\":1}",
-                encode(new ToolUseBlockEncoder<>(), w, new ToolUseBlock("id1", "search", "{\"q\":1}")));
-        assertEquals("[Tool Result id1] {\"ok\":true}",
-                encode(new ToolResultBlockEncoder<>(), w, new ToolResultBlock("id1", "{\"ok\":true}", false)));
+        ToolUseBlock toolUse = new ToolUseBlock("id1", "search", "{\"q\":1}");
+        assertEquals("[Tool Use search] {\"q\":1}", encode(new ToolUseBlockEncoder<>(), w, toolUse));
+        assertEquals(ToolUseBlockEncoder.renderText(toolUse), w.captured,
+                "the encoded tool call is renderText verbatim: what the wire carries is what an estimate counts");
+        ToolResultBlock toolResult = new ToolResultBlock("id1", "{\"ok\":true}", false);
+        assertEquals("[Tool Result id1] {\"ok\":true}", encode(new ToolResultBlockEncoder<>(), w, toolResult));
+        assertEquals(ToolResultBlockEncoder.renderText(toolResult), w.captured,
+                "the encoded tool result is renderText verbatim: what the wire carries is what an estimate counts");
         assertEquals("[image image/png]", encode(new ImageBlockEncoder<>(), w, new ImageBlock("x", "image/png", null)));
         assertEquals("[file report.pdf]", encode(new FileBlockEncoder<>(), w, new FileBlock("x", "application/pdf", "report.pdf")));
     }

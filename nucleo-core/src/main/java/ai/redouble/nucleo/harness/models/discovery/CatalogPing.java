@@ -30,12 +30,18 @@ import java.util.concurrent.*;
  * <p>The call: a one-word prompt at {@code Depth.IMMEDIATE} with 2048 tokens of output
  * headroom, because reasoning-effort models spend output budget on reasoning before any text
  * and a tiny ceiling truncates every one of them into a false failure; the answer stops at the
- * first real token, so the headroom is never spent. An embeddings entry embeds one word. Two
- * minutes is the cap: a one-token call that cannot answer in two minutes IS the answer.
+ * first real token, so the headroom is never spent. An embeddings entry embeds one word, a
+ * decision entry answers one question. Two minutes is the cap: a one-token call that cannot
+ * answer in two minutes IS the answer.
  *
  * <p>A failed call is a RESULT. Upstream signals and the LLM-readable family become
  * {@code FAILED} outcomes with a classification, because the question is "does this succeed
- * right now", and a transparent retry would answer a different question later. The rate-limit
+ * right now", and a transparent retry would answer a different question later. A call past the
+ * cap is {@code AVAILABILITY}, "no answer within" the cap; any other failure is judged by the
+ * first exception in its cause chain that classifies and reported as that exception, on every
+ * kind of entry, so a signal the dispatcher or a client wrapped is read as itself. A ping
+ * interrupted while it waits is {@code FAILED} and {@code OTHER}, reported as the interruption,
+ * and the thread's interrupt flag is raised again for whoever owns the thread. The rate-limit
  * headers a provider sends on the response ride the outcome verbatim, which is how the
  * discovery learns an account's real limits where the provider has no quota API.
  *
@@ -123,9 +129,10 @@ public final class CatalogPing {
             }
             catch (ExecutionException e) {
                 Throwable cause = e.getCause() != null ? e.getCause() : e;
+                Throwable significant = significant(cause);
                 outcome.setStatus(ProbeOutcome.Status.FAILED);
-                outcome.setClassification(classify(cause));
-                outcome.setErrorClass(cause.getClass().getSimpleName());
+                outcome.setClassification(classify(significant));
+                outcome.setErrorClass(significant.getClass().getSimpleName());
                 outcome.setErrorMessage(describe(cause));
             }
             catch (InterruptedException e) {

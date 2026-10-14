@@ -10,6 +10,7 @@ import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.admission.*;
 import ai.redouble.nucleo.harness.conversation.*;
 import ai.redouble.nucleo.harness.decision.*;
+import ai.redouble.nucleo.harness.errors.*;
 import ai.redouble.nucleo.harness.errors.retry.*;
 import ai.redouble.nucleo.harness.llm.*;
 import ai.redouble.nucleo.harness.llm.encode.*;
@@ -28,7 +29,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * signal the provider raised, read through the dispatcher's wrapping, with no retry spent on
  * it. The client is the entry's provider's own, built for the call and closed after it. An
  * embeddings or a decision entry, whose client is not a conversation, is called once straight
- * from its client under the same cap.
+ * from its client under the same cap, and its failure is classified and reported by the first
+ * signal in its cause chain exactly as a chat entry's is. A ping interrupted while it waits is
+ * a FAILED outcome classified OTHER, and the interrupt is raised again.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-10-13)
@@ -40,15 +43,21 @@ class CatalogPingProbeTest {
         JobDispatcher.getInstance().start();
     }
 
-    /** An embeddings client that embeds, or sleeps past any cap. */
+    /** An embeddings client that embeds, raises the given failure, or sleeps past any cap. */
     static final class StubEmbeddings implements EmbeddingsClient {
         private ModelSpec model;
         private final boolean sleeps;
+        private final RuntimeException failure;
         int calls;
 
         StubEmbeddings(ModelSpec model, boolean sleeps) {
+            this(model, sleeps, null);
+        }
+
+        StubEmbeddings(ModelSpec model, boolean sleeps, RuntimeException failure) {
             this.model = model;
             this.sleeps = sleeps;
+            this.failure = failure;
         }
 
         @Override
@@ -56,6 +65,9 @@ class CatalogPingProbeTest {
             calls++;
             if (sleeps) {
                 Thread.sleep(Duration.ofSeconds(30));
+            }
+            if (failure != null) {
+                throw failure;
             }
             EmbeddingsResponse response = new EmbeddingsResponse(model, purpose);
             response.setVector(new float[] {0.1f, 0.2f});
@@ -116,6 +128,21 @@ class CatalogPingProbeTest {
         assertEquals(ProbeOutcome.Status.FAILED, late.getStatus());
         assertEquals(ProbeOutcome.Classification.AVAILABILITY, late.getClassification(), "the cap applies to an embeddings entry too");
         assertEquals("no answer within 1s", late.getErrorMessage());
+    }
+
+    @Test
+    void anEmbeddingsEntrysFailureIsReportedAsTheSignalInsideTheClientsWrapper() {
+        StandardModelSpec spec = entry("ping-embeddings-refused");
+        spec.setProviderKey("stub-embeddings");
+        UnauthorizedException refused = new UnauthorizedException("stub", "invalid api key");
+        StubEmbeddings failing = new StubEmbeddings(spec, false,
+                new UncorrectableRuntimeLLMException("the embeddings endpoint answered HTTP 401", refused));
+        ProbeOutcome outcome = CatalogPing.ping(new StubProvider(failing), spec);
+        assertEquals(ProbeOutcome.Status.FAILED, outcome.getStatus());
+        assertEquals(ProbeOutcome.Classification.AUTH, outcome.getClassification(), "a rejected credential is a config incident, read through the client's wrapper");
+        assertEquals("UnauthorizedException", outcome.getErrorClass(), "reported as the signal, never as the wrapper");
+        assertTrue(outcome.getErrorMessage().startsWith("the embeddings endpoint answered HTTP 401"), "the whole account, outermost first: " + outcome.getErrorMessage());
+        assertEquals(1, failing.calls, "one call, no retry");
     }
 
     @Test
@@ -292,6 +319,24 @@ class CatalogPingProbeTest {
         assertEquals(ProbeOutcome.Classification.AVAILABILITY, outcome.getClassification(), "a call that cannot answer within the cap IS the answer");
         assertEquals("TimeoutException", outcome.getErrorClass());
         assertEquals("no answer within 1s", outcome.getErrorMessage());
+    }
+
+    @Test
+    void aPingInterruptedWhileItWaitsIsOther_andTheInterruptIsRaisedAgain() {
+        StandardModelSpec spec = entry("ping-interrupted");
+        ProviderClient client = new ProviderClient(spec, null, true);
+        Thread.currentThread().interrupt();
+        ProbeOutcome outcome;
+        try {
+            outcome = CatalogPing.ping(new StubProvider(client), spec, Duration.ofSeconds(1));
+        }
+        finally {
+            assertTrue(Thread.interrupted(), "the interrupt is raised again for whoever owns the thread");
+        }
+        assertEquals(ProbeOutcome.Status.FAILED, outcome.getStatus());
+        assertEquals(ProbeOutcome.Classification.OTHER, outcome.getClassification(), "an interruption says nothing about the entry");
+        assertEquals("InterruptedException", outcome.getErrorClass());
+        assertEquals("interrupted", outcome.getErrorMessage());
     }
 
     @Test

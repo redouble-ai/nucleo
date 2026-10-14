@@ -54,7 +54,9 @@ the currency.
 
 The ledger observes terminal events only. For every response a finished job carries, failed
 jobs included, it records one `Call` under the job's workflow: the model as the catalog names
-it, the served model, the four token counts, the latency and the cost. A response on an entry
+it, the served model, the four token counts, the latency and the cost. A response with no usage
+ledger, or a facet its provider did not report, counts zero for what is missing and is priced on
+what was reported; the call stays a priced call, never an unpriced one. A response on an entry
 the catalog does not price is counted unpriced; one on a model the catalog does not know is
 counted under the id the response named, with a warning; one that named no model is counted
 under `(unknown)`. A workflow's `Workflow` view sums per currency (`getTotals`, `getTotal`),

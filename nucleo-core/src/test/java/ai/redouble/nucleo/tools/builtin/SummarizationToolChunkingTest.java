@@ -18,6 +18,8 @@ import ai.redouble.nucleo.tools.*;
 import org.junit.jupiter.api.*;
 
 import java.util.*;
+import java.util.concurrent.*;
+import java.util.function.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -27,8 +29,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * text that does not is chunked by that model's tokenizer to the share the call accepts, on
  * paragraph, sentence, word and finally character boundaries so any text yields pieces that
  * fit, each chunk summarized at SHORT on that same model, and the combined summaries
- * summarized again at the requested size, which the output's chunking levels count. Driven
- * through the dispatcher, with the calls answering from a canned client.
+ * summarized again at the requested size, which the output's chunking levels count. A call
+ * that fails over text within the share fails the summarizer with that failure, unchunked.
+ * Driven through the dispatcher, with the calls answering from a canned client.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-10-13)
@@ -42,7 +45,7 @@ class SummarizationToolChunkingTest {
     }
 
     /** Answers with the size phrase it was asked for, so the test can tell a chunk summary from the final one. */
-    static final class EchoingClient extends AbstractLLMClient<String> {
+    static class EchoingClient extends AbstractLLMClient<String> {
         EchoingClient(ModelSpec model) {
             setModel(model);
         }
@@ -85,9 +88,24 @@ class SummarizationToolChunkingTest {
         protected RateLimitInfo extractRateLimitInfo(Exception e) {return null;}
     }
 
+    /** Fails every exchange the way a provider that is down would, whatever the text. */
+    static final class FailingClient extends EchoingClient {
+        static final String FAILURE = "the provider is down for this test";
+
+        FailingClient(ModelSpec model) {
+            super(model);
+        }
+
+        @Override
+        protected <T> LLMResponse<T> doSingleResponse(LLMRequest<T> request, PreparedConversation prepared) {
+            throw new IllegalStateException(FAILURE);
+        }
+    }
+
     /** The summarizer with its calls answering from the canned client, every call kept for the assertions. */
     static final class TestableSummarizer extends SummarizationTool {
         final List<SummaryCall> calls = Collections.synchronizedList(new ArrayList<>());
+        Function<ModelSpec, LLMClient> clients = EchoingClient::new;
 
         TestableSummarizer() {
             super(ROOT);
@@ -98,7 +116,7 @@ class SummarizationToolChunkingTest {
             SummaryCall call = new SummaryCall(parent, getGrade(), model, text, size, textContext) {
                 @Override
                 protected LLMClient client(JobResources resources) {
-                    return new EchoingClient(model());
+                    return clients.apply(model());
                 }
             };
             calls.add(call);
@@ -172,6 +190,23 @@ class SummarizationToolChunkingTest {
         assertEquals(1, output.getChunkingLevels(), "one level: the text fit in one call");
         assertEquals(1, tool.calls.size(), "one call for text that fits");
         assertSame(model, tool.calls.getFirst().pinnedModel(), "the tool's pin reaches its call");
+    }
+
+    @Test
+    void aFailedCallOverTextWithinTheShareIsRethrownAsItCame_neverChunked() {
+        StandardModelSpec model = modelWithWindow(100_000);
+        TestableSummarizer tool = new TestableSummarizer();
+        tool.clients = FailingClient::new;
+        tool.pinModel(model);
+        tool.setInput(input("A short text about nothing in particular.", SummarySize.BRIEF));
+        ExecutionException failure = assertThrows(ExecutionException.class, () -> JobDispatcher.getInstance().submit(tool).get(),
+                "the summarizer fails as its call did");
+        List<String> messages = new ArrayList<>();
+        for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+            messages.add(cause.getMessage());
+        }
+        assertTrue(messages.contains(FailingClient.FAILURE), "the call's own failure is what surfaces: " + messages);
+        assertEquals(1, tool.calls.size(), "text within the share is never chunked over a failure that is not the text's");
     }
 
     @Test

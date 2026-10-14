@@ -33,8 +33,9 @@ priced would otherwise pass any cap. And the cap refuses new work only: an orche
 sees the refusal stops submitting, and whatever is mid-flight runs to its end, so nothing is
 torn down half-done.
 
-Staying under the cap is best effort in one bounded sense: a reservation is the runtime's
-token count and the declared output, and the provider's invoice can differ from both per call.
+Staying under the cap is best effort in one bounded sense: a reservation is the model's own
+estimate of the input and the declared output, and the provider's invoice can differ from both
+per call.
 [Why admission has this shape](../admission/ADMISSION.md), in "The money wall refuses; it
 never stops", follows this through.
 

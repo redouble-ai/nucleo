@@ -28,7 +28,8 @@ what is worth caching, or how a conversation is kept beyond one run.
   the answer ([The catalog, grades and the picker](../models/PACKAGE.md)).
 
 A message is a list of content blocks, one per part: `TextBlock` for text, `PojoBlock` for
-a Java object, `ImageBlock` and `FileBlock` for attachments, `ToolUseBlock` for a call the
+a Java object, `ImageBlock` and `FileBlock` for attachments (each refuses to exist without
+its base64 payload), `ToolUseBlock` for a call the
 model made and `ToolResultBlock` for what the tool returned, `ThinkingBlock` for the
 model's own reasoning. They are declared in `ContentBlocks`, and each provider's client
 turns every kind into that provider's format.

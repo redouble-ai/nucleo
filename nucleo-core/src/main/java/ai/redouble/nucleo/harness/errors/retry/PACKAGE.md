@@ -60,8 +60,9 @@ Nucleo appends that message to the conversation as a correction and runs the cal
 the model answers with its mistake in front of it; the signal that asks the dispatcher for
 the re-run is `ResponseCorrectionRetryException`. A job gets two corrections
 (`ResponseCorrection.MAX_CORRECTIONS`). After them, a reply that still does not parse fails
-with `JsonParseException`, and one that still leaves required fields empty is returned as it
-is, with a warning in the log.
+with `JsonParseException`, and one that still leaves required fields empty fails with
+`ResponseValidationException`: required is required, and no caller receives an answer with
+a hole in it.
 
 A reply the provider cut off at its output limit is run again once with a larger output
 budget, asked for by `OutputTruncationRetryException`. A reply cut off again fails.

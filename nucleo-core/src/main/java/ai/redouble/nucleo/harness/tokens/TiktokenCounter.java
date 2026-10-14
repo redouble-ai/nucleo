@@ -76,9 +76,6 @@ public class TiktokenCounter implements TokenCounter {
 
     @Override
     public int countImageTokens(ImageBlock image) {
-        if (image == null) {
-            return 0;
-        }
         try {
             byte[] decoded = Base64.getDecoder().decode(image.base64());
             int sizeKB = decoded.length / 1024;

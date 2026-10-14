@@ -195,9 +195,10 @@ public class AbstractToolCorrectionTest {
     @Test
     void aToolWithAConversationOfItsOwnIsCorrectedTheSameWay() throws Exception {
         PictureTool tool = new PictureTool(new CannedClient("{\"verdict\": {\"page\": \"yes\"}}"));
-        tool.getRequirements();
-        tool.getRequirements();
-        assertEquals(1, tool.built, "the conversation is built once; every attempt wires a fresh binding onto it");
+        JobRequirements first = tool.getRequirements();
+        JobRequirements second = tool.getRequirements();
+        assertEquals(1, tool.built, "the conversation is built once");
+        assertNotSame(first.getModelBindings().getFirst(), second.getModelBindings().getFirst(), "and every attempt wires a fresh binding onto it");
         assertThrows(ResponseCorrectionRetryException.class, () -> tool.execute(null, null),
                 "an object where a string was asked for is a correction turn, never a system error");
         PictureTool answered = new PictureTool(new CannedClient("{\"verdict\": \"a cat\"}"));

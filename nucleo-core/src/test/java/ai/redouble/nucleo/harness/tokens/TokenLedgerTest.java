@@ -158,7 +158,10 @@ class TokenLedgerTest {
 
     @Test
     void aLedgerNamesItsModel() {
-        assertThrows(IllegalArgumentException.class, () -> new DefaultTokenLedger(null, 1, null, null, 0));
+        assertThrows(IllegalArgumentException.class, () -> new DefaultTokenLedger(null, 1, null, null, 0), "a reported usage without its spec");
+        EnumMap<ContextPart, Integer> parts = new EnumMap<>(ContextPart.class);
+        parts.put(ContextPart.MESSAGES, 10);
+        assertThrows(IllegalArgumentException.class, () -> new DefaultTokenLedger(null, parts, () -> 1), "an estimate without its spec");
         Cost cost = new DefaultTokenLedger(priced(), 1_000_000, 0, 0, 0).cost();
         assertEquals("USD", cost.currency());
     }

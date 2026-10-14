@@ -47,7 +47,9 @@ import java.util.*;
  *       {@code limiter.reject_reason} when the event carries one</li>
  * </ul>
  *
- * <p>A null attribute value is left off the span; an event with no snapshot sets nothing.
+ * <p>A null attribute value is left off the span; an event with no snapshot sets nothing. A
+ * response without a usage ledger, or with a facet its provider did not report, adds nothing to
+ * the token totals and still counts in {@code llm.calls}.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-03-29)

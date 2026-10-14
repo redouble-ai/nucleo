@@ -24,7 +24,8 @@ import java.time.*;
  * later, so an upstream signal fails the call at once and the discovery classifies it; a hard
  * cap, because a call that cannot answer in time IS the answer; and a client built straight
  * from the entry's provider for this call and closed after it, because the entry under probe
- * may be new or rewritten and the runtime's shared client cache is keyed by id.
+ * may be new or rewritten and the runtime's shared client cache is keyed by id. A utility job
+ * that asks for no transaction: it touches no database.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-10-13)

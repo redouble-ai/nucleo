@@ -13,8 +13,9 @@ A `TokenLedger` is one call's tokens by kind: `inputTokens()`, `cacheReadTokens(
 `cost()` and `meteredTokens()` derived from them. The same interface describes a call before
 it is made and after it returns; the method names carry no "estimate" or "actual" because
 provenance is a property of the instance, not of the facet. The estimate is what
-`ModelSpec.estimate(conversation)` returns and what a `ModelBinding` holds as its
-reservation; the reported usage is `LLMResponse.getUsage()`.
+`ModelSpec.estimate(conversation)` returns and what a `ModelBinding` wired to a conversation
+holds as its reservation (a binding priced from a prompt or a flat count holds a
+`DefaultTokenLedger` of those counts); the reported usage is `LLMResponse.getUsage()`.
 
 Two absences are kept apart. A facet the provider does not report is null: a response whose
 usage record carries no cache counters has null cache facets, a provider that returns no usage
@@ -105,9 +106,9 @@ image to 1568 pixels on its long side and charges its pixel count over 750, at m
 image whose size cannot be read, and every image on the neutral counter, costs the counter's
 floor or four tokens per KB of its bytes, whichever is more, and the floor alone when the bytes
 do not decode; the floor is 85 on the neutral counter and 1600 on Claude's, so an unreadable
-image errs high on Claude. A file costs 450 tokens per KB when it is a PDF, the image rule when
-it is an image, 100 per KB otherwise, and 4500 when its bytes do not decode; the file rule is
-the same on every shipped counter.
+image errs high on Claude. A file costs 450 tokens per KB when it is a PDF, the counter's floor
+or four tokens per KB when it is an image, 100 per KB otherwise, and 4500 when its bytes do not
+decode; the file rule is the same on every shipped counter.
 
 `ModelText` is the text a model reads for a block or a message, the form the generic encoders
 send: a tool call with its name and input, a tool result with its payload. The default walk
@@ -124,8 +125,8 @@ content, which is the short placeholder for logs and persistence.
 | `ContextEstimator` | What a conversation will cost a model before the call |
 | `AbstractContextEstimator` | The walk over the rendered conversation, with `countBlock` for a provider to override |
 | `DefaultContextEstimator` | The walk with the generic formatter and the neutral counter |
-| `ContextPart` | Objective, tool definitions, messages, artifact registry |
-| `TurnPlace` | Where a block sits, for billing rules that depend on the turn |
+| `ContextPart` | Objective, the palette's tool definitions, messages, artifact registry |
+| `TurnPlace` | Where a block sits, user turn, earlier or newest assistant turn, for billing rules that depend on the turn; the registry section is never walked as a turn |
 | `TokenCounter` | The density of a tokenizer: text, images, files |
 | `TiktokenCounter` | A tiktoken encoding times a density, with the generic image and PDF rules; a provider's counter overrides the image rule |
 | `CharBasedTokenCounter` | Characters over four, for a provider with no known tokenizer |

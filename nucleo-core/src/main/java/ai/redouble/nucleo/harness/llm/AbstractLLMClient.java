@@ -255,7 +255,9 @@ public abstract class AbstractLLMClient<B> extends AbstractRateLimitedClient imp
      * client will send it ({@link ModelSpec#estimate}), input by part plus the output reserve.
      * One estimate serves the whole call: the fit gate, the exact-count decision, the log line
      * and the overflow mapping. A call whose estimate exceeds a tenth of the model's per-minute
-     * budget is logged, because one such call starves the rest of the fleet for that minute.
+     * budget is logged at WARN, because one such call starves the rest of the fleet for that
+     * minute. A client without a model refuses with {@link IllegalStateException}: a client is
+     * built for a spec by its provider, so there is nothing to estimate against.
      */
     private TokenLedger estimate(LLMRequest<?> request) {
         if (model == null) {

@@ -11,6 +11,7 @@ import ai.redouble.nucleo.harness.errors.*;
 import ai.redouble.nucleo.harness.errors.retry.*;
 import ai.redouble.nucleo.harness.llm.*;
 import ai.redouble.nucleo.harness.models.*;
+import ai.redouble.nucleo.harness.tokens.*;
 import com.sun.net.httpserver.*;
 import org.junit.jupiter.api.*;
 
@@ -29,7 +30,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * server each end in an exception of the framework's own family, classified for the retry
  * loop where a retry can help and uncorrectable where it cannot); nothing the client sent
  * comes back in a failure (the bearer token and the state never appear in any message of the
- * chain); lenient about the extra and strict about the missing.
+ * chain); lenient about the extra and strict about the missing. And the accounting: a decision's
+ * usage is the input the endpoint reports with zero output, an answer without a count leaves the
+ * response without a ledger, and both providers count with the runtime's neutral encoding, which
+ * is what a reservation prices the request body on.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-09-24)
@@ -127,6 +131,25 @@ class SystemOneClientTest {
         assertTrue(sent.contains(STATE_CANARY), "the state went out");
         assertTrue(sent.contains("\"type\":\"choice\"") && sent.contains("\"type\":\"noul\""), sent);
         assertEquals("Bearer " + KEY_CANARY, scripted.getValue().seenHeaders().get(0).get("authorization"));
+    }
+
+    @Test
+    void anAnswerWithoutAUsageBlockLeavesTheResponseWithoutALedger() throws Exception {
+        String uncounted = "{\"model\":\"kev-latest\",\"answers\":{"
+                + "\"department\":{\"type\":\"choice\",\"choice\":\"billing\",\"confidence\":0.8,\"probabilities\":{\"billing\":0.87,\"technical\":0.13}},"
+                + "\"is_urgent\":{\"type\":\"noul\",\"noul\":0.95}}}";
+        DecisionResponse response = scripted(200, JSON, uncounted).getKey().decide(request());
+        assertTrue(response.isSuccessful(), "an answer without a count is still an answer");
+        assertNull(response.getUsage(), "no count reported, no ledger: nothing downstream is billed at zero");
+        assertEquals("billing", response.choice("department").choice());
+    }
+
+    @Test
+    void bothProvidersCountWithTheNeutralEncoding_whichPricesAReservation() {
+        assertSame(TiktokenCounter.DEFAULT, new SystemOneProvider().tokenCounter(spec()), "a decision body is counted on cl100k_base at 1.0");
+        assertSame(TiktokenCounter.DEFAULT, new LocalSystemOneProvider().tokenCounter(spec()), "the local server's provider counts the same way");
+        assertSame(TiktokenCounter.DEFAULT, spec().tokenCounter(), "reached through the spec by the provider's key");
+        assertSame(DefaultContextEstimator.INSTANCE, new SystemOneProvider().contextEstimator(spec()), "no conversation is sent, so the estimator is the core default");
     }
 
     /** A local server's credential is its address alone: the decision goes out with no authorization header at all. */

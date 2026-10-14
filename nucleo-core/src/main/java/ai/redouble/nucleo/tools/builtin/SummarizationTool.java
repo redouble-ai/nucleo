@@ -235,7 +235,8 @@ public class SummarizationTool extends AbstractDoer<SummarizationInput, Summariz
      * tokenizer of the model that will read them: on paragraph boundaries, a paragraph too
      * large on sentence boundaries, a sentence too large on word boundaries, and a word too
      * large into characters, so any text over the limit yields two or more chunks, each within
-     * it. Package-private so the cascade can be pinned without a model.
+     * it, and nothing but whitespace at the cut points is lost. Package-private so the cascade
+     * can be pinned without a model.
      */
     static List<String> splitIntoChunks(String text, int maxTokens, TokenCounter counter) {
         List<String> chunks = new ArrayList<>();

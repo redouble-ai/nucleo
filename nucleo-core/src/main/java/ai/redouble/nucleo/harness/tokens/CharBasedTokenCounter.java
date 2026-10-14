@@ -11,8 +11,12 @@ import ai.redouble.nucleo.harness.conversation.ContentBlocks.*;
 import java.util.*;
 
 /**
- * Character-count / 4 fallback counter for a provider with no known tokenizer.
- * Image and file heuristics are configurable via constructor arguments.
+ * The fallback counter for a provider with no known tokenizer: a quarter of a token per
+ * character, truncating, and nothing for null or empty text. An image costs the floor given at
+ * construction or four tokens per KB of its bytes, whichever is more, and the floor alone when
+ * its bytes do not decode; a file follows {@link TokenCountingSupport#countFile} with the
+ * floor and the PDF rate given at construction; {@link #DEFAULT_IMAGE_BASE_TOKENS} is 1000 and
+ * {@link #DEFAULT_PDF_TOKENS_PER_KB} 450.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-04-16)
@@ -38,15 +42,12 @@ public class CharBasedTokenCounter implements TokenCounter {
 
     @Override
     public int countImageTokens(ImageBlock image) {
-        if (image == null) {
-            return 0;
-        }
         try {
             byte[] decoded = Base64.getDecoder().decode(image.base64());
             int sizeKB = decoded.length / 1024;
             return Math.max(imageBaseTokens, sizeKB * 4);
         }
-        catch (Exception e) {
+        catch (IllegalArgumentException notBase64) {
             return imageBaseTokens;
         }
     }

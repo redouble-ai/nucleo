@@ -31,7 +31,8 @@ context.addTools(thinker.buildToolDefinitionBlocks());
 Declarations are add-only: a name already declared is a no-op, whatever the new
 declaration would produce, so per-round refreshes cost nothing and a definition is never
 redefined or removed. Conversion to the wire definition happens at the first render after
-the declaration, never eagerly (see "The channel contract" below for where the definition
+the declaration, a real one (`prepareMessagesForLLM`) or the pure one an estimate runs
+(`render`), never eagerly (see "The channel contract" below for where the definition
 lands).
 
 ### How LLMs See Tools
@@ -72,8 +73,8 @@ separately. That distinction is the whole contract, made once, here:
 - **Tools are declared, then reconciled at render.** `addTool` records a `DeclaredTool`
   by name - add-only, so declaring from anywhere is always safe and a name already
   declared is never redefined or removed. Conversion to a wire definition happens once,
-  at the first render after the declaration, never eagerly: churn before that render is
-  free. Where the definition lands depends on the freeze: at the conversation's first
+  at the first render or estimate after the declaration, never eagerly: churn before that
+  render is free. Where the definition lands depends on the freeze: at the conversation's first
   render the palette joins the head (under `tool:` keys, preceded by the tool-weight
   guidance, which appears exactly when tools do); after that the head is frozen and a
   newly declared tool is a stream message at the point of declaration, so the prefix
@@ -708,8 +709,8 @@ On stop: cleanup executor shuts down, all conversations cleared.
 ## Compaction
 
 Long conversations exhaust context windows. Compaction summarizes older content - the
-machinery (the ladder of levels, segments, age weighting, the best-effort-vs-loud
-failure discipline, `CompactionJob`) lives in the `compaction/` subpackage:
+machinery (the ladder of levels, exchanges and the pairing check, age weighting, the
+best-effort-vs-loud failure discipline, `CompactionJob`) lives in the `compaction/` subpackage:
 [compaction/PACKAGE.md](compaction/PACKAGE.md).
 
 This package's half of the contract is per-message compactability. Messages opt out of

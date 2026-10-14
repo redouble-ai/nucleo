@@ -29,9 +29,10 @@ import java.util.*;
  * <p>Three LLM declaration forms, each priced as exactly what the wire will carry:
  * <ul>
  *   <li><b>Wired conversation</b> ({@code requireModel(Grade, Depth)} +
- *       {@code conversation.setModelBinding(binding)}): input counted from the
- *       conversation post-resolution under the resolved spec's tokenizer, output and
- *       thinking from the conversation's own reserve resolution.
+ *       {@code conversation.setModelBinding(binding)}): the resolved spec's estimate of the
+ *       conversation post-resolution ({@link ModelSpec#estimate}), its input as the provider's
+ *       estimator counts the rendered payload, output and thinking from the conversation's
+ *       own reserve resolution.
  *   <li><b>Counted prompt</b> ({@code requireModelForPrompt}): the prompt text is
  *       counted post-resolution under the resolved spec's tokenizer, plus the declared
  *       output and the spec's thinking budget for the declared depth.
