@@ -8,7 +8,7 @@ listing and pinging require them.
 
 | Class | Role |
 |---|---|
-| `CatalogDiscovery` | The action (`main`: `[--out models.json] [--report-only] [--include-older]`): walk, list, ping, merge, validate, write |
+| `CatalogDiscovery` | The action (`main`: `[--out models.json] [--report-only] [--include-older]`, sealing a permitting envelope and running the dispatcher the probes are jobs on): walk, list, ping, merge, validate, write |
 | `ModelDiscovery` | Implemented by a `ClientProvider` that can list its account's reachable models (each provider knows its own listing API) |
 | `DiscoveredModel` | One listed model as the provider reported it: wire id, modalities in the provider's words, whether the id is invokable as listed, lifecycle flag, retention posture, quota facts |
 | `CatalogPing` | The probe recipe: one `ProbeCall` per chat entry, an embeddings or decision client called once under the same cap, harvesting limits from response headers and classifying failures: a call past the cap is `AVAILABILITY` ("no answer within" the cap), any other failure, on every kind of entry, is judged by the first exception in its cause chain that classifies and reported as that exception, so a signal the dispatcher or a client wrapped is read as itself, and a ping interrupted while it waits is `OTHER` with the interrupt flag raised again; also the recipe a deployment's availability probe reuses |

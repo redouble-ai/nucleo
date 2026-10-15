@@ -775,8 +775,9 @@ class CatalogDiscoveryTest {
 
     /**
      * The account's word is the one status the discovery also takes back: an UNLISTED entry
-     * whose model the listing names again reopens and is pinged like a new entry, while a
-     * DISABLED one, the deployment's own word, stays closed whatever the listing says.
+     * whose model the listing names again reopens and is pinged like a new entry, the spec the
+     * ping pins already open, while a DISABLED one, the deployment's own word, stays closed
+     * whatever the listing says.
      */
     @Test
     void anUnlistedEntryTheAccountListsAgainReopensAndIsPinged() {
@@ -784,12 +785,13 @@ class CatalogDiscoveryTest {
         JsonModelsBackend previous = catalog(false, null,
                 entry("a-back", "alpha", "wire-back", 4242).replace("\"rpm\": 100", "\"rpm\": 100, \"status\": \"UNLISTED\""),
                 entry("a-off", "alpha", "wire-off", 4242).replace("\"rpm\": 100", "\"rpm\": 100, \"status\": \"DISABLED\""));
-        Set<String> pinged = new HashSet<>();
+        Map<String, ModelStatus> pinged = new HashMap<>();
         CatalogDiscovery.Result result = new CatalogDiscovery(seed, previous, Map.of("alpha", Scripted.listing("alpha", "wire-back", "wire-off")), (p, s) -> {
-            pinged.add(s.getId());
+            pinged.put(s.getId(), s.getStatus());
             return ok(s, 55000);
         }).discover();
-        assertEquals(Set.of("a-back"), pinged, "the reopened entry earns a ping; the disabled one never does");
+        assertEquals(Set.of("a-back"), pinged.keySet(), "the reopened entry earns a ping; the disabled one never does");
+        assertEquals(ModelStatus.OPEN, pinged.get("a-back"), "the ping pins the entry as reopened: the pin gate refuses a closed spec");
         assertEquals(CatalogDiscovery.Verdict.REACHABLE, verdict(result, "a-back"));
         assertFalse(written(result, "a-back").has("status"), "reopened: " + written(result, "a-back"));
         assertEquals("DISABLED", written(result, "a-off").get("status").asText(), "the deployment's own word stands");
@@ -832,8 +834,8 @@ class CatalogDiscoveryTest {
 
     /**
      * This deployment's reach is a status the discovery also takes back: an UNREACHABLE entry
-     * whose provider lists again reopens and is judged like a new one, pinged when the listing
-     * names it and closed as UNLISTED when it does not.
+     * whose provider lists again reopens and is judged like a new one, pinged with its spec
+     * already open when the listing names it and closed as UNLISTED when it does not.
      */
     @Test
     void anUnreachableEntryWhoseProviderAnswersAgainReopens() {
@@ -841,12 +843,13 @@ class CatalogDiscoveryTest {
         JsonModelsBackend previous = catalog(false, null,
                 entry("a-back", "alpha", "wire-back", 4242).replace("\"rpm\": 100", "\"rpm\": 100, \"status\": \"UNREACHABLE\""),
                 entry("a-gone", "alpha", "wire-gone", 4242).replace("\"rpm\": 100", "\"rpm\": 100, \"status\": \"UNREACHABLE\""));
-        Set<String> pinged = new HashSet<>();
+        Map<String, ModelStatus> pinged = new HashMap<>();
         CatalogDiscovery.Result result = new CatalogDiscovery(seed, previous, Map.of("alpha", Scripted.listing("alpha", "wire-back")), (p, s) -> {
-            pinged.add(s.getId());
+            pinged.put(s.getId(), s.getStatus());
             return ok(s, 55000);
         }).discover();
-        assertEquals(Set.of("a-back"), pinged, "the reopened entry the listing names earns a ping");
+        assertEquals(Set.of("a-back"), pinged.keySet(), "the reopened entry the listing names earns a ping");
+        assertEquals(ModelStatus.OPEN, pinged.get("a-back"), "the ping pins the entry as reopened: the pin gate refuses a closed spec");
         assertEquals(CatalogDiscovery.Verdict.REACHABLE, verdict(result, "a-back"));
         assertFalse(written(result, "a-back").has("status"), "reopened: " + written(result, "a-back"));
         assertEquals(CatalogDiscovery.Verdict.NOT_LISTED, verdict(result, "a-gone"));

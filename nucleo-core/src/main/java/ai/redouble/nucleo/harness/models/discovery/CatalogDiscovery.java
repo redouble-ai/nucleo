@@ -103,6 +103,8 @@ public final class CatalogDiscovery {
     /** Attempts at a ping whose failure is transient, and the pause between them in a live run. */
     static final int PING_ATTEMPTS = 3;
     static final Duration PING_RETRY_DELAY = Duration.ofSeconds(5);
+    /** How long {@link #main} lets its own dispatcher drain after the run. */
+    private static final long SHUTDOWN_GRACE_MS = 10_000;
 
     /** What happened with one provider. */
     public record ProviderReport(String key, ProviderStatus status, String detail, List<DiscoveredModel> listed) {}
@@ -208,9 +210,10 @@ public final class CatalogDiscovery {
      * classpath, live pings. The discovery's question is what the ACCOUNT can call, so the
      * process it runs in must permit every retention posture; which of those an application
      * may then use is that application's compliance envelope, sealed in its own process. The
-     * seal is the host's: {@link #main} seals {@link #permitting()} when the discovery is the
-     * process, and a harness that boots an application to reach its credential store seals it
-     * through that application's servlet before calling {@link #execute}.
+     * seal is the host's: {@link #main} seals {@link #permitting()} and starts the dispatcher the
+     * probes run on when the discovery is the process, and a harness that boots an application
+     * to reach its credential store seals it through that application's servlet, whose dispatcher
+     * is already running, before calling {@link #execute}.
      */
     public static Result run(boolean includeOlder) {
         return run(includeOlder, null);
@@ -236,8 +239,16 @@ public final class CatalogDiscovery {
     }
 
     public static void main(String[] args) throws IOException {
-        JobDispatcher.getInstance().sealComplianceEnvelope(permitting());
-        execute(args);
+        JobDispatcher dispatcher = JobDispatcher.getInstance();
+        dispatcher.sealComplianceEnvelope(permitting());
+        // every probe is a job on the dispatcher: a process that is nothing but the discovery runs it itself
+        dispatcher.start();
+        try {
+            execute(args);
+        }
+        finally {
+            dispatcher.shutdown(SHUTDOWN_GRACE_MS);
+        }
     }
 
     /**
@@ -282,11 +293,6 @@ public final class CatalogDiscovery {
         Map<String, ObjectNode> entries = previous != null ? previous.rawEntries() : new LinkedHashMap<>();
         Set<String> fromPrevious = new HashSet<>(entries.keySet());
         seed.rawEntries().forEach(entries::putIfAbsent);
-        Map<String, ModelSpec> specs = new HashMap<>();
-        for (String id : entries.keySet()) {
-            ModelSpec spec = previous != null ? previous.spec(id) : null;
-            specs.put(id, spec != null ? spec : seed.spec(id));
-        }
         Set<String> pinnedIds = pinnedIds();
         // a first pull keeps one entry per family and key, the newest, unless asked otherwise
         Set<String> older = previous == null && !includeOlder ? olderVersions(entries) : Set.of();
@@ -434,7 +440,10 @@ public final class CatalogDiscovery {
                     continue;
                 }
                 DiscoveredModel discovered = listed != null ? listed.get(wireBefore) : null;
-                ModelSpec spec = specs.get(id);
+                // the spec the ping pins is read off the entry as it stands now, after a reopening
+                // cleared its status: the pin gate refuses a closed spec, and a reopened entry is
+                // pinged like a new one
+                ModelSpec spec = (previousEntry && previous != null ? previous : seed).specOf(entry);
                 if (listed != null) {
                     List<String> profiles = regionsProfiles(wireBefore, listed.keySet());
                     if (profiles.size() == 1) {

@@ -18,7 +18,8 @@ application serves work.
 ## Running it
 
 `CatalogDiscovery` is the discovery. Its `main` runs it once from a classpath that carries
-the provider libraries and sees the credentials, prints the report and writes the file; its
+the provider libraries and sees the credentials, on a dispatcher of its own since every probe
+is a job, prints the report and writes the file; its
 arguments are `--out <path>` to write somewhere else, `--report-only` to read the report
 without writing, and `--include-older` to keep, on a first run, the older versions of a
 model the account also has newer. From code, `CatalogDiscovery.run(includeOlder)` returns the result, catalog and
