@@ -77,8 +77,11 @@ separately. That distinction is the whole contract, made once, here:
   render is free. Where the definition lands depends on the freeze: at the conversation's first
   render the palette joins the head (under `tool:` keys, preceded by the tool-weight
   guidance, which appears exactly when tools do); after that the head is frozen and a
-  newly declared tool is a stream message at the point of declaration, so the prefix
-  ahead of it never moves and the transcript shows tools appearing when they appeared.
+  newly declared tool is announced as blocks of the turn about to be sent, the same
+  message the caller's adds go into (`pendingTurn`), so the prefix ahead of it never
+  moves, the transcript shows tools appearing when they appeared, and the turn stays the
+  one message the model answers: the one the response is read against and the one whose
+  requested output the call honours.
   The announced set derives from the conversation content itself, never a side field.
   How a definition reaches the provider is the client's dialect alone: the default
   encoder renders `ToolDefinitionBlockEncoder.renderText` inline; a client with a
@@ -111,7 +114,7 @@ outgoing message carries a handler with `usesSchemaNotation()` gets the legend u
 never carries it. The tool-weight guidance lands under `toolWeights` when declared
 tools first render, and never for a tool-less conversation - a dangling "Available
 tools:" header primes weak models. If the notation or a tool first appears after the
-freeze, its companion arrives as a stream message at the point of appearance. Because
+freeze, its companion arrives as blocks of the turn about to be sent. Because
 these slots derive from what the conversation renders, a nuke does not silence them: as
 long as the contract or the declarations remain, the next render re-places them.
 
@@ -377,7 +380,8 @@ whose answer handler states any, the registry section from `buildArtifactRegistr
 otherwise also the last turn), with one difference: it commits
 nothing. The legend and the definitions of tools declared since the last render are rendered
 where the next real render will place them, in the head of an unfrozen conversation and as
-an announcement turn at the end of a frozen one, without being written to either; the one
+blocks of the turn about to be sent in a frozen one (a copy of that turn, the live message
+untouched), without being written to either; the one
 write-back is the conversion of a pending declaration to its definition, which is idempotent
 and changes nothing the model sees. A fresh estimate on every call, never accumulated state;
 the first render runs the configured `Summarizer` (typically `LLMSummarizer` set by the

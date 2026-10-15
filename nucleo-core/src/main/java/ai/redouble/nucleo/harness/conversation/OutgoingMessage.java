@@ -42,6 +42,14 @@ public class OutgoingMessage<T> implements Message, Serializable {
         this.responseHandler = responseHandler;
     }
 
+    /**
+     * A user turn with no handler yet: what {@link ConversationContext#pendingTurn()} opens for
+     * blocks to be added to, the handler arriving with the ask
+     * ({@link ConversationContext#setResponseHandler}). A turn is sent only once it has one.
+     */
+    public OutgoingMessage() {
+    }
+
     // Core metadata methods
     public String getRole() {
         return role;
@@ -70,6 +78,11 @@ public class OutgoingMessage<T> implements Message, Serializable {
     // Response handler methods
     public ResponseHandler<T> getResponseHandler() {
         return responseHandler;
+    }
+
+    /** The handler the answer to this turn is parsed with; the last one set is the one that parses. */
+    public void setResponseHandler(ResponseHandler<T> handler) {
+        this.responseHandler = handler;
     }
 
     /**
@@ -121,6 +134,12 @@ public class OutgoingMessage<T> implements Message, Serializable {
             contentBlocks.add(tool);
             cachedRawContent = null;
         }
+    }
+
+    /** The framework's own blocks, the legend and a tool announcement, appended by the conversation's render. */
+    void addBlocks(List<ContentBlock> blocks) {
+        contentBlocks.addAll(blocks);
+        cachedRawContent = null;
     }
 
     public void addImage(InputStream imageStream, String mimeType, String description) throws IOException {

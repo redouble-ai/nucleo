@@ -63,6 +63,10 @@ public final class ResponseCorrection {
         if (outgoingMessage == null) {
             throw new IllegalStateException("An exchange needs a conversation with an outgoing message to send");
         }
+        if (outgoingMessage.getResponseHandler() == null) {
+            throw new IllegalStateException("The turn about to be sent has no response handler to parse the answer with:"
+                    + " set one with ConversationContext.setResponseHandler before the exchange");
+        }
         LLMResponse<T> response = client.singleResponse(new LLMRequest<>(conversation));
         lastResponse = response;
         return parseOrCorrect(response, conversation, outgoingMessage);
@@ -109,19 +113,17 @@ public final class ResponseCorrection {
     }
 
     /**
-     * Appends a user-role correction message to the conversation and builds the retry
-     * signal. The correction message reuses the original outgoing message's response
-     * handler so the retried call still parses as {@code T}, and copies its output budget
-     * so the reservation math stays consistent.
+     * Adds the correction to the conversation's next turn and builds the retry signal. The
+     * correction turn reuses the original outgoing message's response handler so the retried
+     * call still parses as {@code T}, and copies its output budget so the reservation math
+     * stays consistent.
      */
     private <T> ResponseCorrectionRetryException correctionRetry(LLMReadableException failure, OutgoingMessage<T> original,
                                                                  ConversationContext conversation) {
         used++;
-        OutgoingMessage<T> correction = new OutgoingMessage<>(original.getResponseHandler());
-        correction.setRole("user");
-        correction.addText(failure.explainToLLM());
-        correction.setRequestedOutputTokens(original.getRequestedOutputTokens());
-        conversation.getMessages().add(correction);
+        conversation.addText(failure.explainToLLM());
+        conversation.setResponseHandler(original.getResponseHandler());
+        conversation.setRequestedOutputTokens(original.getRequestedOutputTokens());
         return new ResponseCorrectionRetryException(conversation.getModel().getId(), used, (Throwable) failure);
     }
 }

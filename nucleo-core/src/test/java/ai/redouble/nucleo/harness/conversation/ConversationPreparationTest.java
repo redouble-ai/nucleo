@@ -25,7 +25,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * <p>Also pins the objective-map contract: the objective is a map of named slots rendered
  * in insertion order, the schema-notation legend follows the response contract (a handler
  * declaring {@code usesSchemaNotation()}) and never a plain-prose conversation, declared
- * tools convert at first render (head) or arrive as stream announcements after it, and the
+ * tools convert at first render (head) or are announced after it as blocks of the turn about
+ * to be sent, so that turn stays the one message the model answers, and the
  * head freezes at first render - divergent mutations are loudly logged no-ops. A pure render
  * ({@code ConversationContext.render}) places the legend where the next real render will and
  * commits nothing; a declared tool is converted once, at the first render or estimate after
@@ -100,21 +101,35 @@ public class ConversationPreparationTest {
     }
 
     @Test
-    void notationAppearingAfterTheFreeze_bringsTheLegendAsAStreamMessage() {
+    void notationAppearingAfterTheFreeze_bringsTheLegendIntoTheTurnBeingSent() {
         ConversationContext conversation = TestModels.conversation(TestModels.small());
         conversation.getMessages().add(message("user", USER_TURN));
         prepare(conversation);
         conversation.getMessages().add(structuredAsk("now answer structured"));
         prepare(conversation);
 
-        assertEquals(3, conversation.getMessages().size(),
-                "the legend arrives in the stream at the point the notation first appeared -"
-                        + " the frozen head did not move");
-        OutgoingMessage<?> last = (OutgoingMessage<?>) conversation.getMessages().get(2);
-        assertTrue(textOf(last.getContentBlocks()).contains("keys beginning with @"));
+        assertEquals(2, conversation.getMessages().size(),
+                "the legend arrives as a block of the turn that brought the notation -"
+                        + " the frozen head did not move and no message was added");
+        OutgoingMessage<?> last = conversation.getLastOutgoingMessage();
+        assertTrue(textOf(last.getContentBlocks()).contains("now answer structured"),
+                "the ask stays the last outgoing message, the one its answer is read against");
+        assertTrue(textOf(last.getContentBlocks()).contains("keys beginning with @"),
+                "and carries the legend after what it already said");
+        assertNotNull(last.getResponseHandler(), "and keeps the handler that parses the answer");
         prepare(conversation);
-        assertEquals(3, conversation.getMessages().size(),
+        assertEquals(1, countOf(last, "keys beginning with @"),
                 "presence is derived from content, so the reconcile is idempotent");
+    }
+
+    private static int countOf(OutgoingMessage<?> message, String text) {
+        int count = 0;
+        for (ContentBlocks.ContentBlock block : message.getContentBlocks()) {
+            if (block instanceof ContentBlocks.TextBlock tb && tb.text().contains(text)) {
+                count++;
+            }
+        }
+        return count;
     }
 
     @Test
@@ -208,7 +223,7 @@ public class ConversationPreparationTest {
     }
 
     @Test
-    void declaredTools_afterTheFreezeArriveAsAStreamAnnouncement() {
+    void declaredTools_afterTheFreezeAreAnnouncedInTheTurnBeingSent() {
         ConversationContext conversation = TestModels.conversation(TestModels.small());
         ContentBlocks.ToolDefinitionBlock first =
                 new ContentBlocks.ToolDefinitionBlock("first_tool", "initial", "{}");
@@ -224,17 +239,20 @@ public class ConversationPreparationTest {
                 "the frozen head still carries only the first render's palette");
         assertEquals(2, prepared.allToolDefinitions().size(),
                 "the admitted tool reaches the model through the turns");
-        assertEquals(2, conversation.getMessages().size(),
-                "the admission is one appended message - the prefix ahead of it did not move");
-        OutgoingMessage<?> last = (OutgoingMessage<?>) conversation.getMessages().get(1);
+        assertEquals(1, conversation.getMessages().size(),
+                "the admission is written into the turn about to be sent, not as a message of its own");
+        OutgoingMessage<?> last = conversation.getLastOutgoingMessage();
+        assertTrue(textOf(last.getContentBlocks()).contains(USER_TURN),
+                "the turn stays the last outgoing message, the one its answer is read against");
         assertTrue(textOf(last.getContentBlocks()).contains("Additional tools now available"),
                 "an admission is introduced as an addition, not presented as the initial palette");
         assertEquals(List.of(second),
                 last.getContentBlocks().stream().filter(b -> b instanceof ContentBlocks.ToolDefinitionBlock).toList(),
-                "the appended message carries only the newly admitted tool");
+                "the turn carries only the newly admitted tool's definition");
+        assertNotNull(last.getResponseHandler(), "and keeps the handler that parses the answer");
         prepare(conversation);
-        assertEquals(2, conversation.getMessages().size(),
-                "reconciliation is idempotent - a render with nothing pending appends nothing");
+        assertEquals(1, last.getContentBlocks().stream().filter(b -> b instanceof ContentBlocks.ToolDefinitionBlock).count(),
+                "reconciliation is idempotent - a render with nothing pending adds nothing");
     }
 
     @Test

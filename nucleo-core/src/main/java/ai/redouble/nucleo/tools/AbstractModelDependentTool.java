@@ -106,11 +106,8 @@ public abstract class AbstractModelDependentTool<I, O> extends AbstractTool<I, O
             built.setGrade(pinned != null ? pinned.getGrade() : grade);
             built.setDepth(depth);
             built.setOutputDeclaration(output);
-            OutgoingMessage<T> message = new OutgoingMessage<>(new PojoResponseHandler<>(outputType));
-            message.setRole("user");
-            message.setTimestamp(java.time.Instant.now());
-            message.addText(buildInputPrompt(additionalInstructions));
-            built.getMessages().add(message);
+            built.addText(buildInputPrompt(additionalInstructions));
+            built.setResponseHandler(new PojoResponseHandler<>(outputType));
             conversation = built;
         }
         ModelBinding binding = requireSeat(req, depth);

@@ -85,10 +85,8 @@ class CompactionJob extends AbstractModelDependentTool<Void, CompactionResult> {
         built.setGrade(getGrade());
         built.setDepth(Depth.STANDARD);
         built.setOutputDeclaration(OutputDeclaration.of(OutputSize.STANDARD));
-        OutgoingMessage<CompactionResult> msg = new OutgoingMessage<>(new PojoResponseHandler<>(CompactionResult.class));
-        msg.setRole("user");
-        msg.addText(buildPrompt());
-        built.getMessages().add(msg);
+        built.addText(buildPrompt());
+        built.setResponseHandler(new PojoResponseHandler<>(CompactionResult.class));
         return built;
     }
 

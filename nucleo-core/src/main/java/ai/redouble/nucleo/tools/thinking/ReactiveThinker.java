@@ -242,11 +242,7 @@ public abstract class ReactiveThinker extends AbstractThinker<VoidThinkerInput, 
                 log.warn("Iteration budget ({}) exhausted; forcing a final answer", maxIterationsPerMessage);
                 context.publishUserNotification(UserNotificationEvent.Severity.WARNING, "Investigation Budget Exhausted",
                         "Answering from the evidence gathered so far");
-                OutgoingMessage<String> closingInstruction = new OutgoingMessage<>(StringResponseHandler.instance);
-                closingInstruction.setRole("user");
-                closingInstruction.setTimestamp(java.time.Instant.now());
-                closingInstruction.addText(CLOSING_INSTRUCTION);
-                conversation.getMessages().add(closingInstruction);
+                conversation.addText(CLOSING_INSTRUCTION);
             }
             else {
                 // Steering: follow-ups sent while this exchange runs are appended at the
@@ -270,14 +266,11 @@ public abstract class ReactiveThinker extends AbstractThinker<VoidThinkerInput, 
             ThinkingResponseHandler<String> responseHandler =
                     new ThinkingResponseHandler<>(toolRegistry, new PojoResponseHandler<ThinkingResponse<String>>((Class)ThinkingResponse.class), StringResponseHandler.instance);
 
-            // Create LLM request message
-            OutgoingMessage<ThinkingResponse<String>> llmMessage = new OutgoingMessage<>(responseHandler);
-            llmMessage.setRole("user");
-            llmMessage.setTimestamp(java.time.Instant.now());
-            if (cacheAllMessages) {
-                llmMessage.setCache(true);
-            }
-            conversation.getMessages().add(llmMessage);
+            // The ask: the turn about to be sent, whatever it already carries (the utterance,
+            // the previous turn's tool results, the nudge), is answered through the thinking
+            // response handler
+            conversation.setCacheTurns(cacheAllMessages);
+            conversation.setResponseHandler(responseHandler);
 
             // Submit LLM call with token overflow handling
             LLMCall<ThinkingResponse<String>> llmCall = newLLMCall(context, conversation);
@@ -335,11 +328,7 @@ public abstract class ReactiveThinker extends AbstractThinker<VoidThinkerInput, 
             else if (!nudged) {
                 nudged = true;
                 log.warn("LLM turn ended with neither answer nor tool calls; nudging for the final answer");
-                OutgoingMessage<String> nudge = new OutgoingMessage<>(StringResponseHandler.instance);
-                nudge.setRole("user");
-                nudge.setTimestamp(java.time.Instant.now());
-                nudge.addText(NUDGE_INSTRUCTION);
-                conversation.getMessages().add(nudge);
+                conversation.addText(NUDGE_INSTRUCTION);
             }
             else {
                 log.warn("LLM provided neither response nor tool calls, even after the nudge");
@@ -416,19 +405,14 @@ public abstract class ReactiveThinker extends AbstractThinker<VoidThinkerInput, 
     }
 
     /**
-     * Appends one user utterance to the conversation, verbatim and non-compactable -
+     * Adds one user utterance to the conversation's next turn, verbatim and non-compactable -
      * the shared shape for exchange triggers and mid-exchange injections alike - and
-     * records it as the rollback anchor for an abnormal exchange end.
+     * records that turn as the rollback anchor for an abnormal exchange end.
      * Package-private for same-package tests of the rollback.
      */
     void appendUserMessage(ConversationContext conversation, String text) {
-        OutgoingMessage<String> userMessage = new OutgoingMessage<>(StringResponseHandler.instance);
-        userMessage.setRole("user");
-        userMessage.setTimestamp(java.time.Instant.now());
-        userMessage.addText(text);
-        userMessage.setCompactable(false);  // Preserve user input verbatim during compaction
-        conversation.getMessages().add(userMessage);
-        lastUserUtterance = userMessage;
+        conversation.addUtterance(text);
+        lastUserUtterance = conversation.getLastOutgoingMessage();
     }
 
     /**

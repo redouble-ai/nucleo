@@ -184,9 +184,7 @@ public abstract class AbstractToollessThinker<I extends ThinkerInput, O extends 
 
     /** A user turn carrying the output POJO's own schema as the response contract. */
     private void appendAnswerTurn(ConversationContext conversation, String text) {
-        OutgoingMessage<O> turn = new OutgoingMessage<>(new PojoResponseHandler<>(outputClass));
-        turn.setRole("user");
-        turn.addText(text);
-        conversation.getMessages().add(turn);
+        conversation.addText(text);
+        conversation.setResponseHandler(new PojoResponseHandler<>(outputClass));
     }
 }

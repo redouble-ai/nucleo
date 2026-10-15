@@ -53,7 +53,8 @@ public class ReactiveThinkerAbnormalEndTest {
         ProbeReactive thinker = new ProbeReactive(root());
         ConversationContext conversation = TestModels.conversation(TestModels.small());
         thinker.appendUserMessage(conversation, "trigger");
-        conversation.getMessages().add(debris("iteration one"));
+        // an injection lands at an iteration boundary, after the model's turn: it opens a user turn of its own
+        conversation.getMessages().add(assistantText("iteration one"));
         thinker.appendUserMessage(conversation, "steering injection");
         conversation.getMessages().add(debris("iteration two"));
         thinker.saveAbnormalEnd(conversation, "MARKER-TEXT");

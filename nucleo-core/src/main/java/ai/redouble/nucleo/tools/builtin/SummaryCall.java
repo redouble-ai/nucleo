@@ -81,10 +81,8 @@ class SummaryCall extends AbstractModelDependentTool<Void, String> {
         built.setGrade(pinnedModel() != null ? pinnedModel().getGrade() : getGrade());
         built.setDepth(Depth.IMMEDIATE);
         built.setOutputDeclaration(OutputDeclaration.of(SummarizationTool.sizeToBackstopTokens(size)));
-        OutgoingMessage<String> message = new OutgoingMessage<>(StringResponseHandler.instance);
-        message.setRole("user");
-        message.addText(SummarizationTool.buildPrompt(text, size, textContext));
-        built.getMessages().add(message);
+        built.addText(SummarizationTool.buildPrompt(text, size, textContext));
+        built.setResponseHandler(StringResponseHandler.instance);
         return built;
     }
 

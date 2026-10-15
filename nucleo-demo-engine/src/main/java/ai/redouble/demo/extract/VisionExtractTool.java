@@ -64,15 +64,12 @@ public class VisionExtractTool extends AbstractModelDependentTool<FileRef, Extra
         built.setGrade(getGrade());
         built.setDepth(Depth.IMMEDIATE);
         built.setOutputDeclaration(OutputDeclaration.of(OutputSize.STANDARD));
-        OutgoingMessage<Transcription> message = new OutgoingMessage<>(new PojoResponseHandler<>(Transcription.class));
-        message.setRole("user");
-        message.setTimestamp(Instant.now());
         Path file = Path.of(input.getPath());
         try {
             Sniff.Kind kind = Sniff.of(file);
             if (Sniff.isImage(kind)) {
                 try (InputStream in = Files.newInputStream(file)) {
-                    message.addImage(in, Sniff.mime(kind), file.getFileName().toString());
+                    built.addImage(in, Sniff.mime(kind), file.getFileName().toString());
                 }
                 filesSent = 1;
                 sent = Input.IMAGES;
@@ -80,7 +77,7 @@ public class VisionExtractTool extends AbstractModelDependentTool<FileRef, Extra
             else if (kind == Sniff.Kind.PDF) {
                 // shipped whole as a document; the model reads every page, nothing is rendered here
                 try (InputStream in = Files.newInputStream(file)) {
-                    message.addFile(in, PDF_MIME, file.getFileName().toString());
+                    built.addFile(in, PDF_MIME, file.getFileName().toString());
                 }
                 filesSent = 1;
                 sent = Input.DOCUMENTS;
@@ -94,8 +91,8 @@ public class VisionExtractTool extends AbstractModelDependentTool<FileRef, Extra
             // requirements are captured where no checked exception can travel; the file that cannot be read is uncorrectable
             throw new UncorrectableRuntimeLLMException("Cannot read " + input.getPath() + ": " + e.getMessage(), e);
         }
-        message.addText(INSTRUCTIONS);
-        built.getMessages().add(message);
+        built.addText(INSTRUCTIONS);
+        built.setResponseHandler(new PojoResponseHandler<>(Transcription.class));
         return built;
     }
 

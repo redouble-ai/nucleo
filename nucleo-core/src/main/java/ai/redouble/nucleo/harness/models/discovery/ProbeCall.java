@@ -75,11 +75,8 @@ final class ProbeCall extends AbstractModelDependentTool<Void, String> {
         built.setGrade(pinnedModel().getGrade());
         built.setDepth(depth);
         built.setOutputDeclaration(OutputDeclaration.of(outputBudget));
-        OutgoingMessage<String> message = new OutgoingMessage<>(StringResponseHandler.instance);
-        message.setRole("user");
-        message.setTimestamp(Instant.now());
-        message.addText(prompt);
-        built.getMessages().add(message);
+        built.addText(prompt);
+        built.setResponseHandler(StringResponseHandler.instance);
         return built;
     }
 

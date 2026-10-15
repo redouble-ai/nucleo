@@ -270,9 +270,12 @@ class ContextEstimatorContractTest {
         conversation.addTool(new ToolDefinitionBlock("fetch", "Fetches a page", "{\"type\":\"object\"}"));
         PreparedConversation estimatedAgain = conversation.render(formatter, false);
         assertEquals(1, estimatedAgain.toolDefinitions().size(), "a frozen head does not grow");
-        assertTrue(estimatedAgain.turns().getLast().contentBlocks().stream().anyMatch(b -> b instanceof ToolDefinitionBlock td && td.name().equals("fetch")),
-                "a tool declared after the freeze renders as an announcement turn at the end of the stream");
+        assertEquals(1, estimatedAgain.turns().size(), "a tool declared after the freeze is announced inside the turn about to be sent");
+        assertTrue(estimatedAgain.turns().getFirst().contentBlocks().stream().anyMatch(b -> b instanceof ToolDefinitionBlock td && td.name().equals("fetch")),
+                "the turn renders with the announcement among its blocks");
         assertEquals(1, conversation.getMessages().size(), "estimating announced nothing: the stream is as it was");
+        assertFalse(conversation.getLastOutgoingMessage().getContentBlocks().stream().anyMatch(b -> b instanceof ToolDefinitionBlock),
+                "and the live turn carries no announcement until the real render");
         PreparedConversation sentAgain = conversation.prepareMessagesForLLM(formatter, false);
         assertEquals(sentAgain, estimatedAgain, "the estimate's rendering IS the next render's payload on a frozen head too");
     }

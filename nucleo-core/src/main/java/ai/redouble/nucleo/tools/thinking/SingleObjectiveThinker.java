@@ -118,10 +118,7 @@ public abstract class SingleObjectiveThinker<I extends ThinkerInput, O extends T
             // Resuming an existing conversation - add new input's query as user message
             String resumeQuery = input != null ? input.getQuery() : null;
             if (resumeQuery != null && !resumeQuery.isEmpty()) {
-                OutgoingMessage<String> challengeMessage = new OutgoingMessage<>(StringResponseHandler.instance);
-                challengeMessage.setRole("user");
-                challengeMessage.addText(resumeQuery);
-                conversation.getMessages().add(challengeMessage);
+                conversation.addText(resumeQuery);
                 log.info("Resuming conversation with message: {}...", resumeQuery.substring(0, Math.min(100, resumeQuery.length())));
             }
         }
@@ -139,14 +136,7 @@ public abstract class SingleObjectiveThinker<I extends ThinkerInput, O extends T
                 admitConfiguredSkills(conversation);
                 String followup = getSeededFollowupMessage();
                 if (followup != null && !followup.isBlank()) {
-                    OutgoingMessage<String> seeded = new OutgoingMessage<>(StringResponseHandler.instance);
-                    seeded.setRole("user");
-                    seeded.setTimestamp(java.time.Instant.now());
-                    if (cacheAllMessages) {
-                        seeded.setCache(true);
-                    }
-                    seeded.addText(followup);
-                    conversation.getMessages().add(seeded);
+                    conversation.addText(followup);
                 }
             }
         }
@@ -173,14 +163,11 @@ public abstract class SingleObjectiveThinker<I extends ThinkerInput, O extends T
             ThinkingResponseHandler<O> responseHandler =
                     new ThinkingResponseHandler<>(toolRegistry, new PojoResponseHandler<ThinkingResponse<O>>((Class)ThinkingResponse.class), answerHandler);
 
-            // Ask for response using the thinking response handler
-            OutgoingMessage<ThinkingResponse<O>> message = new OutgoingMessage<>(responseHandler);
-            message.setRole("user");
-            message.setTimestamp(java.time.Instant.now());
-            if (cacheAllMessages) {
-                message.setCache(true);
-            }
-            conversation.getMessages().add(message);
+            // The ask: the turn about to be sent, whatever it already carries (the seeded
+            // follow-up, the previous turn's tool results, a correction), is answered through
+            // the thinking response handler
+            conversation.setCacheTurns(cacheAllMessages);
+            conversation.setResponseHandler(responseHandler);
 
             // Submit LLM call with token overflow handling
             ThinkingResponse<O> response;
@@ -231,9 +218,7 @@ public abstract class SingleObjectiveThinker<I extends ThinkerInput, O extends T
             List<ToolCall> toolCalls = response.getToolCalls();
             if (toolCalls == null || toolCalls.isEmpty()) {
                 log.warn("LLM returned no tool calls and final_answer=false at iteration {} - re-prompting", iteration);
-                OutgoingMessage<String> correction = new OutgoingMessage<>(StringResponseHandler.instance);
-                correction.addText("No tool_calls and final_answer=false. Call a tool or set final_answer=true.");
-                conversation.getMessages().add(correction);
+                conversation.addText("No tool_calls and final_answer=false. Call a tool or set final_answer=true.");
                 continue;
             }
 

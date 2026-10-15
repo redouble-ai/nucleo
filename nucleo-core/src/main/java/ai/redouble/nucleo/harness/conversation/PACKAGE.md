@@ -34,6 +34,39 @@ model made and `ToolResultBlock` for what the tool returned, `ThinkingBlock` for
 model's own reasoning. They are declared in `ContentBlocks`, and each provider's client
 turns every kind into that provider's format.
 
+## Composing a turn
+
+What the model is sent next is one message, the turn, and the conversation composes it for
+you. You add what you have, and you say how the answer is to be read:
+
+```java
+conversation.addText("Which of these invoices is overdue?");
+conversation.addPojo(invoices);
+conversation.setResponseHandler(new PojoResponseHandler<>(OverdueReport.class));
+```
+
+Every add writes into the turn about to be sent: the last message when it is an outgoing
+user message, a new one otherwise. So the results a thinker returns for the model's tool
+calls (`addToolResult`), the question it asks next, an image (`addImage`) or a file
+(`addFile`), and whatever the runtime itself has to say, a tool declared since the last
+call for one, all travel in the same message, and a provider that insists on strict
+user and assistant alternation gets exactly that. Once the model has answered, the next add
+opens the next turn.
+
+`setResponseHandler` names the handler the answer is parsed with, which is also the
+contract whose instructions the runtime appends to the turn; the last one set is the one
+that parses, and a turn with none is refused before anything is sent.
+`setRequestedOutputTokens` caps this one call's answer. `addUtterance` adds a person's own
+words: a turn carrying them is kept verbatim through compaction, whatever else it carries.
+`setCacheTurns(true)` has every outgoing turn rendered with a cache breakpoint, a policy
+of the conversation rather than a flag on a message, since a breakpoint marks a position
+on the wire and not a property of what a turn says.
+
+You may still build messages by hand, `new OutgoingMessage<>(handler)` added through
+`getMessages()`, when you replay a history another system holds; the runtime does not
+merge consecutive messages of one role for you, so two user messages in a row reach a
+provider as two user turns.
+
 ## The objective: what the model is always told
 
 The objective is a set of named slots. You fill one with `putMainObjective`:

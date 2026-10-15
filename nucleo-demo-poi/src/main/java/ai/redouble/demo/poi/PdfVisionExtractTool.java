@@ -69,15 +69,12 @@ public class PdfVisionExtractTool extends AbstractModelDependentTool<FileRef, Ex
         built.setGrade(getGrade());
         built.setDepth(Depth.IMMEDIATE);
         built.setOutputDeclaration(OutputDeclaration.of(OutputSize.STANDARD));
-        OutgoingMessage<Transcription> message = new OutgoingMessage<>(new PojoResponseHandler<>(Transcription.class));
-        message.setRole("user");
-        message.setTimestamp(Instant.now());
         Path file = Path.of(input.getPath());
         try {
             Sniff.Kind kind = Sniff.of(file);
             if (Sniff.isImage(kind)) {
                 try (InputStream in = Files.newInputStream(file)) {
-                    message.addImage(in, Sniff.mime(kind), file.getFileName().toString());
+                    built.addImage(in, Sniff.mime(kind), file.getFileName().toString());
                 }
                 pagesSent = 1;
             }
@@ -96,7 +93,7 @@ public class PdfVisionExtractTool extends AbstractModelDependentTool<FileRef, Ex
                         BufferedImage image = renderer.renderImageWithDPI(page - 1, RENDER_DPI, ImageType.RGB);
                         ByteArrayOutputStream png = new ByteArrayOutputStream();
                         ImageIO.write(image, "png", png);
-                        message.addImage(new ByteArrayInputStream(png.toByteArray()), "image/png",
+                        built.addImage(new ByteArrayInputStream(png.toByteArray()), "image/png",
                                 file.getFileName() + " page " + page);
                         pagesSent++;
                     }
@@ -111,8 +108,8 @@ public class PdfVisionExtractTool extends AbstractModelDependentTool<FileRef, Ex
         catch (IOException e) {
             throw new UncorrectableRuntimeLLMException("Cannot render " + input.getPath() + ": " + e.getMessage(), e);
         }
-        message.addText(INSTRUCTIONS);
-        built.getMessages().add(message);
+        built.addText(INSTRUCTIONS);
+        built.setResponseHandler(new PojoResponseHandler<>(Transcription.class));
         return built;
     }
 

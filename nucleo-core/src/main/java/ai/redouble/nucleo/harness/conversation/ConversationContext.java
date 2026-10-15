@@ -59,7 +59,7 @@ public class ConversationContext implements Serializable {
      * LLM-facing guidance explaining the @-prefixed schema notation that
      * {@code ai.redouble.nucleo.harness.schema.PojoDefinition} renders into response contracts.
      * The legend follows the contract - the notation's only producer, tool schemas are
-     * standard JSON Schema - not the conversation: {@link #reconcileLegend()} places it
+     * standard JSON Schema - not the conversation: {@link #placeLegend} places it
      * under {@link #KEY_LEGEND} exactly when an outgoing message's handler declares
      * {@code usesSchemaNotation()}, and a plain-prose conversation never carries it. A
      * reader given the notation without the legend takes the schema literally -
@@ -141,6 +141,14 @@ public class ConversationContext implements Serializable {
      */
     private String priorSpecId;
     private boolean cacheMainObjective = true;
+    /**
+     * Whether every outgoing turn is rendered with a cache breakpoint. A breakpoint says the
+     * prefix through that turn is stable and may be charged at the cached rate next time; that is
+     * a position on the wire, the end of a turn, never a property of what a turn says, so it is
+     * a policy of the conversation and not a flag a caller sets on a message it may not own
+     * whole. Instance-lifetime: the thinker that runs the conversation sets it each run.
+     */
+    private transient boolean cacheTurns;
     private final List<Message> messages = new ArrayList<>();
     private final ArtifactRegistry artifactRegistry = new ArtifactRegistry();
     private String title;
@@ -190,12 +198,88 @@ public class ConversationContext implements Serializable {
         ConversationContext conversation = new ConversationContext();
         conversation.setModelBinding(ModelBinding.preResolved(model));
         conversation.setDepth(Depth.IMMEDIATE);
-        OutgoingMessage<String> message = new OutgoingMessage<>(StringResponseHandler.instance);
-        message.setRole("user");
-        message.addText(prompt);
-        message.setRequestedOutputTokens(outputBackstopTokens);
-        conversation.getMessages().add(message);
+        conversation.addText(prompt);
+        conversation.setResponseHandler(StringResponseHandler.instance);
+        conversation.setRequestedOutputTokens(outputBackstopTokens);
         return conversation;
+    }
+
+    /**
+     * The user turn about to be sent, which every add below writes into: the last message when
+     * it is an outgoing user-role one, else a new one opened here and appended. One method
+     * decides where a block goes, so what a caller adds, what a tool returned and what the
+     * framework announces all land in the one message the model answers, and that message is
+     * the last outgoing one when the render runs: the one {@code LLMResponse} parses the answer
+     * with and the request is sized by. After the model answers the last message is incoming,
+     * so the next add opens the next turn; after a hand-built assistant turn likewise.
+     */
+    OutgoingMessage<?> pendingTurn() {
+        if (!messages.isEmpty() && messages.getLast() instanceof OutgoingMessage<?> last && "user".equals(last.getRole())) {
+            return last;
+        }
+        OutgoingMessage<?> turn = new OutgoingMessage<>();
+        turn.setTimestamp(Instant.now());
+        messages.add(turn);
+        return turn;
+    }
+
+    /** Adds text to the turn about to be sent; see {@link #pendingTurn()}. */
+    public void addText(String text) {
+        pendingTurn().addText(text);
+    }
+
+    /**
+     * Adds a human's words to the turn about to be sent, kept verbatim through compaction: what
+     * a person actually said is never summarized away, whatever else the turn carries.
+     */
+    public void addUtterance(String text) {
+        OutgoingMessage<?> turn = pendingTurn();
+        turn.addText(text);
+        turn.setCompactable(false);
+    }
+
+    /** Adds a POJO, rendered by the conversation's serializer, to the turn about to be sent. */
+    public void addPojo(Object pojo) {
+        pendingTurn().addPojo(pojo);
+    }
+
+    /** Adds an image to the turn about to be sent; the stream is read here and not kept. */
+    public void addImage(InputStream imageStream, String mimeType, String description) throws IOException {
+        pendingTurn().addImage(imageStream, mimeType, description);
+    }
+
+    /** Adds a file to the turn about to be sent; the stream is read here and not kept. */
+    public void addFile(InputStream fileStream, String mimeType, String filename) throws IOException {
+        pendingTurn().addFile(fileStream, mimeType, filename);
+    }
+
+    /** Answers one of the model's tool calls in the turn about to be sent. */
+    public void addToolResult(String toolUseId, String resultJson, boolean isError) {
+        pendingTurn().addToolResult(toolUseId, resultJson, isError);
+    }
+
+    /**
+     * The ask: the handler the answer to the turn about to be sent is parsed with, and the
+     * contract whose instructions the render appends to that turn. The last one set is the one
+     * that parses. A turn with none is refused at the send.
+     */
+    @SuppressWarnings("unchecked") // the turn's type is the handler's: it has no other
+    public <T> void setResponseHandler(ResponseHandler<T> handler) {
+        ((OutgoingMessage<T>) pendingTurn()).setResponseHandler(handler);
+    }
+
+    /** The output budget of the call that sends the turn about to be sent; see {@link OutgoingMessage#setRequestedOutputTokens}. */
+    public void setRequestedOutputTokens(Integer tokens) {
+        pendingTurn().setRequestedOutputTokens(tokens);
+    }
+
+    /** Whether every outgoing turn renders with a cache breakpoint; see {@link #cacheTurns}. */
+    public boolean isCacheTurns() {
+        return cacheTurns;
+    }
+
+    public void setCacheTurns(boolean cacheTurns) {
+        this.cacheTurns = cacheTurns;
     }
 
     /**
@@ -455,6 +539,46 @@ public class ConversationContext implements Serializable {
     }
 
     /**
+     * The framework's voice, written into a head and a stream: the schema-notation legend and
+     * the definitions of tools declared since the last render, in the head while the
+     * conversation is unfrozen and as blocks of the turn about to be sent once it is frozen.
+     * Applied to the live head and stream by {@link #prepareMessagesForLLM}, the render that
+     * commits, and to copies of them by a pure {@link #render}, which leaves the live turn as it
+     * was and renders a copy carrying the blocks.
+     *
+     * <p>The blocks go into the same message a caller's adds go into ({@link #pendingTurn()}),
+     * after what is already there, so the turn stays one message: the last outgoing one, the
+     * one {@code LLMResponse} parses the answer with and the request is sized by, and a tool
+     * result the turn carries stays first in it, directly after the call it answers. When no
+     * turn is pending, the last message being the model's reply, the blocks open the next turn,
+     * which the next ask then fills.
+     */
+    private void placeFrameworkVoice(Map<String, ContentBlock> head, List<Message> stream, boolean committing) {
+        List<ContentBlock> notes = new ArrayList<>();
+        placeLegend(head, notes);
+        placeDeclaredTools(head, notes);
+        if (notes.isEmpty()) {
+            return;
+        }
+        int last = stream.size() - 1;
+        if (last >= 0 && stream.get(last) instanceof OutgoingMessage<?> turn && "user".equals(turn.getRole())) {
+            if (committing) {
+                turn.addBlocks(notes);
+            }
+            else {
+                List<ContentBlock> blocks = new ArrayList<>(turn.getContentBlocks());
+                blocks.addAll(notes);
+                stream.set(last, OutgoingMessage.copyWithBlocks(turn, blocks));
+            }
+            return;
+        }
+        OutgoingMessage<?> opened = new OutgoingMessage<>();
+        opened.setTimestamp(Instant.now());
+        opened.addBlocks(notes);
+        stream.add(opened);
+    }
+
+    /**
      * Ensures the schema-notation legend accompanies a conversation whose request
      * describes structure in the framework's {@code @}-notation. The trigger is the
      * response contract - an outgoing message whose handler declares
@@ -462,21 +586,12 @@ public class ConversationContext implements Serializable {
      * schemas are standard JSON Schema): a plain-prose conversation carries no legend.
      * Pre-freeze the legend is a head slot, re-put fresh so a restored conversation
      * self-heals to the current text; if the notation first appears after the freeze,
-     * the legend is a stream message at the point of appearance, exactly like a
-     * late-declared tool. Presence is derived from the conversation content, never a
-     * side field.
+     * the legend is a block added to {@code notes}, which {@link #placeFrameworkVoice} puts
+     * into the turn about to be sent, exactly like a late-declared tool; nothing is
+     * added when no message asks for the notation or the legend is already in place.
+     * Presence is derived from the conversation content, never a side field.
      */
-    private void reconcileLegend() {
-        placeLegend(mainObjective, messages);
-    }
-
-    /**
-     * Where the legend goes, applied either to the live head and stream (the reconciliation
-     * at a real render) or to copies of them (a pure {@link #render}): in the head while the
-     * conversation is unfrozen, as a note at the end of the stream once it is frozen, and
-     * nowhere when no message asks for the notation or the legend is already in place.
-     */
-    private void placeLegend(Map<String, ContentBlock> head, List<Message> stream) {
+    private void placeLegend(Map<String, ContentBlock> head, List<ContentBlock> notes) {
         boolean needed = false;
         for (Message message : messages) {
             if (message instanceof OutgoingMessage<?> outgoing
@@ -496,11 +611,7 @@ public class ConversationContext implements Serializable {
         if (head.containsKey(KEY_LEGEND) || legendInStream()) {
             return;
         }
-        OutgoingMessage<Void> note = new OutgoingMessage<>(null);
-        note.setRole("user");
-        note.setTimestamp(Instant.now());
-        note.addText(SCHEMA_NOTATION_GUIDANCE);
-        stream.add(note);
+        notes.add(new TextBlock(SCHEMA_NOTATION_GUIDANCE));
     }
 
     /** Whether a prior stream message already carries the legend; the text is a fixed constant, so containment is deterministic. */
@@ -518,37 +629,29 @@ public class ConversationContext implements Serializable {
     }
 
     /**
-     * Brings what the model has been told in line with what has been declared. Runs at
-     * the top of every {@link #prepareMessagesForLLM} call; declared tools the model has
-     * not seen convert to wire definitions here - once per tool, never eagerly.
+     * Brings what the model has been told in line with what has been declared: declared
+     * tools the model has not seen convert to wire definitions here, once per tool, never
+     * eagerly, at every render.
      *
      * <p>Where they land depends on whether this instance has rendered before. At the
      * first render the palette is stable head content and lives with the instructions
      * (under {@link #TOOL_KEY_PREFIX} keys, preceded by the {@link #KEY_TOOL_WEIGHTS}
      * guidance): it belongs to the cacheable prefix, and opening the conversation with a
      * wall of schemas primes a weak model to answer in schema form. After that the head
-     * is frozen, and a newly declared tool is a message at the point of declaration, so
-     * the prefix ahead of it never moves and the transcript shows the tool appearing
-     * when it appeared, and never a rewritten history where it always existed.
+     * is frozen, and a newly declared tool is an announcement added to {@code notes}, which
+     * {@link #placeFrameworkVoice} puts into the turn about to be sent, so the prefix
+     * ahead of it never moves and the transcript shows the tool appearing when it appeared,
+     * and never a rewritten history where it always existed.
      *
      * <p>The already-announced set derives from the conversation content itself, never
      * from a side field, so a persisted-and-restored conversation knows exactly what it
-     * announced with no extra state to restore.
+     * announced with no extra state to restore. The conversion of a declaration to its
+     * definition is written back to {@link #declaredTools} in both cases: a definition is its
+     * own DeclaredTool, so the first caller to need it, render or estimate, converts it once
+     * and every later one reads it. That write changes nothing the model sees, which is what
+     * a pure render promises.
      */
-    private void reconcileDeclaredTools() {
-        placeDeclaredTools(mainObjective, messages);
-    }
-
-    /**
-     * Where declared-but-unannounced tools go, applied either to the live head and stream
-     * (the reconciliation at a real render) or to copies of them (a pure {@link #render}): in
-     * the head while the conversation is unfrozen, as an announcement at the end of the stream
-     * once it is frozen. The conversion of a declaration to its definition is written back to
-     * {@link #declaredTools} in both cases: a definition is its own DeclaredTool, so the first
-     * caller to need it, render or estimate, converts it once and every later one reads it.
-     * That write changes nothing the model sees, which is what a pure render promises.
-     */
-    private void placeDeclaredTools(Map<String, ContentBlock> head, List<Message> stream) {
+    private void placeDeclaredTools(Map<String, ContentBlock> head, List<ContentBlock> notes) {
         Map<String, ToolDefinitionBlock> announced = announcedTools();
         List<ToolDefinitionBlock> pending = declaredTools.values().stream()
             .filter(declared -> !announced.containsKey(declared.name()))
@@ -567,14 +670,8 @@ public class ConversationContext implements Serializable {
             }
         }
         else {
-            OutgoingMessage<Void> announcement = new OutgoingMessage<>(null);
-            announcement.setRole("user");
-            announcement.setTimestamp(Instant.now());
-            announcement.addText("Additional tools now available:");
-            for (ToolDefinitionBlock td : pending) {
-                announcement.addToolDefinition(td);
-            }
-            stream.add(announcement);
+            notes.add(new TextBlock("Additional tools now available:"));
+            notes.addAll(pending);
         }
     }
 
@@ -1020,10 +1117,10 @@ public class ConversationContext implements Serializable {
     public PreparedConversation prepareMessagesForLLM(ContentFormatter formatter, boolean thinkingActive) {
         // The framework's voice lands now: the legend if this request renders an @-notation
         // contract, declared-but-unseen tools converting to definitions - in the head if this
-        // is the first render, in the stream if the head is already frozen - then the freeze
-        // takes effect: from here on the head is immutable and all change is flow
-        reconcileLegend();
-        reconcileDeclaredTools();
+        // is the first render, as blocks of the turn being sent if the head is already
+        // frozen - then the freeze takes effect: from here on the head is immutable and all
+        // change is flow
+        placeFrameworkVoice(mainObjective, messages, true);
         frozen = true;
         return render(formatter, thinkingActive);
     }
@@ -1033,8 +1130,8 @@ public class ConversationContext implements Serializable {
      * rendering {@link #prepareMessagesForLLM} produces, with the head left unfrozen and the
      * stream unchanged. What the next real render would add, the legend and the definitions of
      * tools declared but not yet announced, is rendered where that render will place it, in the
-     * head of an unfrozen conversation and as an announcement turn at the end of a frozen one,
-     * so an estimate of this rendering is an estimate of the payload the next call carries.
+     * head of an unfrozen conversation and as blocks of the turn about to be sent in a frozen
+     * one, so an estimate of this rendering is an estimate of the payload the next call carries.
      * This is what a {@link ModelSpec#estimate} counts.
      *
      * @param formatter      the formatter of the client that will send the conversation
@@ -1043,8 +1140,7 @@ public class ConversationContext implements Serializable {
     public PreparedConversation render(ContentFormatter formatter, boolean thinkingActive) {
         LinkedHashMap<String, ContentBlock> head = new LinkedHashMap<>(mainObjective);
         List<Message> stream = new ArrayList<>(messages);
-        placeLegend(head, stream);
-        placeDeclaredTools(head, stream);
+        placeFrameworkVoice(head, stream, false);
         ContentProcessor processor = createContentProcessor();
         List<ContentBlock> objectiveBlocks = new ArrayList<>(head.values());
         String systemText = objectiveBlocks.isEmpty()
@@ -1092,7 +1188,7 @@ public class ConversationContext implements Serializable {
                     processedBlocks.add(new TextBlock(instructions));
                 }
             }
-            return new ProcessedMessageData(TurnRole.of(message.getRole()), processedBlocks, message.isEnableCache());
+            return new ProcessedMessageData(TurnRole.of(message.getRole()), processedBlocks, cacheTurns || message.isEnableCache());
         }
         if (message instanceof IncomingMessage<?> incoming) {
             // the provider's blocks as they came back, so a tool call or a thinking block travels intact

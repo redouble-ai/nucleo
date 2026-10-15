@@ -630,17 +630,17 @@ public abstract class AbstractThinker<I extends ThinkerInput, O extends ThinkerO
             }
         }
 
-        // Phase 2: Wait for results and collect ALL into one message per turn
-        OutgoingMessage<String> resultsMessage = new OutgoingMessage<>(StringResponseHandler.instance);
-        resultsMessage.setRole("user");
-
+        // Phase 2: wait for results and answer every call in the conversation's next turn, the
+        // one message the model answers, which the loop's ask then completes
+        conversation.setCacheTurns(cacheAllMessages);
+        Set<String> answeredIds = new HashSet<>();
         for (Map.Entry<ToolCall, Object> entry : submissions.entrySet()) {
             ToolCall toolCall = entry.getKey();
             Object submission = entry.getValue();
 
             // Check if submission failed (stored as the thrown exception in phase 1)
             if (submission instanceof Throwable submissionFailure) {
-                emitErrorResult(resultsMessage, toolCall, submissionFailure, "Tool submission: " + toolCall.getToolName());
+                emitErrorResult(conversation, answeredIds, toolCall, submissionFailure, "Tool submission: " + toolCall.getToolName());
                 continue;
             }
 
@@ -660,7 +660,8 @@ public abstract class AbstractThinker<I extends ThinkerInput, O extends ThinkerO
                 else {
                     resultJson = "[Tool returned no result]";
                 }
-                resultsMessage.addToolResult(toolCall.getToolUseId(), resultJson, false);
+                conversation.addToolResult(toolCall.getToolUseId(), resultJson, false);
+                answeredIds.add(toolCall.getToolUseId());
 
                 // Report tool completion
                 String completionMsg =
@@ -674,7 +675,7 @@ public abstract class AbstractThinker<I extends ThinkerInput, O extends ThinkerO
                 // loop continues. The model sees the error and recovers instead of the thinker dying
                 // on an orphaned tool_use turn. Error (OutOfMemory, StackOverflow) is deliberately
                 // NOT caught - it must propagate.
-                emitErrorResult(resultsMessage, toolCall, e, "Tool execution: " + toolCall.getToolName());
+                emitErrorResult(conversation, answeredIds, toolCall, e, "Tool execution: " + toolCall.getToolName());
                 notifyToolFailure(context, toolCall, e);
                 if (e instanceof InterruptedException) {
                     Thread.currentThread().interrupt();
@@ -686,28 +687,16 @@ public abstract class AbstractThinker<I extends ThinkerInput, O extends ThinkerO
         // tool_result before the turn is sent. After parse maps each tool_use block 1:1 to a ToolCall,
         // these ids are the assistant turn's tool_use ids; any left unanswered by the loop above is
         // backfilled so the conversation can never carry an orphaned tool_use (Anthropic 400).
-        Set<String> answeredIds = new HashSet<>();
-        for (ContentBlock block : resultsMessage.getContentBlocks()) {
-            if (block instanceof ToolResultBlock tr) {
-                answeredIds.add(tr.toolUseId());
-            }
-        }
         for (ToolCall toolCall : toolCalls) {
             String id = toolCall.getToolUseId();
             if (id != null && !answeredIds.contains(id)) {
                 log.warn("tool_use {} ({}) was not answered by the execution loop; backfilling an error result to preserve the tool_use/tool_result pairing",
                         id,
                         toolCall.getToolName());
-                resultsMessage.addToolResult(id, RECONCILE_TEXT, true);
+                conversation.addToolResult(id, RECONCILE_TEXT, true);
                 answeredIds.add(id);
             }
         }
-
-        // Add the single batched results message to conversation
-        if (cacheAllMessages) {
-            resultsMessage.setCache(true);
-        }
-        conversation.getMessages().add(resultsMessage);
 
         // Refresh tool declarations - picks up tools activated via request_tools. New names
         // reach the model as a stream announcement at the next render, so the prefix ahead
@@ -727,7 +716,7 @@ public abstract class AbstractThinker<I extends ThinkerInput, O extends ThinkerO
      * so it is logged and skipped rather than injected as stray text into a turn that
      * carries tool_results.
      */
-    private void emitErrorResult(OutgoingMessage<String> resultsMessage, ToolCall toolCall, Throwable cause, String componentLabel) {
+    private void emitErrorResult(ConversationContext conversation, Set<String> answeredIds, ToolCall toolCall, Throwable cause, String componentLabel) {
         Throwable root = cause;
         if ((root instanceof ExecutionException || root instanceof CompletionException) && root.getCause() != null) {
             root = root.getCause();
@@ -752,7 +741,8 @@ public abstract class AbstractThinker<I extends ThinkerInput, O extends ThinkerO
             log.error("{} failed - LLM will attempt recovery", componentLabel, root);
         }
         if (toolCall.getToolUseId() != null) {
-            resultsMessage.addToolResult(toolCall.getToolUseId(), errorText, true);
+            conversation.addToolResult(toolCall.getToolUseId(), errorText, true);
+            answeredIds.add(toolCall.getToolUseId());
         }
         else {
             log.warn("Tool {} has no tool_use id; skipping its error result to avoid an orphaned turn (unreachable on the native tool-calling path)",
@@ -1223,9 +1213,7 @@ public abstract class AbstractThinker<I extends ThinkerInput, O extends ThinkerO
      * seat that corrects uses: the LLM-readable explanation and nothing else.
      */
     protected void appendCorrection(ConversationContext conversation, LLMReadableException error) {
-        OutgoingMessage<String> correction = new OutgoingMessage<>(StringResponseHandler.instance);
-        correction.addText(error.explainToLLM());
-        conversation.getMessages().add(correction);
+        conversation.addText(error.explainToLLM());
     }
 
     /**
