@@ -18,6 +18,7 @@ import org.slf4j.*;
 
 import java.io.*;
 import java.lang.reflect.*;
+import java.util.*;
 
 /**
  * {@link ToolProvider} that wraps a {@code Class<? extends Tool>}. Reads
@@ -293,8 +294,9 @@ public final class ClassToolProvider implements ToolProvider {
         if (raw == null) {
             throw new InvalidInputException(name, "null", "input is null");
         }
+        Object input;
         try {
-            return NucleoJsonSerializer.convert(raw, inputType);
+            input = NucleoJsonSerializer.convert(raw, inputType);
         }
         catch (Exception e) {
             // The parser's complaint quotes what it was given - Jackson names the offending
@@ -308,6 +310,14 @@ public final class ClassToolProvider implements ToolProvider {
             throw new InvalidInputException(field != null ? field : name, inputType.getSimpleName(),
                     "the value does not fit the type declared for it", e);
         }
+        // The schema marks a field required; a call that leaves it out or blank is refused
+        // here, by the field's name, before the tool runs on a value it was promised never
+        // to see
+        List<String> missing = PojoResponseHandler.validationErrors(input);
+        if (!missing.isEmpty()) {
+            throw new InvalidInputException(name, inputType.getSimpleName(), String.join("; ", missing));
+        }
+        return input;
     }
 
     /**

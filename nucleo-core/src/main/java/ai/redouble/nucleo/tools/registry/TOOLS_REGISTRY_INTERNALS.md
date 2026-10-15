@@ -46,7 +46,9 @@ cannot know: a tool is treated as mutating unless something asserted otherwise.
 Parse refusals are correctable: `parseInput` throws `InvalidInputException`, whose message
 names the field (from the mapping failure's own reference chain) and the declared type,
 never the value the model sent; the decoder's own complaint, which quotes that value,
-survives on the cause, where only a stack trace carries it.
+survives on the cause, where only a stack trace carries it. A call that parses but leaves
+a field marked `@LLMRequired` null or blank is refused the same way, naming the field, so
+a tool never runs on a value its schema promised it would have.
 
 ## ToolRegistry: names to providers
 

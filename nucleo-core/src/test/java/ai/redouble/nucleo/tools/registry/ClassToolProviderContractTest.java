@@ -25,7 +25,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * {@code ModelDependent} tool with no grade of its own inherits its parent's; a tool class
  * without the {@code (Identifiable)} constructor fails with a message naming the
  * constructor it must declare; a parse refusal names the offending field and the declared
- * type, never the value the model sent; and a declared {@link SchemaRefinedBy} refiner is
+ * type, never the value the model sent; a call that leaves a required field out is refused
+ * before the tool runs, naming the field; and a declared {@link SchemaRefinedBy} refiner is
  * applied to the published schema, while a refiner that fails prevents the provider from
  * existing at all.
  *
@@ -272,6 +273,48 @@ class ClassToolProviderContractTest {
         assertNotNull(refusal.getCause(),
                 "the decoder's complaint survives on the cause, where only a stack trace carries it");
         assertThrows(InvalidInputException.class, () -> provider.parseInput(null), "null input is a correctable refusal");
+    }
+
+    public static class DatedInput {
+        @LLMRequired
+        @LLMDescription("When")
+        private String when;
+
+        public String getWhen() {return when;}
+
+        public void setWhen(String when) {this.when = when;}
+    }
+
+    @ToolName("dated_probe")
+    @ToolDescription(value = "Needs a date.", readOnly = true)
+    public static class DatedTool extends AbstractTool<DatedInput, Confirmation> {
+        public DatedTool(Identifiable parent) {
+            super(parent);
+        }
+
+        @Override
+        public Confirmation execute(JobResources resources, JobContext<Confirmation> context) {
+            return new Confirmation();
+        }
+    }
+
+    @Test
+    void aCallMissingARequiredFieldIsRefusedBeforeTheToolRuns_namingTheField() throws Exception {
+        ClassToolProvider provider = ClassToolProvider.of(DatedTool.class);
+        InvalidInputException missing = assertThrows(InvalidInputException.class,
+                () -> provider.parseInput(NucleoJsonSerializer.createObjectNode()),
+                "a call that leaves a required field out is a correctable refusal");
+        assertTrue(missing.getLLMMessage().contains("when"),
+                "the refusal names the field the call left out: " + missing.getLLMMessage());
+        ObjectNode blank = NucleoJsonSerializer.createObjectNode();
+        blank.put("when", "  ");
+        InvalidInputException blankRefusal = assertThrows(InvalidInputException.class, () -> provider.parseInput(blank),
+                "a blank value for a required field is refused the same way");
+        assertTrue(blankRefusal.getLLMMessage().contains("when"), blankRefusal.getLLMMessage());
+        ObjectNode given = NucleoJsonSerializer.createObjectNode();
+        given.put("when", "2026-10-14");
+        assertEquals("2026-10-14", ((DatedInput) provider.parseInput(given)).getWhen(),
+                "a call that supplies the field parses into the tool's input");
     }
 
     @Test

@@ -571,7 +571,7 @@ public class PojoResponseHandler<T > implements ResponseHandler<T> {
                         errors.add(String.format("[%s] Required field '%s' (type: %s%s) is null - expected non-null value", className, fieldName, fieldType, genericType));
                     }
                     else if (value instanceof String && ((String)value).trim().isEmpty()) {
-                        errors.add(String.format("[%s] Required field '%s' (type: %s) is blank - expected non-empty string, received: '%s'", className, fieldName, fieldType, value));
+                        errors.add(String.format("[%s] Required field '%s' (type: %s) is blank - expected non-empty string", className, fieldName, fieldType));
                     }
                     // Note: Empty collections are valid - they mean "no items found"
                     // Valid scenarios: "extracts": [] when no relevant extracts exist

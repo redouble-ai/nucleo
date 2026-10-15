@@ -89,11 +89,12 @@ public interface ToolProvider {
     /**
      * Parses LLM-emitted input (already converted to {@link JsonNode} upstream by
      * {@code ThinkingResponseHandler}) into the typed input the tool's {@code execute}
-     * expects. Class-based providers convert via the framework JSON serializer; MCP-bound
-     * providers wrap the tree as an MCP input envelope without translation.
+     * expects. Class-based providers convert via the framework JSON serializer and refuse a
+     * call that leaves a field the schema marks required null or blank, naming the field;
+     * MCP-bound providers wrap the tree as an MCP input envelope without translation.
      *
-     * @throws CorrectableLLMException when the LLM produced input the provider cannot parse;
-     *     the LLM can correct and retry.
+     * @throws CorrectableLLMException when the LLM produced input the provider cannot parse,
+     *     or input missing a required field; the LLM can correct and retry.
      */
     Object parseInput(JsonNode raw) throws CorrectableLLMException;
 
