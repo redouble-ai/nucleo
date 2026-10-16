@@ -3,8 +3,35 @@
 Every release of Nucleo, newest first. Released artifacts are on Maven Central under the
 group `ai.redouble`; a published version is never changed in place.
 
-## Unreleased
+## 0.1.2 (2026-10-16)
 
+- The conversation composes the turn the model answers. A caller adds what it has through
+  `ConversationContext`, `addText`, `addPojo`, `addImage`, `addFile`, `addToolResult` or
+  `addUtterance`, and every add writes into the turn about to be sent; `setResponseHandler`
+  names the handler the answer is parsed with and `setRequestedOutputTokens` caps the one
+  call. The schema legend and a tool declared after the first call are blocks of that turn,
+  so a provider never receives two user messages in a row, and caching every turn is the
+  conversation's policy, `setCacheTurns`. Hand-built messages stay legal for a history
+  another system holds. Breaking: `ResponseCorrection.exchange` throws
+  `IllegalStateException` when the last outgoing message has no response handler; the legend
+  and a tool announcement are no longer messages of their own in `getMessages()`; a thinker's
+  `cacheAllMessages` is applied through `setCacheTurns`, not written onto each message
+  ([#1](https://github.com/redouble-ai/nucleo/issues/1)).
+- A tool call that leaves an `@LLMRequired` field out, or blank, is refused by the field's
+  name before the tool runs, the same correctable refusal a value of the wrong type gets, so
+  the model corrects its call instead of the tool failing on a null. The MCP server gives an
+  outside client the same validation error. Breaking: `ClassToolProvider.parseInput` throws
+  `InvalidInputException` for such an input ([#1](https://github.com/redouble-ai/nucleo/issues/1)).
+- A catalog entry closed as `UNLISTED` or `UNREACHABLE` that a later discovery lists again is
+  pinged with its spec already reopened, so it comes back instead of being closed again on
+  every run. The command-line discovery starts the dispatcher its probes run on and shuts it
+  down after the run ([#1](https://github.com/redouble-ai/nucleo/issues/1)).
+- An embeddings or decision ping reports the first classifying signal in its cause chain, as
+  a chat ping does; the character-based counter prices the floor only for a payload that is
+  not base64. Breaking: `new ImageBlock(null, ...)` and `new FileBlock(null, ...)` throw
+  `IllegalArgumentException`, and `TokenCounter.countImageTokens`, `countFileTokens` and
+  `ImageDimensions.of` no longer accept a null block
+  ([#1](https://github.com/redouble-ai/nucleo/issues/1)).
 - Token accounting is one `TokenLedger` per call, in the new `ai.redouble.nucleo.harness.tokens`
   package: `ModelSpec.estimate(conversation)` returns the estimate the compaction trigger, the
   reservation and the client's pre-flight all read, and `LLMResponse.getUsage()` returns the
