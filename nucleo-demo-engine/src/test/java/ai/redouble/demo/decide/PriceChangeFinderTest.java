@@ -39,7 +39,7 @@ class PriceChangeFinderTest {
 
     @BeforeAll
     static void start() {
-        Assumptions.assumeTrue(Files.isDirectory(CORPUS), "the shipped corpus is at " + CORPUS);
+        assertTrue(Files.isDirectory(CORPUS), "the shipped corpus is at " + CORPUS);
         JobDispatcher.getInstance().start();
     }
 

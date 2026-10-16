@@ -12,12 +12,12 @@ import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 import ai.redouble.nucleo.tools.deciding.*;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.condition.*;
 
 import java.util.*;
 import java.util.concurrent.*;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.junit.jupiter.api.Assumptions.*;
 
 /**
  * A decision thinker on a live System One model: the run is a real agentic loop where the
@@ -124,10 +124,9 @@ class LiveDecisionThinkerTest {
     }
 
     @Test
+    @EnabledIfSystemProperty(named = "systemone.live.url", matches = ".+", disabledReason = "no live server named: -Dsystemone.live.url")
     void theModelSplitsTheMinutesDraftsTheRightNoticeAndSelectsIt() throws Exception {
-        String url = System.getProperty("systemone.live.url");
-        assumeTrue(url != null && !url.isBlank(), "no live server named: -Dsystemone.live.url");
-        SystemOneTestSecrets.host = url;
+        SystemOneTestSecrets.host = System.getProperty("systemone.live.url");
         JobDispatcher.getInstance().start();
         NoticeWriter writer = new NoticeWriter(Job.workflow("live", "live-thinker"));
         writer.setInput(new Minutes(MINUTES));

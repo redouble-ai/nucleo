@@ -11,12 +11,12 @@ import ai.redouble.nucleo.harness.decision.*;
 import ai.redouble.nucleo.harness.llm.*;
 import ai.redouble.nucleo.tools.deciding.*;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.condition.*;
 
 import java.util.*;
 import java.util.concurrent.*;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.junit.jupiter.api.Assumptions.*;
 
 /**
  * The whole path against a real decision server: a decision submitted to the dispatcher
@@ -36,10 +36,9 @@ class LiveSystemOneTest {
             + " Tune-up and bearing prices in the workshop are unchanged.";
 
     @Test
+    @EnabledIfSystemProperty(named = "systemone.live.url", matches = ".+", disabledReason = "no live server named: -Dsystemone.live.url")
     void aDecisionAboutTheMinutesComesBackRightThroughTheWholeDoor() throws Exception {
-        String url = System.getProperty("systemone.live.url");
-        assumeTrue(url != null && !url.isBlank(), "no live server named: -Dsystemone.live.url");
-        SystemOneTestSecrets.host = url;
+        SystemOneTestSecrets.host = System.getProperty("systemone.live.url");
         JobDispatcher.getInstance().start();
         LinkedHashMap<String, Question> questions = new LinkedHashMap<>();
         questions.put("comet_affected", Noul.of("Is the Comet 2 affected by the price change decided in this document?"));
