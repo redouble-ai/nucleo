@@ -38,17 +38,25 @@ validated before it is written, so a file the discovery writes always loads.
 
 The deployment's file is the deployment's, and the discovery treats it that way:
 
-- **Nothing you wrote is re-checked or rewritten.** An entry already in the file keeps its
-  facts exactly as they are and is not called again. Your pins are kept and never moved.
+- **Nothing you wrote is re-checked or rewritten, except a price the provider publishes.**
+  An entry already in the file keeps its facts exactly as they are and is not called again.
+  Your pins are kept and never moved. The one exception is a price: on Bedrock the discovery
+  reads the AWS price list, the public files AWS publishes per region, and every entry it
+  prices takes the listed rates, the regional ones for a `us.` or `eu.` profile and the global
+  ones for a `global.` profile, because that is what the account is billed and a typed price
+  goes stale. The report shows each such entry's rates before and after. An entry the list
+  does not price, and every entry of a provider that publishes no list, keeps the prices a
+  person typed.
 - **Nothing is deleted, and kept is all it is.** An entry the account no longer lists is
   closed as `UNLISTED`; an entry of a provider whose endpoint is not served where this
   deployment points, or whose own ping fails for a reason no retry changes, is closed as
   `UNREACHABLE`. No new work goes to a closed entry while past calls keep their price; when
   the account lists the model again, or the provider answers again, the entry reopens.
 - **New models follow their family.** A new model of a family the file already has is added
-  with the shape of its nearest older relative, and a note saying so. A new version of a
-  family you disabled arrives disabled. A newer version of a pinned model is added and
-  announced at the top of the report, and the pin stays where you put it.
+  with the shape of its nearest older relative, and a note saying so; where the provider's
+  price list prices it, the prices are the list's and the note names the rest to verify. A
+  new version of a family you disabled arrives disabled. A newer version of a pinned model is
+  added and announced at the top of the report, and the pin stays where you put it.
 - **A run pays only for what is new**: the listings it has not seen, the classification of
   those that need one (below), and one call per new entry.
 

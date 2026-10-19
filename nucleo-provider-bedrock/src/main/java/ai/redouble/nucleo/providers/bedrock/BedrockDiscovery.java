@@ -48,6 +48,13 @@ import java.util.concurrent.*;
  * where {@code requires_lax} comes from: a model whose allowed modes exclude {@code none}
  * cannot run at zero retention, so the runtime must route it through its LAX project.
  *
+ * <p>Both surfaces price every entry from the AWS price list ({@link BedrockPriceList}), the
+ * public files AWS publishes per region, matched on the same provider and model names the
+ * quota is matched on, the global profile's rate for a {@code global.} id and the regional
+ * rate for every other. An entry the list does not price says why in its note, as an entry
+ * whose quota matched nothing does, and a list that cannot be read prices nothing and is
+ * reported the same way.
+ *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-09-12)
  */
@@ -65,6 +72,7 @@ public final class BedrockDiscovery {
         Region region = BedrockClients.region();
         AwsCredentialsProvider credentials = BedrockClients.credentialsProvider();
         Quotas quotas = quotas(region, credentials);
+        BedrockPriceList prices = BedrockPriceList.forRegion(region);
         List<DiscoveredModel> models = new ArrayList<>();
         try (BedrockClient bedrock = BedrockClient.builder().region(region).credentialsProvider(credentials)
                 .httpClientBuilder(Apache5HttpClient.builder()).build()) {
@@ -79,7 +87,7 @@ public final class BedrockDiscovery {
                             summary.modelId(), summary.inferenceTypesSupportedAsStrings());
                     continue;
                 }
-                models.add(discovered(summary.modelId(), summary, quotas, true));
+                models.add(discovered(summary.modelId(), summary, quotas, prices, true));
             }
             for (InferenceProfileSummary profile : bedrock.listInferenceProfilesPaginator(r -> {}).inferenceProfileSummaries()) {
                 FoundationModelSummary underlying = null;
@@ -98,7 +106,7 @@ public final class BedrockDiscovery {
                     log.debug("Inference profile {} has no foundation model behind it in {}; skipped", profile.inferenceProfileId(), region.id());
                     continue;
                 }
-                models.add(discovered(profile.inferenceProfileId(), underlying, quotas, true));
+                models.add(discovered(profile.inferenceProfileId(), underlying, quotas, prices, true));
             }
         }
         return models;
@@ -118,15 +126,16 @@ public final class BedrockDiscovery {
     }
 
     /**
-     * A listed id with the facts the control plane states about its model. The modalities are
-     * taken as strings, because the SDK's enum knows only text, image and embedding and maps a
-     * video or speech modality to null, which would make a speech model read as one that takes
-     * nothing.
+     * A listed id with the facts the control plane states about its model and the price the
+     * list states for it. The modalities are taken as strings, because the SDK's enum knows
+     * only text, image and embedding and maps a video or speech modality to null, which would
+     * make a speech model read as one that takes nothing.
      */
-    static DiscoveredModel discovered(String wireId, FoundationModelSummary summary, Quotas quotas, boolean invokable) {
+    static DiscoveredModel discovered(String wireId, FoundationModelSummary summary, Quotas quotas, BedrockPriceList prices, boolean invokable) {
         if (summary == null) {
+            BedrockPriceList.Pricing pricing = prices.pricesOf(wireId, null, null, false);
             return new DiscoveredModel(wireId, null, null, null, invokable, null, null, null, null,
-                    "a profile with no foundation model behind it in this region");
+                    "a profile with no foundation model behind it in this region" + priceNote(pricing), pricing.prices());
         }
         List<String> inputs = summary.hasInputModalities() ? summary.inputModalitiesAsStrings() : null;
         List<String> outputs = summary.hasOutputModalities() ? summary.outputModalitiesAsStrings() : null;
@@ -136,10 +145,17 @@ public final class BedrockDiscovery {
                 : null;
         Integer tpm = quota(quotas.values(), wireId, "tokens", summary);
         Integer rpm = quota(quotas.values(), wireId, "requests", summary);
+        BedrockPriceList.Pricing pricing = prices.pricesOf(wireId, summary.providerName(), summary.modelName(), false);
         String note = summary.providerName() + " " + summary.modelName()
                 + (summary.modelLifecycle() != null && summary.modelLifecycle().status() != null ? " [" + summary.modelLifecycle().statusAsString() + "]" : "")
-                + (quotas.failure() != null ? " (quotas unreadable: " + quotas.failure() + ")" : tpm == null ? " (no quota matched)" : "");
-        return new DiscoveredModel(wireId, inputs, outputs, vision, invokable, retired, null, tpm, rpm, note);
+                + (quotas.failure() != null ? " (quotas unreadable: " + quotas.failure() + ")" : tpm == null ? " (no quota matched)" : "")
+                + priceNote(pricing);
+        return new DiscoveredModel(wireId, inputs, outputs, vision, invokable, retired, null, tpm, rpm, note, pricing.prices());
+    }
+
+    /** The note's word on a price the list did not give, so the entry says why it keeps the price it had; nothing when it did. */
+    private static String priceNote(BedrockPriceList.Pricing pricing) {
+        return pricing.prices() != null ? "" : " (no list price: " + pricing.note() + ")";
     }
 
     /** The region's quota table, held briefly: three Bedrock surfaces read the same table in one discovery run, and it takes ~25s to page through. */
@@ -229,10 +245,11 @@ public final class BedrockDiscovery {
 
     public static List<DiscoveredModel> mantleModels() throws IOException {
         Region region = BedrockClients.region();
+        AwsCredentialsProvider credentials = BedrockClients.credentialsProvider();
         URI uri = URI.create("https://bedrock-mantle." + region.id() + ".api.aws/v1/models");
         SdkHttpFullRequest request = SdkHttpFullRequest.builder().method(SdkHttpMethod.GET).uri(uri)
                 .putHeader("Accept", "application/json").build();
-        AwsCredentials identity = BedrockClients.credentialsProvider().resolveCredentials();
+        AwsCredentials identity = credentials.resolveCredentials();
         SignedRequest signed = AwsV4HttpSigner.create().sign(r -> r.identity(identity).request(request)
                 .putProperty(AwsV4HttpSigner.SERVICE_SIGNING_NAME, MANTLE_SIGNING_NAME)
                 .putProperty(AwsV4HttpSigner.REGION_NAME, region.id()));
@@ -245,20 +262,46 @@ public final class BedrockDiscovery {
             if (!response.httpResponse().isSuccessful()) {
                 throw new IOException("Mantle listing " + uri + " answered " + response.httpResponse().statusCode() + ": " + body);
             }
-            return parseMantle(body);
+            return parseMantle(body, controlPlaneNames(region, credentials), BedrockPriceList.forRegion(region));
         }
     }
 
-    /** The Mantle listing's shape, as a pure function so it tests on a recorded body. */
-    static List<DiscoveredModel> parseMantle(String body) throws IOException {
+    /**
+     * The control plane's summary of every foundation model by id, which is where a Mantle id's
+     * provider and model names come from, the names its price is matched on. Names are the
+     * listing's enrichment, not its subject: an identity that may call Mantle but not list the
+     * control plane still gets its listing, priced only where the list spells the raw id.
+     */
+    private static Map<String, FoundationModelSummary> controlPlaneNames(Region region, AwsCredentialsProvider credentials) {
+        Map<String, FoundationModelSummary> byModelId = new HashMap<>();
+        try (BedrockClient bedrock = BedrockClient.builder().region(region).credentialsProvider(credentials)
+                .httpClientBuilder(Apache5HttpClient.builder()).build()) {
+            for (FoundationModelSummary summary : bedrock.listFoundationModels(r -> {}).modelSummaries()) {
+                byModelId.put(summary.modelId(), summary);
+            }
+        }
+        catch (AwsServiceException e) {
+            log.warn("Bedrock's control plane in {} not readable, Mantle entries are priced by raw id alone: {}: {}",
+                    region.id(), e.getClass().getSimpleName(), e.awsErrorDetails().errorMessage());
+        }
+        return byModelId;
+    }
+
+    /**
+     * The Mantle listing's shape, as a pure function so it tests on a recorded body. Each id is
+     * priced from the list under the names the control plane gives it, or under the raw id
+     * when the control plane does not list it.
+     */
+    static List<DiscoveredModel> parseMantle(String body, Map<String, FoundationModelSummary> byModelId, BedrockPriceList prices) throws IOException {
         JsonNode data = NucleoJsonSerializer.readTree(body).get("data");
         if (data == null || !data.isArray()) {
             throw new IOException("Mantle listing carried no 'data' array: " + body);
         }
         List<DiscoveredModel> models = new ArrayList<>();
         for (JsonNode model : data) {
+            String id = model.get("id").asText();
             Boolean requiresLax = null;
-            String note = null;
+            String note = "";
             JsonNode retention = model.get("data_retention");
             if (retention != null && retention.has("allowed_modes") && retention.get("allowed_modes").isArray()) {
                 Set<String> modes = new HashSet<>();
@@ -271,7 +314,11 @@ public final class BedrockDiscovery {
                 requiresLax = !modes.contains("none");
                 note = "allowed_modes " + modes;
             }
-            models.add(new DiscoveredModel(model.get("id").asText(), null, null, null, null, null, requiresLax, null, null, note));
+            FoundationModelSummary summary = byModelId.get(id);
+            BedrockPriceList.Pricing pricing = prices.pricesOf(id, summary != null ? summary.providerName() : null,
+                    summary != null ? summary.modelName() : null, true);
+            note = (note + priceNote(pricing)).trim();
+            models.add(new DiscoveredModel(id, null, null, null, null, null, requiresLax, null, null, note.isEmpty() ? null : note, pricing.prices()));
         }
         return models;
     }

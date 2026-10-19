@@ -3,6 +3,18 @@
 Every release of Nucleo, newest first. Released artifacts are on Maven Central under the
 group `ai.redouble`; a published version is never changed in place.
 
+## Unreleased
+
+- The catalog discovery prices every Bedrock entry from the AWS price list, the public files
+  AWS publishes per region, instead of inheriting prices from an older entry or keeping what
+  a person typed: the regional rate for a `us.` or `eu.` profile, the global rate for a
+  `global.` profile, cache rates where the list states them, and the report shows each
+  entry's rates before and after. A listed price replaces a typed one on an entry already in
+  the deployment's file, the one fact of such an entry a run rewrites. Breaking:
+  `DiscoveredModel` gains a `prices` component, and `CatalogDiscovery.EntryReport` a
+  `prices` component between `rpmAfter` and `wireBefore`
+  ([#18](https://github.com/redouble-ai/nucleo/issues/18)).
+
 ## 0.1.2 (2026-10-16)
 
 - The conversation composes the turn the model answers. A caller adds what it has through

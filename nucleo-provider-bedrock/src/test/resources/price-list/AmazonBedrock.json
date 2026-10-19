@@ -1,0 +1,397 @@
+{
+  "products": {
+    "HPYRKXF8AJN8HEWT": {
+      "sku": "HPYRKXF8AJN8HEWT",
+      "attributes": {
+        "usagetype": "USE1-xai.grok-4.6-mantle-cache-read-tokens-standard",
+        "model": "xai.grok-4.6",
+        "service_tier": "standard"
+      }
+    },
+    "NSVHJNSE3Y3SDFU8": {
+      "sku": "NSVHJNSE3Y3SDFU8",
+      "attributes": {
+        "usagetype": "USE1-google.gemma-3-12b-it-mantle-output-tokens-standard",
+        "model": "Gemma 3 12B",
+        "provider": "Google",
+        "inferenceType": "Output tokens",
+        "service_tier": "standard"
+      }
+    },
+    "6SRHP65SEJQDE7FZ": {
+      "sku": "6SRHP65SEJQDE7FZ",
+      "attributes": {
+        "usagetype": "USE1-xai.grok-4.6-mantle-output-tokens-flex",
+        "model": "xai.grok-4.6",
+        "service_tier": "flex"
+      }
+    },
+    "JBDE963WK6UPMNSR": {
+      "sku": "JBDE963WK6UPMNSR",
+      "attributes": {
+        "usagetype": "USE1-Gemma-3-12B-IT-input-tokens",
+        "model": "Gemma 3 12B",
+        "provider": "Google",
+        "inferenceType": "Input tokens",
+        "feature": "On-demand Inference"
+      }
+    },
+    "2TQWCTXS78WTYSAD": {
+      "sku": "2TQWCTXS78WTYSAD",
+      "attributes": {
+        "usagetype": "USE1-Nova2.0Pro-text-input-tokens",
+        "model": "Nova 2.0 Pro",
+        "inferenceType": "Text Input Token",
+        "feature": "On-demand Inference"
+      }
+    },
+    "4NPVARQ2PV52GKA5": {
+      "sku": "4NPVARQ2PV52GKA5",
+      "attributes": {
+        "usagetype": "USE1-xai.grok-4.6-mantle-output-tokens-standard",
+        "model": "xai.grok-4.6",
+        "service_tier": "standard"
+      }
+    },
+    "EGRFJP567AQ4V7QP": {
+      "sku": "EGRFJP567AQ4V7QP",
+      "attributes": {
+        "usagetype": "USE1-xai.grok-4.6-mantle-cache-read-tokens-global-standard",
+        "model": "xai.grok-4.6",
+        "service_tier": "global-standard"
+      }
+    },
+    "R52AWJF75XQYQTGZ": {
+      "sku": "R52AWJF75XQYQTGZ",
+      "attributes": {
+        "usagetype": "USE1-Nova2.0Pro-text-input-tokens-flex",
+        "model": "Nova 2.0 Pro",
+        "inferenceType": "Text Input Tokens Flex",
+        "feature": "On-demand Inference"
+      }
+    },
+    "CZ8VC7BXBHB3HCH5": {
+      "sku": "CZ8VC7BXBHB3HCH5",
+      "attributes": {
+        "usagetype": "USE1-Nova2.0Pro-text-input-tokens-cross-region-global",
+        "model": "Nova 2.0 Pro",
+        "inferenceType": "Text Input Tokens"
+      }
+    },
+    "52N8MSMVG6VCJNYC": {
+      "sku": "52N8MSMVG6VCJNYC",
+      "attributes": {
+        "usagetype": "USE1-xai.grok-4.6-mantle-input-tokens-global-standard",
+        "model": "xai.grok-4.6",
+        "service_tier": "global-standard"
+      }
+    },
+    "SCUJQDNM8DJRUJFC": {
+      "sku": "SCUJQDNM8DJRUJFC",
+      "attributes": {
+        "usagetype": "USE1-xai.grok-4.6-mantle-input-tokens-flex",
+        "model": "xai.grok-4.6",
+        "service_tier": "flex"
+      }
+    },
+    "WZVSEBAA7AMRTGCF": {
+      "sku": "WZVSEBAA7AMRTGCF",
+      "attributes": {
+        "usagetype": "USE1-google.gemma-3-12b-it-mantle-input-tokens-standard",
+        "model": "Gemma 3 12B",
+        "provider": "Google",
+        "inferenceType": "Input tokens",
+        "service_tier": "standard"
+      }
+    },
+    "YD5R9YU3WJN5AX2A": {
+      "sku": "YD5R9YU3WJN5AX2A",
+      "attributes": {
+        "usagetype": "USE1-Nova2.0Pro-text-output-tokens",
+        "model": "Nova 2.0 Pro",
+        "inferenceType": "Text output token",
+        "feature": "On-demand Inference"
+      }
+    },
+    "KPY29EMY2VW82JDZ": {
+      "sku": "KPY29EMY2VW82JDZ",
+      "attributes": {
+        "usagetype": "USE1-Nova2.0Pro-text-output-tokens-cross-region-global",
+        "model": "Nova 2.0 Pro",
+        "inferenceType": "Text Output Tokens"
+      }
+    },
+    "QSA3QSGVYYU258F4": {
+      "sku": "QSA3QSGVYYU258F4",
+      "attributes": {
+        "usagetype": "USE1-xai.grok-4.6-mantle-input-tokens-standard",
+        "model": "xai.grok-4.6",
+        "service_tier": "standard"
+      }
+    },
+    "WTV9RAPGQM6P3NP7": {
+      "sku": "WTV9RAPGQM6P3NP7",
+      "attributes": {
+        "usagetype": "USE1-xai.grok-4.6-mantle-cache-read-tokens-flex",
+        "model": "xai.grok-4.6",
+        "service_tier": "flex"
+      }
+    },
+    "TC5CN7R5FGUXXRE5": {
+      "sku": "TC5CN7R5FGUXXRE5",
+      "attributes": {
+        "usagetype": "USE1-xai.grok-4.6-mantle-output-tokens-global-standard",
+        "model": "xai.grok-4.6",
+        "service_tier": "global-standard"
+      }
+    },
+    "DSFFTYMJV7CSVQKS": {
+      "sku": "DSFFTYMJV7CSVQKS",
+      "attributes": {
+        "usagetype": "USE1-Gemma-3-12B-IT-output-tokens",
+        "model": "Gemma 3 12B",
+        "provider": "Google",
+        "inferenceType": "Output tokens",
+        "feature": "On-demand Inference"
+      }
+    }
+  },
+  "terms": {
+    "OnDemand": {
+      "HPYRKXF8AJN8HEWT": {
+        "HPYRKXF8AJN8HEWT.JRTCKXETXF": {
+          "priceDimensions": {
+            "HPYRKXF8AJN8HEWT.JRTCKXETXF.6YS6EN2CT7": {
+              "unit": "1K tokens",
+              "pricePerUnit": {
+                "USD": "0.0005500000"
+              },
+              "description": "$0.00055 per 1K token for xai.grok-4.6-mantle-cache-read-tokens-standard in US East (N. Virginia)"
+            }
+          }
+        }
+      },
+      "NSVHJNSE3Y3SDFU8": {
+        "NSVHJNSE3Y3SDFU8.JRTCKXETXF": {
+          "priceDimensions": {
+            "NSVHJNSE3Y3SDFU8.JRTCKXETXF.6YS6EN2CT7": {
+              "unit": "1K tokens",
+              "pricePerUnit": {
+                "USD": "0.0002900000"
+              },
+              "description": "$0.00029 per 1K token for google.gemma-3-12b-it-mantle-output-tokens-standard in US East (N. Virginia)"
+            }
+          }
+        }
+      },
+      "6SRHP65SEJQDE7FZ": {
+        "6SRHP65SEJQDE7FZ.JRTCKXETXF": {
+          "priceDimensions": {
+            "6SRHP65SEJQDE7FZ.JRTCKXETXF.6YS6EN2CT7": {
+              "unit": "1K tokens",
+              "pricePerUnit": {
+                "USD": "0.0033000000"
+              },
+              "description": "$0.0033 per 1K token for xai.grok-4.6-mantle-output-tokens-flex in US East (N. Virginia)"
+            }
+          }
+        }
+      },
+      "JBDE963WK6UPMNSR": {
+        "JBDE963WK6UPMNSR.JRTCKXETXF": {
+          "priceDimensions": {
+            "JBDE963WK6UPMNSR.JRTCKXETXF.6YS6EN2CT7": {
+              "unit": "1K tokens",
+              "pricePerUnit": {
+                "USD": "0.0000900000"
+              },
+              "description": "$0.00009 per 1K input tokens for Gemma 3 12B in US East (N. Virginia)"
+            }
+          }
+        }
+      },
+      "2TQWCTXS78WTYSAD": {
+        "2TQWCTXS78WTYSAD.JRTCKXETXF": {
+          "priceDimensions": {
+            "2TQWCTXS78WTYSAD.JRTCKXETXF.6YS6EN2CT7": {
+              "unit": "1K tokens",
+              "pricePerUnit": {
+                "USD": "0.0013750000"
+              },
+              "description": "$0.001375 per 1K tokens for USE1-Nova2.0Pro-text-input-tokens in US East (N. Virginia)"
+            }
+          }
+        }
+      },
+      "4NPVARQ2PV52GKA5": {
+        "4NPVARQ2PV52GKA5.JRTCKXETXF": {
+          "priceDimensions": {
+            "4NPVARQ2PV52GKA5.JRTCKXETXF.6YS6EN2CT7": {
+              "unit": "1K tokens",
+              "pricePerUnit": {
+                "USD": "0.0066000000"
+              },
+              "description": "$0.0066 per 1K token for xai.grok-4.6-mantle-output-tokens-standard in US East (N. Virginia)"
+            }
+          }
+        }
+      },
+      "EGRFJP567AQ4V7QP": {
+        "EGRFJP567AQ4V7QP.JRTCKXETXF": {
+          "priceDimensions": {
+            "EGRFJP567AQ4V7QP.JRTCKXETXF.6YS6EN2CT7": {
+              "unit": "1K tokens",
+              "pricePerUnit": {
+                "USD": "0.0005000000"
+              },
+              "description": "$0.0005 per 1K token for xai.grok-4.6-mantle-cache-read-tokens-global-standard in US East (N. Virginia)"
+            }
+          }
+        }
+      },
+      "R52AWJF75XQYQTGZ": {
+        "R52AWJF75XQYQTGZ.JRTCKXETXF": {
+          "priceDimensions": {
+            "R52AWJF75XQYQTGZ.JRTCKXETXF.6YS6EN2CT7": {
+              "unit": "1K tokens",
+              "pricePerUnit": {
+                "USD": "0.0006875000"
+              },
+              "description": "$0.0006875 per 1K tokens for USE1-Nova2.0Pro-text-input-tokens-flex in US East (N. Virginia)"
+            }
+          }
+        }
+      },
+      "CZ8VC7BXBHB3HCH5": {
+        "CZ8VC7BXBHB3HCH5.JRTCKXETXF": {
+          "priceDimensions": {
+            "CZ8VC7BXBHB3HCH5.JRTCKXETXF.6YS6EN2CT7": {
+              "unit": "1K tokens",
+              "pricePerUnit": {
+                "USD": "0.0012500000"
+              },
+              "description": "$0.00125 per 1K token for Nova2.0Pro-text-input-tokens-cross-region-global in US East (N. Virginia)"
+            }
+          }
+        }
+      },
+      "52N8MSMVG6VCJNYC": {
+        "52N8MSMVG6VCJNYC.JRTCKXETXF": {
+          "priceDimensions": {
+            "52N8MSMVG6VCJNYC.JRTCKXETXF.6YS6EN2CT7": {
+              "unit": "1K tokens",
+              "pricePerUnit": {
+                "USD": "0.0020000000"
+              },
+              "description": "$0.002 per 1K token for xai.grok-4.6-mantle-input-tokens-global-standard in US East (N. Virginia)"
+            }
+          }
+        }
+      },
+      "SCUJQDNM8DJRUJFC": {
+        "SCUJQDNM8DJRUJFC.JRTCKXETXF": {
+          "priceDimensions": {
+            "SCUJQDNM8DJRUJFC.JRTCKXETXF.6YS6EN2CT7": {
+              "unit": "1K tokens",
+              "pricePerUnit": {
+                "USD": "0.0011000000"
+              },
+              "description": "$0.0011 per 1K token for xai.grok-4.6-mantle-input-tokens-flex in US East (N. Virginia)"
+            }
+          }
+        }
+      },
+      "WZVSEBAA7AMRTGCF": {
+        "WZVSEBAA7AMRTGCF.JRTCKXETXF": {
+          "priceDimensions": {
+            "WZVSEBAA7AMRTGCF.JRTCKXETXF.6YS6EN2CT7": {
+              "unit": "1K tokens",
+              "pricePerUnit": {
+                "USD": "0.0000900000"
+              },
+              "description": "$0.00009 per 1K token for google.gemma-3-12b-it-mantle-input-tokens-standard in US East (N. Virginia)"
+            }
+          }
+        }
+      },
+      "YD5R9YU3WJN5AX2A": {
+        "YD5R9YU3WJN5AX2A.JRTCKXETXF": {
+          "priceDimensions": {
+            "YD5R9YU3WJN5AX2A.JRTCKXETXF.6YS6EN2CT7": {
+              "unit": "1K tokens",
+              "pricePerUnit": {
+                "USD": "0.0110000000"
+              },
+              "description": "$0.011 per 1K tokens for USE1-Nova2.0Pro-text-output-tokens in US East (N. Virginia)"
+            }
+          }
+        }
+      },
+      "KPY29EMY2VW82JDZ": {
+        "KPY29EMY2VW82JDZ.JRTCKXETXF": {
+          "priceDimensions": {
+            "KPY29EMY2VW82JDZ.JRTCKXETXF.6YS6EN2CT7": {
+              "unit": "1K tokens",
+              "pricePerUnit": {
+                "USD": "0.0100000000"
+              },
+              "description": "$0.01 per 1K token for Nova2.0Pro-text-output-tokens-cross-region-global in US East (N. Virginia)"
+            }
+          }
+        }
+      },
+      "QSA3QSGVYYU258F4": {
+        "QSA3QSGVYYU258F4.JRTCKXETXF": {
+          "priceDimensions": {
+            "QSA3QSGVYYU258F4.JRTCKXETXF.6YS6EN2CT7": {
+              "unit": "1K tokens",
+              "pricePerUnit": {
+                "USD": "0.0022000000"
+              },
+              "description": "$0.0022 per 1K token for xai.grok-4.6-mantle-input-tokens-standard in US East (N. Virginia)"
+            }
+          }
+        }
+      },
+      "WTV9RAPGQM6P3NP7": {
+        "WTV9RAPGQM6P3NP7.JRTCKXETXF": {
+          "priceDimensions": {
+            "WTV9RAPGQM6P3NP7.JRTCKXETXF.6YS6EN2CT7": {
+              "unit": "1K tokens",
+              "pricePerUnit": {
+                "USD": "0.0002750000"
+              },
+              "description": "$0.000275 per 1K token for xai.grok-4.6-mantle-cache-read-tokens-flex in US East (N. Virginia)"
+            }
+          }
+        }
+      },
+      "TC5CN7R5FGUXXRE5": {
+        "TC5CN7R5FGUXXRE5.JRTCKXETXF": {
+          "priceDimensions": {
+            "TC5CN7R5FGUXXRE5.JRTCKXETXF.6YS6EN2CT7": {
+              "unit": "1K tokens",
+              "pricePerUnit": {
+                "USD": "0.0060000000"
+              },
+              "description": "$0.006 per 1K token for xai.grok-4.6-mantle-output-tokens-global-standard in US East (N. Virginia)"
+            }
+          }
+        }
+      },
+      "DSFFTYMJV7CSVQKS": {
+        "DSFFTYMJV7CSVQKS.JRTCKXETXF": {
+          "priceDimensions": {
+            "DSFFTYMJV7CSVQKS.JRTCKXETXF.6YS6EN2CT7": {
+              "unit": "1K tokens",
+              "pricePerUnit": {
+                "USD": "0.0002900000"
+              },
+              "description": "$0.00029 per 1K output tokens for Gemma 3 12B in US East (N. Virginia)"
+            }
+          }
+        }
+      }
+    }
+  }
+}

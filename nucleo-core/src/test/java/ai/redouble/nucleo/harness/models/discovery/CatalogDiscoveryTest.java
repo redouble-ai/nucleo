@@ -44,6 +44,12 @@ class CatalogDiscoveryTest {
                 "{ \"models\": [" + String.join(",", entries) + "]" + (pins != null ? ", \"pins\": " + pins : "") + " }", fragment)));
     }
 
+    /** A catalog whose provider "alpha" bills in USD, for entries that carry a price. */
+    private static JsonModelsBackend pricedCatalog(boolean fragment, String... entries) {
+        return new JsonModelsBackend(List.of(new JsonModelsBackend.Layer(fragment ? "seed" : "previous",
+                "{ \"provider_defaults\": { \"alpha\": { \"currency\": \"USD\" } }, \"models\": [" + String.join(",", entries) + "] }", fragment)));
+    }
+
     /**
      * A provider scripted by the test: its key, whether it is configured, and what it lists.
      * Public with a no-arg constructor because the classpath scan instantiates every concrete
@@ -57,10 +63,14 @@ class CatalogDiscoveryTest {
         private boolean unreachable;
         private final Set<String> retired = new HashSet<>();
         private final Map<String, List<List<String>>> modalities = new HashMap<>();
+        private final Map<String, DiscoveredModel.Prices> prices = new HashMap<>();
         private java.util.function.Predicate<String> serves = wireId -> true;
 
         /** The listing marks these ids as retired by the vendor. */
         void markRetired(String... wireIds) {retired.addAll(List.of(wireIds));}
+
+        /** The provider's price list prices the id at these rates per million, in USD. */
+        void price(String wireId, double input, Double output) {prices.put(wireId, new DiscoveredModel.Prices(input, output, null, null, "USD"));}
 
         /** The listing states what the id takes and produces, in the provider's words. */
         void markModalities(String wireId, List<String> inputs, List<String> outputs) {modalities.put(wireId, List.of(inputs, outputs));}
@@ -128,7 +138,7 @@ class CatalogDiscoveryTest {
             for (String wireId : wireIds) {
                 List<List<String>> stated = modalities.get(wireId);
                 models.add(new DiscoveredModel(wireId, stated != null ? stated.get(0) : null, stated != null ? stated.get(1) : null,
-                        null, null, retired.contains(wireId) ? Boolean.TRUE : null, null, null, null, null));
+                        null, null, retired.contains(wireId) ? Boolean.TRUE : null, null, null, null, null, prices.get(wireId)));
             }
             return models;
         }
@@ -1052,6 +1062,73 @@ class CatalogDiscoveryTest {
         assertEquals(1, result.unknown().get("alpha").size(), "the unknown stays reported");
         assertTrue(result.classifierFailure().contains("the classifier's minute was bad"), result.classifierFailure());
         assertTrue(result.report().contains("Unknowns left unclassified"), result.report());
+    }
+
+    private static String priced(String id, String provider, String wire, double input, double output, String cacheRead) {
+        return "{ \"id\": \"" + id + "\", \"identity\": \"" + id + "\", \"grade\": \"SMALL\", \"provider_key\": \"" + provider + "\","
+                + " \"wire_model_id\": \"" + wire + "\", \"max_context_tokens\": 1000, \"max_output_tokens\": 100,"
+                + " \"supports_vision\": false, \"thinking_mode\": \"NONE\", \"tpm\": 1000, \"rpm\": 100,"
+                + " \"input_price_per_million\": " + input + ", \"output_price_per_million\": " + output
+                + (cacheRead != null ? ", \"cache_read_price_per_million\": " + cacheRead : "") + " }";
+    }
+
+    /**
+     * The listed price is the one fact of the deployment's file a run rewrites: an entry the
+     * provider's price list prices takes the listed rates without a ping, the cache rates the
+     * list states and nothing a person typed beside them, the currency when it is not the
+     * provider's default, and the report shows the rates before and after.
+     */
+    @Test
+    void aListedPriceReplacesAnEntrysPricesWithoutAPing() {
+        JsonModelsBackend seed = pricedCatalog(true, priced("a-kept", "alpha", "wire-kept", 1.0, 5.0, "0.1"));
+        JsonModelsBackend previous = pricedCatalog(false, priced("a-kept", "alpha", "wire-kept", 1.0, 5.0, "0.1"));
+        Scripted alpha = Scripted.listing("alpha", "wire-kept");
+        alpha.price("wire-kept", 0.11, 0.55);
+        Set<String> pinged = new HashSet<>();
+        CatalogDiscovery.Result result = new CatalogDiscovery(seed, previous, Map.of("alpha", alpha), (p, s) -> {
+            pinged.add(s.getId());
+            return ok(s, 55000);
+        }).discover();
+        assertEquals(Set.of(), pinged, "a price costs no call");
+        JsonNode kept = written(result, "a-kept");
+        assertEquals(0.11, kept.get("input_price_per_million").doubleValue());
+        assertEquals(0.55, kept.get("output_price_per_million").doubleValue());
+        assertFalse(kept.has("cache_read_price_per_million"), "a cache rate the list does not state is not kept from the typed entry");
+        assertFalse(kept.has("currency"), "the list bills in the provider's default currency, so the entry states none of its own");
+        assertEquals(1000, kept.get("tpm").intValue(), "everything else is as the person left it");
+        assertTrue(result.report().contains("price 1/5 -> 0.11/0.55 (list)"), result.report());
+        assertTrue(result.report().contains("its prices from the provider's price list"), result.report());
+    }
+
+    /** A new entry inherits its ancestor's shape and takes the list's prices over the ancestor's, and its note says which facts are left to verify. */
+    @Test
+    void anAddedEntryTakesTheListedPricesOverItsAncestors() {
+        JsonModelsBackend seed = pricedCatalog(true, priced("opus-4.8", "alpha", "us.v.opus-4-8", 5.0, 25.0, null));
+        Scripted alpha = Scripted.listing("alpha", "us.v.opus-4-8", "us.v.opus-5");
+        alpha.price("us.v.opus-5", 4.0, 20.0);
+        CatalogDiscovery.Result result = new CatalogDiscovery(seed, null, Map.of("alpha", alpha), (p, s) -> ok(s, 55000)).discover();
+        JsonNode added = written(result, "opus-5@alpha");
+        assertEquals(4.0, added.get("input_price_per_million").doubleValue());
+        assertEquals(20.0, added.get("output_price_per_million").doubleValue());
+        assertTrue(added.get("note").asText().endsWith("verify grade, context and output ceilings; prices from the provider's price list"), added.get("note").asText());
+        assertTrue(added.get("unverified").asBoolean(), "the inherited grade and ceilings are still the run's inference");
+        assertTrue(result.report().contains("price 5/25 -> 4/20 (list)"), result.report());
+        JsonNode ancestor = written(result, "opus-4.8");
+        assertEquals(5.0, ancestor.get("input_price_per_million").doubleValue(), "an entry the list does not price keeps its own");
+        assertFalse(result.report().contains("opus-4.8") && result.report().contains("price 5/25 (list"), result.report());
+    }
+
+    /** An LLM the list prices on input alone keeps the prices it had: half a listed price and half a typed one is nobody's number. */
+    @Test
+    void anLlmPricedOnInputAloneKeepsItsPrices() {
+        JsonModelsBackend seed = pricedCatalog(true, priced("a-listed", "alpha", "wire-a", 1.0, 5.0, null));
+        Scripted alpha = Scripted.listing("alpha", "wire-a");
+        alpha.price("wire-a", 0.11, null);
+        CatalogDiscovery.Result result = new CatalogDiscovery(seed, null, Map.of("alpha", alpha), (p, s) -> ok(s, 55000)).discover();
+        JsonNode entry = written(result, "a-listed");
+        assertEquals(1.0, entry.get("input_price_per_million").doubleValue());
+        assertEquals(5.0, entry.get("output_price_per_million").doubleValue());
+        assertFalse(result.report().contains("(list"), result.report());
     }
 
     private static CatalogDiscovery.Verdict verdict(CatalogDiscovery.Result result, String id) {

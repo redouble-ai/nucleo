@@ -16,6 +16,7 @@ import com.fasterxml.jackson.databind.node.*;
 import org.slf4j.*;
 
 import java.io.*;
+import java.math.*;
 import java.net.*;
 import java.nio.charset.*;
 import java.nio.file.*;
@@ -33,10 +34,13 @@ import java.util.function.*;
  * <p>Sources, in order of trust: the deployment's previous file (its entries, pins and
  * hand-set fields are kept), the shipped fragments (the seed: public facts and entry-tier
  * limits for every model the providers serve), the listings (which of those the account can
- * see, plus quotas and retention where the provider publishes them), and the pings (does the
- * call succeed now, and what limits do the response headers carry). Nothing is invented: a
- * listed model no source knows is reported as unknown with its raw listing, for a person to
- * add.
+ * see, plus quotas, retention and prices where the provider publishes them), and the pings
+ * (does the call succeed now, and what limits do the response headers carry). Nothing is
+ * invented: a listed model no source knows is reported as unknown with its raw listing, for
+ * a person to add. A price the listing carries is the one fact that outranks the previous
+ * file: an entry the provider's price list prices, previous or seed, open or closed, takes
+ * the listed prices, because the list is what the account is billed at and a typed price
+ * goes stale ({@link #applyPrices}).
  *
  * <p>Per provider: not configured means its seed entries are left out and the report names
  * the credential to provide; a provider that cannot list ({@link ModelDiscovery} not
@@ -115,10 +119,21 @@ public final class CatalogDiscovery {
      */
     public record EntryReport(String id, String provider, Verdict verdict, boolean fromPrevious, boolean kept,
                               ProbeOutcome outcome, Integer tpmBefore, Integer tpmAfter, Integer rpmBefore, Integer rpmAfter,
-                              String wireBefore, String wireAfter, String note, boolean added) {
+                              PriceChange prices, String wireBefore, String wireAfter, String note, boolean added) {
         /** An entry whose wire id the discovery rewrote to the geography profile this region lists. */
         public boolean relocated() {
             return wireBefore != null && !wireBefore.equals(wireAfter);
+        }
+    }
+
+    /**
+     * An entry's input and output prices per million as the run found them and as it wrote
+     * them, and whether the provider's price list set the latter. With {@code fromList} false
+     * the run had no listed price for the entry and the prices are as they were.
+     */
+    public record PriceChange(Double inputBefore, Double outputBefore, Double inputAfter, Double outputAfter, boolean fromList) {
+        public boolean changed() {
+            return !Objects.equals(inputBefore, inputAfter) || !Objects.equals(outputBefore, outputAfter);
         }
     }
 
@@ -168,6 +183,8 @@ public final class CatalogDiscovery {
     private String classifierId;
     /** What each in-scope provider listed, by key then wire id, for the whole run: a key that declines a model looks up its siblings here. */
     private final Map<String, Map<String, DiscoveredModel>> listedByKey = new LinkedHashMap<>();
+    /** The provider defaults the written catalog carries: the seed's, with the previous file's laid over them. */
+    private final ObjectNode providerDefaults;
 
     /** Over explicit sources, providers and a ping, so the rules are testable without a network. */
     CatalogDiscovery(JsonModelsBackend seed, JsonModelsBackend previous, Map<String, ClientProvider<?>> providers,
@@ -203,6 +220,15 @@ public final class CatalogDiscovery {
         this.includeOlder = includeOlder;
         this.scope = scope;
         this.classifier = classifier;
+        this.providerDefaults = seed.rawProviderDefaults();
+        if (previous != null) {
+            previous.rawProviderDefaults().properties().forEach(field -> {
+                ObjectNode merged = providerDefaults.has(field.getKey())
+                        ? (ObjectNode) providerDefaults.get(field.getKey())
+                        : providerDefaults.putObject(field.getKey());
+                merged.setAll((ObjectNode) field.getValue());
+            });
+        }
     }
 
     /**
@@ -337,7 +363,7 @@ public final class CatalogDiscovery {
                         Integer rpm = intOrNull(e.getValue(), "rpm");
                         String wire = e.getValue().get("wire_model_id").asText();
                         entryReports.put(e.getKey(), new EntryReport(e.getKey(), key, Verdict.SKIPPED, previousEntry,
-                                previousEntry, null, tpm, tpm, rpm, rpm, wire, wire,
+                                previousEntry, null, tpm, tpm, rpm, rpm, unchangedPrices(e.getValue()), wire, wire,
                                 "provider out of this run's scope; kept as it was", false));
                     }
                 }
@@ -355,15 +381,17 @@ public final class CatalogDiscovery {
                 boolean previousEntry = fromPrevious.contains(id);
                 Integer tpmBefore = intOrNull(entry, "tpm");
                 Integer rpmBefore = intOrNull(entry, "rpm");
+                Double inputBefore = doubleOrNull(entry, "input_price_per_million");
+                Double outputBefore = doubleOrNull(entry, "output_price_per_million");
                 String wireBefore = entry.get("wire_model_id").asText();
                 if (older.contains(id)) {
                     entryReports.put(id, new EntryReport(id, key, Verdict.OLDER, previousEntry, false,
-                            null, tpmBefore, tpmBefore, rpmBefore, rpmBefore, wireBefore, wireBefore, null, false));
+                            null, tpmBefore, tpmBefore, rpmBefore, rpmBefore, unchangedPrices(entry), wireBefore, wireBefore, null, false));
                     continue;
                 }
                 if (providerReport.status() == ProviderStatus.NOT_CONFIGURED) {
                     entryReports.put(id, new EntryReport(id, key, Verdict.NOT_CONFIGURED, previousEntry, previousEntry,
-                            null, tpmBefore, tpmBefore, rpmBefore, rpmBefore, wireBefore, wireBefore, null, false));
+                            null, tpmBefore, tpmBefore, rpmBefore, rpmBefore, unchangedPrices(entry), wireBefore, wireBefore, null, false));
                     continue;
                 }
                 if (providerReport.status() == ProviderStatus.UNREACHABLE) {
@@ -382,11 +410,14 @@ public final class CatalogDiscovery {
                             : closedHere ? "its provider's endpoint is not served where this deployment points; kept for the runs it served, status set to UNREACHABLE, not served until its provider answers again"
                             : before + ", not pinged";
                     entryReports.put(id, new EntryReport(id, key, previousEntry && !closedHere ? Verdict.SKIPPED : Verdict.UNREACHABLE,
-                            previousEntry, previousEntry, null, tpmBefore, tpmBefore, rpmBefore, rpmBefore, wireBefore, wireBefore, why, false));
+                            previousEntry, previousEntry, null, tpmBefore, tpmBefore, rpmBefore, rpmBefore, unchangedPrices(entry), wireBefore, wireBefore, why, false));
                     continue;
                 }
                 ModelStatus status = statusOf(entry);
                 boolean listedNow = listed != null && (listed.get(wireBefore) != null || !regionsProfiles(wireBefore, listed.keySet()).isEmpty());
+                // the listing's price is the account's bill for the id, whatever the entry's
+                // status and whoever wrote its prices: written before anything else is decided
+                boolean priced = listed != null && applyPrices(entry, listed.get(wireBefore));
                 String note = null;
                 if (status == ModelStatus.UNLISTED && listedNow) {
                     // the account's word, and the account has changed its mind: the listing
@@ -408,35 +439,37 @@ public final class CatalogDiscovery {
                     else {
                         entry.put("status", ModelStatus.UNLISTED.name());
                         entryReports.put(id, new EntryReport(id, key, Verdict.NOT_LISTED, previousEntry, true,
-                                null, tpmBefore, tpmBefore, rpmBefore, rpmBefore, wireBefore, wireBefore,
+                                null, tpmBefore, tpmBefore, rpmBefore, rpmBefore, priceChange(inputBefore, outputBefore, entry, priced), wireBefore, wireBefore,
                                 "its provider answers again but does not list it; kept for the runs it served, status set to UNLISTED, not served until listed again", false));
                         continue;
                     }
                 }
                 if (status != ModelStatus.OPEN) {
                     entryReports.put(id, new EntryReport(id, key, Verdict.SKIPPED, previousEntry, true,
-                            null, tpmBefore, tpmBefore, rpmBefore, rpmBefore, wireBefore, wireBefore,
+                            null, tpmBefore, tpmBefore, rpmBefore, rpmBefore, priceChange(inputBefore, outputBefore, entry, priced), wireBefore, wireBefore,
                             status + ", not pinged", false));
                     continue;
                 }
                 if (previousEntry && note == null) {
                     // the deployment's file is the deployment's: an entry it already carries is
                     // never re-evaluated - no ping, no rewrite, its facts as the person left
-                    // them - and it leaves this run only when the listing itself says the model
-                    // is gone, which costs nothing to detect. Gone, it is kept for the runs it
-                    // served and closed as UNLISTED, so nothing picks a model the account no
-                    // longer serves; a later listing that names it again reopens it.
+                    // them, the listed price being the one exception - and it leaves this run
+                    // only when the listing itself says the model is gone, which costs nothing
+                    // to detect. Gone, it is kept for the runs it served and closed as UNLISTED,
+                    // so nothing picks a model the account no longer serves; a later listing
+                    // that names it again reopens it.
                     boolean gone = listed != null && !listedNow;
                     if (gone) {
                         entry.put("status", ModelStatus.UNLISTED.name());
                     }
                     entryReports.put(id, gone
                             ? new EntryReport(id, key, Verdict.NOT_LISTED, true, true,
-                                    null, tpmBefore, tpmBefore, rpmBefore, rpmBefore, wireBefore, wireBefore,
+                                    null, tpmBefore, tpmBefore, rpmBefore, rpmBefore, priceChange(inputBefore, outputBefore, entry, priced), wireBefore, wireBefore,
                                     "the account no longer lists it; kept for the runs it served, status set to UNLISTED, not served until listed again", false)
                             : new EntryReport(id, key, Verdict.SKIPPED, true, true,
-                                    null, tpmBefore, tpmBefore, rpmBefore, rpmBefore, wireBefore, wireBefore,
-                                    "already in the deployment's file; kept as it was, not re-evaluated", false));
+                                    null, tpmBefore, tpmBefore, rpmBefore, rpmBefore, priceChange(inputBefore, outputBefore, entry, priced), wireBefore, wireBefore,
+                                    priced ? "already in the deployment's file; not re-evaluated, its prices from the provider's price list"
+                                           : "already in the deployment's file; kept as it was, not re-evaluated", false));
                     continue;
                 }
                 DiscoveredModel discovered = listed != null ? listed.get(wireBefore) : null;
@@ -452,6 +485,8 @@ public final class CatalogDiscovery {
                         String relocated = profiles.get(0);
                         entry.put("wire_model_id", relocated);
                         discovered = listed.get(relocated);
+                        // the profile written is the profile billed
+                        priced = applyPrices(entry, discovered) || priced;
                         spec = (previousEntry && previous != null ? previous : seed).specOf(entry);
                     }
                     else if (profiles.size() > 1) {
@@ -459,14 +494,14 @@ public final class CatalogDiscovery {
                     }
                     if (discovered == null) {
                         entryReports.put(id, new EntryReport(id, key, Verdict.NOT_LISTED, previousEntry, previousEntry,
-                                null, tpmBefore, tpmBefore, rpmBefore, rpmBefore, wireBefore, wireBefore, note, false));
+                                null, tpmBefore, tpmBefore, rpmBefore, rpmBefore, priceChange(inputBefore, outputBefore, entry, priced), wireBefore, wireBefore, note, false));
                         continue;
                     }
                     if (Boolean.TRUE.equals(discovered.retired())) {
                         // the vendor's word, written as such; a retired model is not worth a call
                         entry.put("status", ModelStatus.DEPRECATED.name());
                         entryReports.put(id, new EntryReport(id, key, Verdict.SKIPPED, previousEntry, true,
-                                null, tpmBefore, tpmBefore, rpmBefore, rpmBefore, wireBefore, entry.get("wire_model_id").asText(),
+                                null, tpmBefore, tpmBefore, rpmBefore, rpmBefore, priceChange(inputBefore, outputBefore, entry, priced), wireBefore, entry.get("wire_model_id").asText(),
                                 "the provider marks it retired; status set to DEPRECATED, not pinged", false));
                         continue;
                     }
@@ -485,7 +520,7 @@ public final class CatalogDiscovery {
                 }
                 entryReports.put(id, new EntryReport(id, key, verdict, previousEntry, kept, pinged.outcome(),
                         tpmBefore, intOrNull(entry, "tpm"), rpmBefore, intOrNull(entry, "rpm"),
-                        wireBefore, entry.get("wire_model_id").asText(), note, false));
+                        priceChange(inputBefore, outputBefore, entry, priced), wireBefore, entry.get("wire_model_id").asText(), note, false));
             }
             if (listed != null) {
                 addListed(key, provider, listed, entries, fromPrevious, pinnedIds, entryReports,
@@ -503,7 +538,7 @@ public final class CatalogDiscovery {
                 Integer rpm = intOrNull(e.getValue(), "rpm");
                 String wire = e.getValue().get("wire_model_id").asText();
                 entryReports.put(e.getKey(), new EntryReport(e.getKey(), key, Verdict.SKIPPED, true, true, null,
-                        tpm, tpm, rpm, rpm, wire, wire, "provider not on this classpath; kept as written", false));
+                        tpm, tpm, rpm, rpm, unchangedPrices(e.getValue()), wire, wire, "provider not on this classpath; kept as written", false));
             }
         }
         for (String key : absent) {
@@ -527,15 +562,6 @@ public final class CatalogDiscovery {
         }
         String classifiedBy = classifierId;
         ObjectNode catalog = NucleoJsonSerializer.createObjectNode();
-        ObjectNode providerDefaults = seed.rawProviderDefaults();
-        if (previous != null) {
-            previous.rawProviderDefaults().properties().forEach(field -> {
-                ObjectNode merged = providerDefaults.has(field.getKey())
-                        ? (ObjectNode) providerDefaults.get(field.getKey())
-                        : providerDefaults.putObject(field.getKey());
-                merged.setAll((ObjectNode) field.getValue());
-            });
-        }
         catalog.set("provider_defaults", providerDefaults);
         ArrayNode models = catalog.putArray("models");
         for (Map.Entry<String, ObjectNode> e : entries.entrySet()) {
@@ -577,6 +603,46 @@ public final class CatalogDiscovery {
         }
         else {
             entry.remove("requires_lax");
+        }
+    }
+
+    /**
+     * Writes the listing's prices onto the entry and says whether it did. The list is one
+     * statement of what the entry costs, not a supplement to what a person typed: the input and
+     * output rates are written, the cache rates are written where the list states them and
+     * removed where it does not, and the currency is written when it is not the provider's
+     * default. An LLM entry the list prices on input alone keeps its prices, because half a
+     * listed price and half a typed one would be nobody's number; an embeddings entry is billed
+     * on input alone and takes it.
+     */
+    private boolean applyPrices(ObjectNode entry, DiscoveredModel listing) {
+        if (listing == null || listing.prices() == null) {
+            return false;
+        }
+        DiscoveredModel.Prices prices = listing.prices();
+        String key = entry.get("provider_key").asText();
+        if (prices.outputPerMillion() == null && ModelKind.ofProviderKey(key) != ModelKind.EMBEDDINGS) {
+            return false;
+        }
+        entry.put("input_price_per_million", prices.inputPerMillion());
+        putOrRemove(entry, "output_price_per_million", prices.outputPerMillion());
+        putOrRemove(entry, "cache_read_price_per_million", prices.cacheReadPerMillion());
+        putOrRemove(entry, "cache_write_price_per_million", prices.cacheWritePerMillion());
+        if (prices.currency().equals(providerDefaults.path(key).path("currency").asText(null))) {
+            entry.remove("currency");
+        }
+        else {
+            entry.put("currency", prices.currency());
+        }
+        return true;
+    }
+
+    private static void putOrRemove(ObjectNode entry, String field, Double value) {
+        if (value != null) {
+            entry.put(field, value);
+        }
+        else {
+            entry.remove(field);
         }
     }
 
@@ -674,7 +740,10 @@ public final class CatalogDiscovery {
             // the vendor's tier word in the listed name is a fact and decides the rung by itself;
             // the classifier's judgment covers only a name that carries none
             String tierWord = proposal.hasNonNull("grade") ? GradeCriterion.tierWord(wireId) : null;
-            String verify = "context, output ceilings, prices and limits";
+            DiscoveredModel listedModel = ModelClassifier.listedOnPlatform(wireId, key, unknown, providers);
+            // the list's prices outrank the classifier's judgment on them, so they are not its to verify
+            boolean priced = applyPrices(proposal, listedModel);
+            String verify = priced ? "context, output ceilings and limits; prices from the provider's price list" : "context, output ceilings, prices and limits";
             if (tierWord != null) {
                 Grade tier = GradeCriterion.fromName(wireId);
                 if (!tier.name().equals(proposal.get("grade").asText())) {
@@ -689,7 +758,7 @@ public final class CatalogDiscovery {
             }
             proposal.put("note", "added " + today + " by discovery: classified by " + classifierId + "; " + verify);
             proposal.put("unverified", true);
-            retentionFromListing(proposal, ModelClassifier.listedOnPlatform(wireId, key, unknown, providers));
+            retentionFromListing(proposal, listedModel);
             ModelSpec spec;
             try {
                 spec = seed.specOf(proposal);
@@ -704,8 +773,7 @@ public final class CatalogDiscovery {
             boolean disabled = statusOf(proposal) == ModelStatus.DISABLED
                     || familyDisabled(platformOf(key), ModelLineage.of(proposal.get("identity").asText()), entries);
             entries.put(id, proposal);
-            accepted.add(new Accepted(proposal, id, key, wireId, spec, disabled,
-                    ModelClassifier.listedOnPlatform(wireId, key, unknown, providers)));
+            accepted.add(new Accepted(proposal, id, key, wireId, spec, disabled, listedModel));
         }
         // a person is waiting behind this run: every accepted entry pings concurrently (each
         // ping touches only its own proposal node), and the shared maps are written back here
@@ -721,7 +789,7 @@ public final class CatalogDiscovery {
             if (a.disabled()) {
                 a.proposal().put("status", ModelStatus.DISABLED.name());
                 entryReports.put(a.id(), new EntryReport(a.id(), a.key(), Verdict.SKIPPED, false, true, null,
-                        null, intOrNull(a.proposal(), "tpm"), null, intOrNull(a.proposal(), "rpm"),
+                        null, intOrNull(a.proposal(), "tpm"), null, intOrNull(a.proposal(), "rpm"), priceChange(null, null, a.proposal(), a.listedModel() != null && a.listedModel().prices() != null),
                         a.wireId(), a.wireId(), "classified by " + classifierId + "; its family is DISABLED here, added disabled, not pinged", true));
                 classified.add(a.id());
                 ModelClassifier.removeFromPlatform(a.wireId(), a.key(), unknown, providers);
@@ -746,7 +814,7 @@ public final class CatalogDiscovery {
                 entries.remove(a.id());
             }
             entryReports.put(a.id(), new EntryReport(a.id(), a.key(), verdict, false, keptAfterPing(verdict), pinged.outcome(),
-                    null, intOrNull(a.proposal(), "tpm"), null, intOrNull(a.proposal(), "rpm"),
+                    null, intOrNull(a.proposal(), "tpm"), null, intOrNull(a.proposal(), "rpm"), priceChange(null, null, a.proposal(), a.listedModel() != null && a.listedModel().prices() != null),
                     a.wireId(), a.wireId(), "classified by " + classifierId + ", verify", true));
             switch (verdict) {
                 case UNREACHABLE -> classifiedDropped.add(a.id());
@@ -982,9 +1050,13 @@ public final class CatalogDiscovery {
             else {
                 entry.remove("status");
             }
+            Double inputBefore = doubleOrNull(entry, "input_price_per_million");
+            Double outputBefore = doubleOrNull(entry, "output_price_per_million");
+            boolean priced = applyPrices(entry, chosen);
             entry.put("note", "added " + today + " by discovery: " + identity + " listed by the account, newer than " + ancestorId
-                    + "; shape inherited from it, verify grade, context, output ceilings and prices");
-            // an inherited shape is the discovery's inference, the prices included: marked until a person confirms it
+                    + "; shape inherited from it, verify grade, context" + (priced ? " and output ceilings; prices from the provider's price list"
+                                                                                    : ", output ceilings and prices"));
+            // an inherited shape is the discovery's inference, the prices included unless the list priced it: marked until a person confirms it
             entry.put("unverified", true);
             for (String pinnedId : pinnedIds) {
                 ObjectNode pinned = entries.get(pinnedId);
@@ -996,7 +1068,7 @@ public final class CatalogDiscovery {
             entries.put(newId, entry);
             if (disabled) {
                 entryReports.put(newId, new EntryReport(newId, key, Verdict.SKIPPED, false, true, null,
-                        intOrNull(entry, "tpm"), intOrNull(entry, "tpm"), intOrNull(entry, "rpm"), intOrNull(entry, "rpm"),
+                        intOrNull(entry, "tpm"), intOrNull(entry, "tpm"), intOrNull(entry, "rpm"), intOrNull(entry, "rpm"), priceChange(inputBefore, outputBefore, entry, priced),
                         chosen.wireModelId(), chosen.wireModelId(), "newer than " + ancestorId + ", which is DISABLED; added disabled, not pinged", true));
                 continue;
             }
@@ -1012,7 +1084,7 @@ public final class CatalogDiscovery {
                 }
             }
             entryReports.put(newId, new EntryReport(newId, key, verdict, false, keptAfterPing(verdict), pinged.outcome(),
-                    tpmBefore, intOrNull(entry, "tpm"), rpmBefore, intOrNull(entry, "rpm"),
+                    tpmBefore, intOrNull(entry, "tpm"), rpmBefore, intOrNull(entry, "rpm"), priceChange(inputBefore, outputBefore, entry, priced),
                     chosen.wireModelId(), chosen.wireModelId(), "newer than " + ancestorId + ", shape inherited", true));
         }
     }
@@ -1078,7 +1150,7 @@ public final class CatalogDiscovery {
         entry.put("note", "added " + today + " by discovery: listed by the account; " + modalities
                 + "; the runtime has no client for that modality, so it has no seat and is never called");
         entries.put(newId, entry);
-        entryReports.put(newId, new EntryReport(newId, key, Verdict.SKIPPED, false, true, null, null, null, null, null,
+        entryReports.put(newId, new EntryReport(newId, key, Verdict.SKIPPED, false, true, null, null, null, null, null, unchangedPrices(entry),
                 model.wireModelId(), model.wireModelId(), modalities + "; no seat in the runtime, not pinged", true));
     }
 
@@ -1113,9 +1185,12 @@ public final class CatalogDiscovery {
         }
         entry.put("status", ModelStatus.DISABLED.name());
         entry.put("note", note);
+        Double inputBefore = doubleOrNull(entry, "input_price_per_million");
+        Double outputBefore = doubleOrNull(entry, "output_price_per_million");
+        boolean priced = applyPrices(entry, chosen);
         entries.put(newId, entry);
         entryReports.put(newId, new EntryReport(newId, key, Verdict.SKIPPED, false, true, null,
-                intOrNull(entry, "tpm"), intOrNull(entry, "tpm"), intOrNull(entry, "rpm"), intOrNull(entry, "rpm"),
+                intOrNull(entry, "tpm"), intOrNull(entry, "tpm"), intOrNull(entry, "rpm"), intOrNull(entry, "rpm"), priceChange(inputBefore, outputBefore, entry, priced),
                 chosen.wireModelId(), chosen.wireModelId(), note, true));
     }
 
@@ -1379,6 +1454,7 @@ public final class CatalogDiscovery {
                         .append(oneLine(e.outcome().getErrorMessage()))
                         .append(e.kept() ? "  (kept from your previous file)" : "  (no entry on this surface)");
             }
+            sb.append(prices(e.prices()));
             if (e.relocated()) {
                 sb.append("  [").append(e.wireBefore()).append(" -> ").append(e.wireAfter()).append(", this region's own profile for the model]");
             }
@@ -1476,6 +1552,35 @@ public final class CatalogDiscovery {
         }
         return "  " + name + " " + (before != null ? String.format("%,d", before) : "none") + " -> " + String.format("%,d", after)
                 + (observed ? " (observed)" : " (quota)");
+    }
+
+    /** The input and output rates per million as the list set them, exact: a cost is computed against them. Nothing for an entry the list did not price. */
+    private static String prices(PriceChange change) {
+        if (change == null || !change.fromList()) {
+            return "";
+        }
+        String after = rate(change.inputAfter()) + "/" + rate(change.outputAfter());
+        if (!change.changed()) {
+            return "  price " + after + " (list, unchanged)";
+        }
+        return "  price " + rate(change.inputBefore()) + "/" + rate(change.outputBefore()) + " -> " + after + " (list)";
+    }
+
+    private static String rate(Double perMillion) {
+        return perMillion == null ? "none" : BigDecimal.valueOf(perMillion).stripTrailingZeros().toPlainString();
+    }
+
+    /** The entry's prices as they stand, as a change in which nothing moved: for an entry no listing priced. */
+    private static PriceChange unchangedPrices(ObjectNode entry) {
+        return priceChange(doubleOrNull(entry, "input_price_per_million"), doubleOrNull(entry, "output_price_per_million"), entry, false);
+    }
+
+    private static PriceChange priceChange(Double inputBefore, Double outputBefore, ObjectNode entry, boolean fromList) {
+        return new PriceChange(inputBefore, outputBefore, doubleOrNull(entry, "input_price_per_million"), doubleOrNull(entry, "output_price_per_million"), fromList);
+    }
+
+    private static Double doubleOrNull(ObjectNode node, String field) {
+        return node.has(field) && node.get(field).isNumber() ? node.get(field).doubleValue() : null;
     }
 
     private static String oneLine(String s) {

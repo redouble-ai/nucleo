@@ -126,10 +126,13 @@ report begins at the line `Catalog discovery <timestamp>` and has these sections
   credential. A line starting with `+` is a model the account lists that no entry named, added
   with the shape of its nearest ancestor and a `note` saying so: check the note's fields
   before relying on the entry. Such an entry, and one the classifier wrote, carries
-  `"unverified": true`: its grade and prices are the run's inference. The demo's models table
-  marks these and lets the person type the real prices or confirm the entry; a rung's tier
-  word in the listed name (`nano`, `mini`, `haiku`, `medium`, `large`) decides the grade by
-  itself, and the classifier judges only names that carry none.
+  `"unverified": true`: its grade, and its prices unless the provider publishes a price list,
+  are the run's inference. The demo's models table marks these and lets the person type the
+  real prices or confirm the entry; a rung's tier word in the listed name (`nano`, `mini`,
+  `haiku`, `medium`, `large`) decides the grade by itself, and the classifier judges only
+  names that carry none. A `price 1/5 -> 0.11/0.55 (list)` on a line is the AWS price list
+  correcting a Bedrock entry's input and output rates per million, a previous entry's as much
+  as a new one's; `(list, unchanged)` confirms them.
 - `NEWER THAN A PIN`, when present, is the first block after the timestamp: the account has a
   newer version of a pinned model. It is added and the pin is not moved. Tell the person.
 - `Older versions the account lists, left out`, `Served only under provider data share` (the
@@ -147,7 +150,10 @@ report begins at the line `Catalog discovery <timestamp>` and has these sections
 
 The Bedrock warning `Bedrock quotas in <region> not readable` is expected with a key that
 cannot read Service Quotas: every listed entry keeps its seed limit, and nothing else is
-affected.
+affected. `The AWS price list for <region> is not readable` is the same for prices: the list
+is public and needs no key, so this one means the process cannot reach
+`pricing.us-east-1.amazonaws.com`, and every entry keeps the prices it had, each saying so
+in its note.
 
 ## Step 4: probe the models
 

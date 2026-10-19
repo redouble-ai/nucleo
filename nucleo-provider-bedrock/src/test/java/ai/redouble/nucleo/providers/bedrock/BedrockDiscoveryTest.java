@@ -67,7 +67,7 @@ class BedrockDiscoveryTest {
      * model the account can reach.
      */
     @Test
-    void onlyOnDemandIdsAreInvokableAndModalitiesAreCarriedAsTheProviderSpellsThem() {
+    void onlyOnDemandIdsAreInvokableAndModalitiesAreCarriedAsTheProviderSpellsThem() throws Exception {
         FoundationModelSummary provisionedOnly = FoundationModelSummary.builder().modelId("amazon.titan-embed-image-v1:0")
                 .providerName("Amazon").modelName("Titan Multimodal Embeddings G1")
                 .inferenceTypesSupportedWithStrings("PROVISIONED").build();
@@ -82,18 +82,47 @@ class BedrockDiscoveryTest {
         assertFalse(BedrockDiscovery.onDemand(provisionedOnly), "provisioned throughput only: a plain invocation is refused");
         assertTrue(BedrockDiscovery.onDemand(onDemand));
         BedrockDiscovery.Quotas none = new BedrockDiscovery.Quotas(Map.of(), null);
-        DiscoveredModel embeddings = BedrockDiscovery.discovered(onDemand.modelId(), onDemand, none, true);
+        BedrockPriceList unpriced = BedrockPriceList.parse(List.of());
+        DiscoveredModel embeddings = BedrockDiscovery.discovered(onDemand.modelId(), onDemand, none, unpriced, true);
         assertEquals(List.of("TEXT", "IMAGE"), embeddings.inputModalities());
         assertEquals(List.of("EMBEDDING"), embeddings.outputModalities());
         assertEquals(Boolean.TRUE, embeddings.supportsVision(), "image input is vision");
         assertEquals(Boolean.TRUE, embeddings.embeddingsOutput());
         assertEquals(Boolean.FALSE, embeddings.textSeat());
-        DiscoveredModel sonic = BedrockDiscovery.discovered(speech.modelId(), speech, none, true);
+        DiscoveredModel sonic = BedrockDiscovery.discovered(speech.modelId(), speech, none, unpriced, true);
         assertEquals(List.of("SPEECH"), sonic.inputModalities(), "a modality the SDK's enum does not know survives as the provider's word");
         assertTrue(sonic.otherModality(), "speech in: no text seat, no embeddings - a seatless listing");
-        DiscoveredModel bareProfile = BedrockDiscovery.discovered("us.vendor.model", null, none, true);
+        DiscoveredModel bareProfile = BedrockDiscovery.discovered("us.vendor.model", null, none, unpriced, true);
         assertNull(bareProfile.inputModalities(), "a profile with nothing behind it states no modality");
         assertEquals(Boolean.TRUE, bareProfile.onDemand());
+        assertNull(bareProfile.prices(), "a list with no row for the id prices it with nothing");
+        assertTrue(bareProfile.note().contains("no list price"), bareProfile.note());
+    }
+
+    /**
+     * A listed id carries the list's rates under the names the control plane gives it: the
+     * regional rate for a geography profile, the global one for the global profile, and a
+     * Mantle id the names its summary carries, like any other.
+     */
+    @Test
+    void aListedIdCarriesThePriceListsRatesForItsProfile() throws Exception {
+        BedrockPriceList list = BedrockPriceList.parse(List.of(BedrockPriceListTest.recorded("AmazonBedrockFoundationModels")));
+        FoundationModelSummary sonnet = FoundationModelSummary.builder().modelId("anthropic.claude-sonnet-4-5-20250929-v1:0")
+                .providerName("Anthropic").modelName("Claude Sonnet 4.5").inferenceTypesSupportedWithStrings("ON_DEMAND").build();
+        BedrockDiscovery.Quotas none = new BedrockDiscovery.Quotas(Map.of(), null);
+        DiscoveredModel regional = BedrockDiscovery.discovered("us.anthropic.claude-sonnet-4-5-20250929-v1:0", sonnet, none, list, true);
+        assertEquals(3.3, regional.prices().inputPerMillion());
+        assertEquals(16.5, regional.prices().outputPerMillion());
+        assertFalse(regional.note().contains("no list price"), regional.note());
+        DiscoveredModel global = BedrockDiscovery.discovered("global.anthropic.claude-sonnet-4-5-20250929-v1:0", sonnet, none, list, true);
+        assertEquals(3.0, global.prices().inputPerMillion());
+        assertEquals(15.0, global.prices().outputPerMillion());
+        String mantle = """
+                { "data": [ { "id": "anthropic.claude-sonnet-4-5-20250929-v1:0", "data_retention": { "allowed_modes": ["none"] } } ] }
+                """;
+        DiscoveredModel viaMantle = BedrockDiscovery.parseMantle(mantle, Map.of(sonnet.modelId(), sonnet), list).get(0);
+        assertEquals(3.3, viaMantle.prices().inputPerMillion(), "the list prices the Anthropic models once for both surfaces");
+        assertEquals(Boolean.FALSE, viaMantle.requiresLax());
     }
 
     @Test
@@ -106,11 +135,12 @@ class BedrockDiscoveryTest {
                   { "id": "openai.gpt-oss-120b" }
                 ] }
                 """;
-        List<DiscoveredModel> models = BedrockDiscovery.parseMantle(body);
+        List<DiscoveredModel> models = BedrockDiscovery.parseMantle(body, Map.of(), BedrockPriceList.parse(List.of()));
         assertEquals(3, models.size());
         assertEquals(Boolean.TRUE, models.get(0).requiresLax());
         assertEquals(Boolean.FALSE, models.get(1).requiresLax());
         assertNull(models.get(2).requiresLax(), "no retention block, no claim");
         assertTrue(models.get(0).note().contains("provider_data_share"));
+        assertNull(models.get(0).prices(), "a list with no row for the id prices it with nothing");
     }
 }

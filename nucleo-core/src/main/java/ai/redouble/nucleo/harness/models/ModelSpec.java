@@ -234,8 +234,9 @@ public interface ModelSpec {
 
     /**
      * Whether the entry was written by the discovery's inference and no person has confirmed it:
-     * a classifier's judgment, or a shape inherited from an older relative. Its grade and prices
-     * are then the runtime's best guess, shown as such until a person edits or confirms them
+     * a classifier's judgment, or a shape inherited from an older relative. Its grade, and its
+     * prices unless the provider publishes a price list the discovery read them from, are then
+     * the runtime's best guess, shown as such until a person edits or confirms them
      * ({@code unverified} in the catalog file). An entry a person wrote, a shipped fragment's
      * entry and a confirmed one carry {@code false}.
      */
@@ -267,9 +268,11 @@ public interface ModelSpec {
      * The currency every price on this entry is stated in, as an ISO 4217 code ({@code USD},
      * {@code EUR}, {@code CNY}), or null for an entry that carries no price. No provider reports
      * cost on the wire, only tokens; a price is what a person typed from a list page or an
-     * invoice, in whatever currency that page bills in. The runtime accounts cost per call in
-     * the entry's currency and never converts: a rollup sums per currency, and a cap stated in
-     * one currency refuses a call priced in another rather than guessing a rate.
+     * invoice, in whatever currency that page bills in, or what the catalog discovery read from
+     * the provider's published price list where there is one (AWS publishes Bedrock's). The
+     * runtime accounts cost per call in the entry's currency and never converts: a rollup sums
+     * per currency, and a cap stated in one currency refuses a call priced in another rather
+     * than guessing a rate.
      */
     String getCurrency();
 

@@ -1,0 +1,514 @@
+{
+  "products": {
+    "FAAH2HNZTKVYPW4Z": {
+      "sku": "FAAH2HNZTKVYPW4Z",
+      "attributes": {
+        "usagetype": "USE1-MP:USE1_CacheReadInputTokenCount_Global-Units",
+        "model": "Claude Sonnet 4.5",
+        "provider": "Anthropic",
+        "inferenceType": "Prompt cache read input tokens",
+        "feature": "On-demand Inference"
+      }
+    },
+    "GJ7NHAXUYKGEHMVV": {
+      "sku": "GJ7NHAXUYKGEHMVV",
+      "attributes": {
+        "usagetype": "USE1-MP:USE1_InputTokenCount_Global-Units",
+        "model": "Claude Sonnet 4.5",
+        "provider": "Anthropic",
+        "inferenceType": "Input tokens",
+        "feature": "On-demand Inference"
+      }
+    },
+    "CHTW5FCNF8AHNHMH": {
+      "sku": "CHTW5FCNF8AHNHMH",
+      "attributes": {
+        "usagetype": "USE1-MP:USE1_CacheWriteInputTokenCount_Global-Units",
+        "model": "Claude Sonnet 4.5",
+        "provider": "Anthropic",
+        "inferenceType": "Prompt cache write input tokens",
+        "feature": "On-demand Inference"
+      }
+    },
+    "GRC5R2BGCUVA5NQ4": {
+      "sku": "GRC5R2BGCUVA5NQ4",
+      "attributes": {
+        "usagetype": "USE1-MP:USE1_InputTokenCount-Units",
+        "model": "Claude 2.0",
+        "provider": "Anthropic",
+        "inferenceType": "Input tokens",
+        "feature": "On-demand Inference"
+      }
+    },
+    "SSK4DT4JBRUQJYP5": {
+      "sku": "SSK4DT4JBRUQJYP5",
+      "attributes": {
+        "usagetype": "USE1-MP:USE1_InputTokenCount-Units",
+        "model": "Claude Sonnet 4.5",
+        "provider": "Anthropic",
+        "inferenceType": "Input tokens",
+        "feature": "On-demand Inference"
+      }
+    },
+    "NBR524QDJGN4CKTW": {
+      "sku": "NBR524QDJGN4CKTW",
+      "attributes": {
+        "usagetype": "USE1-MP:USE1_CacheWrite1hInputTokenCount-Units",
+        "model": "Claude Sonnet 4.5",
+        "provider": "Anthropic",
+        "inferenceType": "Prompt cache write input tokens",
+        "feature": "On-demand Inference"
+      }
+    },
+    "A6CHFRYABCZD8CVC": {
+      "sku": "A6CHFRYABCZD8CVC",
+      "attributes": {
+        "usagetype": "USE1-MP:USE1_OutputTokenCount-Units",
+        "model": "Claude 2.0",
+        "provider": "Anthropic",
+        "inferenceType": "Output tokens",
+        "feature": "On-demand Inference"
+      }
+    },
+    "KYPW3D8EBWFD83XS": {
+      "sku": "KYPW3D8EBWFD83XS",
+      "attributes": {
+        "usagetype": "USE1-MP:USE1_output_tokens_standard-Units",
+        "model": "Claude Haiku 5.5",
+        "provider": "Anthropic",
+        "inferenceType": "Output tokens",
+        "feature": "On-demand Inference"
+      }
+    },
+    "U6DMH3A9ZY592SKX": {
+      "sku": "U6DMH3A9ZY592SKX",
+      "attributes": {
+        "usagetype": "USE1-MP:USE1_InputTokenCount_Batch-Units",
+        "model": "Claude Sonnet 4.5",
+        "provider": "Anthropic",
+        "inferenceType": "Input tokens",
+        "feature": "Batch Inference"
+      }
+    },
+    "4Z5N8BBKWUM76H8J": {
+      "sku": "4Z5N8BBKWUM76H8J",
+      "attributes": {
+        "usagetype": "USE1-MP:USE1_InputTokenCount-Units",
+        "model": "Claude 2.0",
+        "provider": "Anthropic",
+        "inferenceType": "Input tokens",
+        "feature": "On-demand Inference"
+      }
+    },
+    "HWV4P4XWUH8AFBTY": {
+      "sku": "HWV4P4XWUH8AFBTY",
+      "attributes": {
+        "usagetype": "USE1-MP:USE1_input_tokens_long_ctx_standard-Units",
+        "model": "Claude Haiku 5.5",
+        "provider": "Anthropic",
+        "inferenceType": "Input tokens",
+        "feature": "On-demand Inference"
+      }
+    },
+    "AAZG88FS4RRJD2AH": {
+      "sku": "AAZG88FS4RRJD2AH",
+      "attributes": {
+        "usagetype": "USE1-MP:USE1_cache_write_tokens_1h_standard-Units",
+        "model": "Claude Haiku 5.5",
+        "provider": "Anthropic",
+        "inferenceType": "Prompt cache write input tokens",
+        "feature": "On-demand Inference"
+      }
+    },
+    "W4BVSJCZM5M9FZYT": {
+      "sku": "W4BVSJCZM5M9FZYT",
+      "attributes": {
+        "usagetype": "USE1-MP:USE1_OutputTokenCount_Global-Units",
+        "model": "Claude Sonnet 4.5",
+        "provider": "Anthropic",
+        "inferenceType": "Output tokens",
+        "feature": "On-demand Inference"
+      }
+    },
+    "BUJCHTFPFYUJFGUW": {
+      "sku": "BUJCHTFPFYUJFGUW",
+      "attributes": {
+        "usagetype": "USE1-MP:USE1_Reserved_1Month_InputTPM_Global-Units",
+        "model": "Claude Sonnet 4.5",
+        "provider": "Anthropic",
+        "inferenceType": "Input tokens",
+        "feature": "Provisioned Throughput Inference"
+      }
+    },
+    "U8VNEEFYKPCVZFB5": {
+      "sku": "U8VNEEFYKPCVZFB5",
+      "attributes": {
+        "usagetype": "USE1-MP:USE1_cache_read_tokens_standard-Units",
+        "model": "Claude Haiku 5.5",
+        "provider": "Anthropic",
+        "inferenceType": "Prompt cache read input tokens",
+        "feature": "On-demand Inference"
+      }
+    },
+    "Y2USTN98BME666E9": {
+      "sku": "Y2USTN98BME666E9",
+      "attributes": {
+        "usagetype": "USE1-MP:USE1_CacheReadInputTokenCount-Units",
+        "model": "Claude Sonnet 4.5",
+        "provider": "Anthropic",
+        "inferenceType": "Prompt cache read input tokens",
+        "feature": "On-demand Inference"
+      }
+    },
+    "CZGM4ZWSFPNRXG2N": {
+      "sku": "CZGM4ZWSFPNRXG2N",
+      "attributes": {
+        "usagetype": "USE1-MP:USE1_CacheWrite1hInputTokenCount_Global-Units",
+        "model": "Claude Sonnet 4.5",
+        "provider": "Anthropic",
+        "inferenceType": "Prompt cache write input tokens",
+        "feature": "On-demand Inference"
+      }
+    },
+    "GP3ME74Q5RQMRZ88": {
+      "sku": "GP3ME74Q5RQMRZ88",
+      "attributes": {
+        "usagetype": "USE1-MP:USE1_CacheWriteInputTokenCount-Units",
+        "model": "Claude Sonnet 4.5",
+        "provider": "Anthropic",
+        "inferenceType": "Prompt cache write input tokens",
+        "feature": "On-demand Inference"
+      }
+    },
+    "3YN5KGC2HJU9VC5A": {
+      "sku": "3YN5KGC2HJU9VC5A",
+      "attributes": {
+        "usagetype": "USE1-MP:USE1_OutputTokenCount-Units",
+        "model": "Claude Sonnet 4.5",
+        "provider": "Anthropic",
+        "inferenceType": "Output tokens",
+        "feature": "On-demand Inference"
+      }
+    },
+    "GWDHRAKM6RFD2XYJ": {
+      "sku": "GWDHRAKM6RFD2XYJ",
+      "attributes": {
+        "usagetype": "USE1-MP:USE1_input_tokens_standard-Units",
+        "model": "Claude Haiku 5.5",
+        "provider": "Anthropic",
+        "inferenceType": "Input tokens",
+        "feature": "On-demand Inference"
+      }
+    },
+    "SUN5BR5NYRKSKR7N": {
+      "sku": "SUN5BR5NYRKSKR7N",
+      "attributes": {
+        "usagetype": "USE1-MP:USE1_cache_write_tokens_standard-Units",
+        "model": "Claude Haiku 5.5",
+        "provider": "Anthropic",
+        "inferenceType": "Prompt cache write input tokens",
+        "feature": "On-demand Inference"
+      }
+    },
+    "8BZA2HMXS29NAN52": {
+      "sku": "8BZA2HMXS29NAN52",
+      "attributes": {
+        "usagetype": "USE1-MP:USE1_OutputTokenCount-Units",
+        "model": "Claude 2.0",
+        "provider": "Anthropic",
+        "inferenceType": "Output tokens",
+        "feature": "On-demand Inference"
+      }
+    }
+  },
+  "terms": {
+    "OnDemand": {
+      "FAAH2HNZTKVYPW4Z": {
+        "FAAH2HNZTKVYPW4Z.4799GE89SK": {
+          "priceDimensions": {
+            "FAAH2HNZTKVYPW4Z.4799GE89SK.6YS6EN2CT7": {
+              "unit": "1M tokens",
+              "pricePerUnit": {
+                "USD": "0.3000000000"
+              },
+              "description": "AWS Marketplace software usage|us-east-1|Million Cache Read Input Tokens Global"
+            }
+          }
+        }
+      },
+      "GJ7NHAXUYKGEHMVV": {
+        "GJ7NHAXUYKGEHMVV.4799GE89SK": {
+          "priceDimensions": {
+            "GJ7NHAXUYKGEHMVV.4799GE89SK.6YS6EN2CT7": {
+              "unit": "1M tokens",
+              "pricePerUnit": {
+                "USD": "3.0000000000"
+              },
+              "description": "AWS Marketplace software usage|us-east-1|Million Input Tokens Global"
+            }
+          }
+        }
+      },
+      "CHTW5FCNF8AHNHMH": {
+        "CHTW5FCNF8AHNHMH.4799GE89SK": {
+          "priceDimensions": {
+            "CHTW5FCNF8AHNHMH.4799GE89SK.6YS6EN2CT7": {
+              "unit": "1M tokens",
+              "pricePerUnit": {
+                "USD": "3.7500000000"
+              },
+              "description": "AWS Marketplace software usage|us-east-1|Million Cache Write Input Tokens Global"
+            }
+          }
+        }
+      },
+      "GRC5R2BGCUVA5NQ4": {
+        "GRC5R2BGCUVA5NQ4.4799GE89SK": {
+          "priceDimensions": {
+            "GRC5R2BGCUVA5NQ4.4799GE89SK.6YS6EN2CT7": {
+              "unit": "1M tokens",
+              "pricePerUnit": {
+                "USD": "22.0400000000"
+              },
+              "description": "AWS Marketplace software usage|us-east-1|Million Input Tokens"
+            }
+          }
+        }
+      },
+      "SSK4DT4JBRUQJYP5": {
+        "SSK4DT4JBRUQJYP5.4799GE89SK": {
+          "priceDimensions": {
+            "SSK4DT4JBRUQJYP5.4799GE89SK.6YS6EN2CT7": {
+              "unit": "1M tokens",
+              "pricePerUnit": {
+                "USD": "3.3000000000"
+              },
+              "description": "AWS Marketplace software usage|us-east-1|Million Input Tokens Regional"
+            }
+          }
+        }
+      },
+      "NBR524QDJGN4CKTW": {
+        "NBR524QDJGN4CKTW.4799GE89SK": {
+          "priceDimensions": {
+            "NBR524QDJGN4CKTW.4799GE89SK.6YS6EN2CT7": {
+              "unit": "1M tokens",
+              "pricePerUnit": {
+                "USD": "6.6000000000"
+              },
+              "description": "AWS Marketplace software usage|us-east-1|Million 1 hour Cache Write Input Tokens Regional"
+            }
+          }
+        }
+      },
+      "A6CHFRYABCZD8CVC": {
+        "A6CHFRYABCZD8CVC.4799GE89SK": {
+          "priceDimensions": {
+            "A6CHFRYABCZD8CVC.4799GE89SK.6YS6EN2CT7": {
+              "unit": "1M tokens",
+              "pricePerUnit": {
+                "USD": "65.3600000000"
+              },
+              "description": "AWS Marketplace software usage|us-east-1|Million Response Tokens"
+            }
+          }
+        }
+      },
+      "KYPW3D8EBWFD83XS": {
+        "KYPW3D8EBWFD83XS.4799GE89SK": {
+          "priceDimensions": {
+            "KYPW3D8EBWFD83XS.4799GE89SK.6YS6EN2CT7": {
+              "unit": "1M tokens",
+              "pricePerUnit": {
+                "USD": "0.5500000000"
+              },
+              "description": "AWS Marketplace software usage|us-east-1|Million Response Tokens Standard"
+            }
+          }
+        }
+      },
+      "U6DMH3A9ZY592SKX": {
+        "U6DMH3A9ZY592SKX.4799GE89SK": {
+          "priceDimensions": {
+            "U6DMH3A9ZY592SKX.4799GE89SK.6YS6EN2CT7": {
+              "unit": "1M tokens",
+              "pricePerUnit": {
+                "USD": "1.6500000000"
+              },
+              "description": "AWS Marketplace software usage|us-east-1|Million Batch Input Tokens Regional"
+            }
+          }
+        }
+      },
+      "4Z5N8BBKWUM76H8J": {
+        "4Z5N8BBKWUM76H8J.4799GE89SK": {
+          "priceDimensions": {
+            "4Z5N8BBKWUM76H8J.4799GE89SK.6YS6EN2CT7": {
+              "unit": "1M tokens",
+              "pricePerUnit": {
+                "USD": "8.0000000000"
+              },
+              "description": "AWS Marketplace software usage|us-east-1|Million Input Tokens"
+            }
+          }
+        }
+      },
+      "HWV4P4XWUH8AFBTY": {
+        "HWV4P4XWUH8AFBTY.4799GE89SK": {
+          "priceDimensions": {
+            "HWV4P4XWUH8AFBTY.4799GE89SK.6YS6EN2CT7": {
+              "unit": "1M tokens",
+              "pricePerUnit": {
+                "USD": "0.5500000000"
+              },
+              "description": "AWS Marketplace software usage|us-east-1|Input Tokens - Standard, Long Context"
+            }
+          }
+        }
+      },
+      "AAZG88FS4RRJD2AH": {
+        "AAZG88FS4RRJD2AH.4799GE89SK": {
+          "priceDimensions": {
+            "AAZG88FS4RRJD2AH.4799GE89SK.6YS6EN2CT7": {
+              "unit": "1M tokens",
+              "pricePerUnit": {
+                "USD": "0.2200000000"
+              },
+              "description": "AWS Marketplace software usage|us-east-1|Cache Write Tokens (1h TTL) - Standard"
+            }
+          }
+        }
+      },
+      "W4BVSJCZM5M9FZYT": {
+        "W4BVSJCZM5M9FZYT.4799GE89SK": {
+          "priceDimensions": {
+            "W4BVSJCZM5M9FZYT.4799GE89SK.6YS6EN2CT7": {
+              "unit": "1M tokens",
+              "pricePerUnit": {
+                "USD": "15.0000000000"
+              },
+              "description": "AWS Marketplace software usage|us-east-1|Million Response Tokens Global"
+            }
+          }
+        }
+      },
+      "BUJCHTFPFYUJFGUW": {
+        "BUJCHTFPFYUJFGUW.4799GE89SK": {
+          "priceDimensions": {
+            "BUJCHTFPFYUJFGUW.4799GE89SK.6YS6EN2CT7": {
+              "unit": "1M TPM Hour",
+              "pricePerUnit": {
+                "USD": "0.1800000000"
+              },
+              "description": "AWS Marketplace software usage|us-east-1|Per Hour per 1K Input TPM Reserved 1 Month Global"
+            }
+          }
+        }
+      },
+      "U8VNEEFYKPCVZFB5": {
+        "U8VNEEFYKPCVZFB5.4799GE89SK": {
+          "priceDimensions": {
+            "U8VNEEFYKPCVZFB5.4799GE89SK.6YS6EN2CT7": {
+              "unit": "1M tokens",
+              "pricePerUnit": {
+                "USD": "0.0110000000"
+              },
+              "description": "AWS Marketplace software usage|us-east-1|Cache Read Tokens - Standard"
+            }
+          }
+        }
+      },
+      "Y2USTN98BME666E9": {
+        "Y2USTN98BME666E9.4799GE89SK": {
+          "priceDimensions": {
+            "Y2USTN98BME666E9.4799GE89SK.6YS6EN2CT7": {
+              "unit": "1M tokens",
+              "pricePerUnit": {
+                "USD": "0.3300000000"
+              },
+              "description": "AWS Marketplace software usage|us-east-1|Million Cache Read Input Tokens Regional"
+            }
+          }
+        }
+      },
+      "CZGM4ZWSFPNRXG2N": {
+        "CZGM4ZWSFPNRXG2N.4799GE89SK": {
+          "priceDimensions": {
+            "CZGM4ZWSFPNRXG2N.4799GE89SK.6YS6EN2CT7": {
+              "unit": "1M tokens",
+              "pricePerUnit": {
+                "USD": "6.0000000000"
+              },
+              "description": "AWS Marketplace software usage|us-east-1|Million 1 hour Cache Write Input Tokens Global"
+            }
+          }
+        }
+      },
+      "GP3ME74Q5RQMRZ88": {
+        "GP3ME74Q5RQMRZ88.4799GE89SK": {
+          "priceDimensions": {
+            "GP3ME74Q5RQMRZ88.4799GE89SK.6YS6EN2CT7": {
+              "unit": "1M tokens",
+              "pricePerUnit": {
+                "USD": "4.1250000000"
+              },
+              "description": "AWS Marketplace software usage|us-east-1|Million Cache Write Input Tokens Regional"
+            }
+          }
+        }
+      },
+      "3YN5KGC2HJU9VC5A": {
+        "3YN5KGC2HJU9VC5A.4799GE89SK": {
+          "priceDimensions": {
+            "3YN5KGC2HJU9VC5A.4799GE89SK.6YS6EN2CT7": {
+              "unit": "1M tokens",
+              "pricePerUnit": {
+                "USD": "16.5000000000"
+              },
+              "description": "AWS Marketplace software usage|us-east-1|Million Response Tokens Regional"
+            }
+          }
+        }
+      },
+      "GWDHRAKM6RFD2XYJ": {
+        "GWDHRAKM6RFD2XYJ.4799GE89SK": {
+          "priceDimensions": {
+            "GWDHRAKM6RFD2XYJ.4799GE89SK.6YS6EN2CT7": {
+              "unit": "1M tokens",
+              "pricePerUnit": {
+                "USD": "0.1100000000"
+              },
+              "description": "AWS Marketplace software usage|us-east-1|Million Input Tokens Standard"
+            }
+          }
+        }
+      },
+      "SUN5BR5NYRKSKR7N": {
+        "SUN5BR5NYRKSKR7N.4799GE89SK": {
+          "priceDimensions": {
+            "SUN5BR5NYRKSKR7N.4799GE89SK.6YS6EN2CT7": {
+              "unit": "1M tokens",
+              "pricePerUnit": {
+                "USD": "0.1375000000"
+              },
+              "description": "AWS Marketplace software usage|us-east-1|Cache Write Tokens - Standard"
+            }
+          }
+        }
+      },
+      "8BZA2HMXS29NAN52": {
+        "8BZA2HMXS29NAN52.4799GE89SK": {
+          "priceDimensions": {
+            "8BZA2HMXS29NAN52.4799GE89SK.6YS6EN2CT7": {
+              "unit": "1M tokens",
+              "pricePerUnit": {
+                "USD": "24.0000000000"
+              },
+              "description": "AWS Marketplace software usage|us-east-1|Million Response Tokens"
+            }
+          }
+        }
+      }
+    }
+  }
+}

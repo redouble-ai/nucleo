@@ -33,15 +33,36 @@ import java.util.*;
  * @param tpm              the account's tokens-per-minute quota for this endpoint, null when the provider publishes none through an API
  * @param rpm              the account's requests-per-minute quota for this endpoint, null when the provider publishes none through an API
  * @param note             anything else the listing said worth showing a person (a lifecycle status, a display name), or null
+ * @param prices           what the provider's published price list charges for a call on this id, null when the provider publishes no list or the list has no readable row for the id, which the note then says
  * @author Andrey Santrosyan
  * @since 0.1 (2026-09-12)
  */
 public record DiscoveredModel(String wireModelId, List<String> inputModalities, List<String> outputModalities, Boolean supportsVision,
-                              Boolean onDemand, Boolean retired, Boolean requiresLax, Integer tpm, Integer rpm, String note) {
+                              Boolean onDemand, Boolean retired, Boolean requiresLax, Integer tpm, Integer rpm, String note, Prices prices) {
     /** The modality word every LLM client speaks, as providers spell it. */
     public static final String TEXT = "TEXT";
     /** The modality word of an embeddings model's output, as providers spell it. */
     public static final String EMBEDDING = "EMBEDDING";
+
+    /**
+     * A listed model's rates per million tokens as its provider's price list states them, in
+     * one currency: the input rate always, the output rate for a model that produces text,
+     * the cache-read and cache-write rates where the list has a row for them. A field the
+     * list does not state is null; a list that states no input rate prices nothing.
+     *
+     * @param inputPerMillion      the rate per million uncached input tokens
+     * @param outputPerMillion     the rate per million output tokens, null for a model billed on input alone (embeddings)
+     * @param cacheReadPerMillion  the rate per million input tokens read from the prompt cache, null when the list states none
+     * @param cacheWritePerMillion the rate per million input tokens written to the prompt cache, null when the list states none
+     * @param currency             the ISO 4217 code every rate is stated in
+     */
+    public record Prices(double inputPerMillion, Double outputPerMillion, Double cacheReadPerMillion, Double cacheWritePerMillion, String currency) {
+        public Prices {
+            if (currency == null || currency.isBlank()) {
+                throw new IllegalArgumentException("a listed price states its currency");
+            }
+        }
+    }
 
     public DiscoveredModel {
         if (wireModelId == null || wireModelId.isBlank()) {
@@ -53,12 +74,12 @@ public record DiscoveredModel(String wireModelId, List<String> inputModalities, 
 
     /** A listing that carried nothing but the id. */
     public static DiscoveredModel of(String wireModelId) {
-        return new DiscoveredModel(wireModelId, null, null, null, null, null, null, null, null, null);
+        return new DiscoveredModel(wireModelId, null, null, null, null, null, null, null, null, null, null);
     }
 
     /** A listing that carried the id and a note. */
     public static DiscoveredModel of(String wireModelId, String note) {
-        return new DiscoveredModel(wireModelId, null, null, null, null, null, null, null, null, note);
+        return new DiscoveredModel(wireModelId, null, null, null, null, null, null, null, null, note, null);
     }
 
     /**
