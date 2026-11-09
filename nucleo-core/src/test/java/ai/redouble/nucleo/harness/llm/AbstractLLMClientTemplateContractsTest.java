@@ -236,6 +236,24 @@ public class AbstractLLMClientTemplateContractsTest {
         assertStamps(response, client, model, conversation);
     }
 
+    @Test
+    void bothTemplatesStampTheRoleTheConversationDeclared() throws TokenEstimateExceedsLimitException {
+        ModelSpec model = TestModels.small();
+        ModelRole role = new ModelRole("table-row", model.getId(), model.getGrade());
+        ConversationContext conversation = declared(model, "question");
+        conversation.setRole(role);
+        TemplateStubClient client = new TemplateStubClient(LLMStopReason.END_TURN);
+        client.setModel(model);
+        assertEquals("table-row", client.singleResponse(new LLMRequest<>(conversation)).getRole(),
+                "the call record carries the role's name beside the model that served it");
+        ConversationContext streamed = declared(model, "question");
+        streamed.setRole(role);
+        StreamingStubClient streaming = new StreamingStubClient(LLMStopReason.END_TURN);
+        streaming.setModel(model);
+        assertEquals("table-row", streaming.streamResponse(new LLMRequest<>(streamed), chunk -> {}).getRole());
+        assertNull(client.singleResponse(new LLMRequest<>(declared(model, "question"))).getRole(), "a call that declared a grade carries none");
+    }
+
     /** The per-response facts both templates own, so no client can forget them. */
     private static void assertStamps(LLMResponse<String> response, AbstractLLMClient<?> client,
             ModelSpec model, ConversationContext conversation) {

@@ -41,7 +41,7 @@ public class GuardrailEnforcementTest {
     @BeforeAll
     static void startDispatcher() {
         // the delegation fixtures run real thinkers offline: a conversation is obtained
-        // but no LLM call is ever made; resolution goes through the suite's TestModelPicker
+        // but no LLM call is ever made; resolution goes through the suite's SuiteModelPicker
         JobDispatcher.getInstance().start();
     }
 

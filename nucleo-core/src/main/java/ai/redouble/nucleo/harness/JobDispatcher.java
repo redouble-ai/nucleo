@@ -1966,7 +1966,7 @@ public enum JobDispatcher {
         }
         ComplianceEnvelope envelope = getComplianceEnvelope();
         for (ModelBinding binding : bindings) {
-            Seat seat = new Seat(job.getClass(), binding.getGrade(), binding.getKind());
+            Seat seat = new Seat(job.getClass(), binding.getGrade(), binding.getKind(), binding.getRole());
             Situation situation = new Situation();
             situation.setEnvelope(envelope);
             situation.setSnapshot(context.getSnapshot());

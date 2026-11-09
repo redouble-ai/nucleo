@@ -119,6 +119,7 @@ public abstract class AbstractLLMClient<B> extends AbstractRateLimitedClient imp
                         // the call record must show which spec we called - on successes and failures alike -
                         // or a per-variant query silently misattributes traffic.
                         resp.setModel(getModelIdentifier());
+                        resp.setRole(ctx.getRole() != null ? ctx.getRole().name() : null);
                         resp.setProvider(getDialect().providerKey());
                         resp.setRequestedMaxTokens(resolveWireMaxTokens(ctx));
                         resp.setSuccessful(true);
@@ -620,6 +621,7 @@ public abstract class AbstractLLMClient<B> extends AbstractRateLimitedClient imp
         PreparedConversation prepared = prepareConversation(request.getContext());
         LLMResponse<T> response = new LLMResponse<>(request);
         response.setModel(getModelIdentifier());
+        response.setRole(request.getContext().getRole() != null ? request.getContext().getRole().name() : null);
         // Tracks whether the provider delivered anything yet. Until the first chunk, a failure is
         // indistinguishable from the single path's - the caller has seen nothing - so it gets the
         // same typed signals (transparent retry, fleet throttle). After a chunk, a typed retry

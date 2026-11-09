@@ -58,6 +58,7 @@ import java.util.*;
  */
 public class ModelBinding {
     private final Grade grade;
+    private final ModelRole role;
     private final Depth depth;
     private final Integer inTokens;
     private final OutputDeclaration output;
@@ -72,22 +73,57 @@ public class ModelBinding {
 
     /** Wired-conversation form: sizes come from the conversation once it is attached. */
     public ModelBinding(Grade grade, Depth depth) {
-        this(grade, depth, null, null, null, ModelKind.LLM, null);
+        this(grade, null, depth, null, null, null, ModelKind.LLM, null);
         requireDeclaration(grade, depth);
     }
 
     /** Flat form: the declared input count and output declaration price the reservation. */
     public ModelBinding(Grade grade, Depth depth, int inTokens, OutputDeclaration output) {
-        this(grade, depth, inTokens, output, null, ModelKind.LLM, null);
+        this(grade, null, depth, inTokens, output, null, ModelKind.LLM, null);
         requireDeclaration(grade, depth);
         requireOutput(output);
     }
 
     /** Counted-prompt form: the text is counted post-resolution under the resolved spec's tokenizer. */
     public ModelBinding(Grade grade, Depth depth, String promptText, OutputDeclaration output) {
-        this(grade, depth, null, output, promptText, ModelKind.LLM, null);
+        this(grade, null, depth, null, output, promptText, ModelKind.LLM, null);
         requireDeclaration(grade, depth);
         requireOutput(output);
+        requirePrompt(promptText);
+    }
+
+    /**
+     * Wired-conversation form for work with a {@link ModelRole}: the picker serves the role's
+     * entry when it can, else the role's grade, which is the binding's grade.
+     */
+    public ModelBinding(ModelRole role, Depth depth) {
+        this(gradeOf(role), role, depth, null, null, null, ModelKind.LLM, null);
+        requireDeclaration(role.grade(), depth);
+    }
+
+    /** Flat form for work with a role. */
+    public ModelBinding(ModelRole role, Depth depth, int inTokens, OutputDeclaration output) {
+        this(gradeOf(role), role, depth, inTokens, output, null, ModelKind.LLM, null);
+        requireDeclaration(role.grade(), depth);
+        requireOutput(output);
+    }
+
+    /** Counted-prompt form for work with a role. */
+    public ModelBinding(ModelRole role, Depth depth, String promptText, OutputDeclaration output) {
+        this(gradeOf(role), role, depth, null, output, promptText, ModelKind.LLM, null);
+        requireDeclaration(role.grade(), depth);
+        requireOutput(output);
+        requirePrompt(promptText);
+    }
+
+    private static Grade gradeOf(ModelRole role) {
+        if (role == null) {
+            throw new IllegalArgumentException("A role requirement must name its role");
+        }
+        return role.grade();
+    }
+
+    private static void requirePrompt(String promptText) {
         if (promptText == null) {
             throw new IllegalArgumentException("Prompt form requires the prompt text");
         }
@@ -101,13 +137,13 @@ public class ModelBinding {
      * the seat declares none.
      */
     public ModelBinding(ModelSpec pinned, Depth depth) {
-        this(gradeOf(pinned), depth, null, null, null, ModelKind.LLM, pinned);
+        this(gradeOf(pinned), null, depth, null, null, null, ModelKind.LLM, pinned);
         requirePinnedLlm(pinned, depth);
     }
 
     /** Flat pinned form: exact spec plus the declared input count and output declaration. */
     public ModelBinding(ModelSpec pinned, Depth depth, int inTokens, OutputDeclaration output) {
-        this(gradeOf(pinned), depth, inTokens, output, null, ModelKind.LLM, pinned);
+        this(gradeOf(pinned), null, depth, inTokens, output, null, ModelKind.LLM, pinned);
         requirePinnedLlm(pinned, depth);
         requireOutput(output);
     }
@@ -154,8 +190,9 @@ public class ModelBinding {
         }
     }
 
-    private ModelBinding(Grade grade, Depth depth, Integer inTokens, OutputDeclaration output, String promptText, ModelKind kind, ModelSpec pinnedSpec) {
+    private ModelBinding(Grade grade, ModelRole role, Depth depth, Integer inTokens, OutputDeclaration output, String promptText, ModelKind kind, ModelSpec pinnedSpec) {
         this.grade = grade;
+        this.role = role;
         this.depth = depth;
         this.inTokens = inTokens;
         this.output = output;
@@ -166,18 +203,18 @@ public class ModelBinding {
 
     /** Embeddings declaration: no grade - embeddings are a separate client family, pinned per corpus. */
     public static ModelBinding embeddings(int tokens) {
-        return new ModelBinding(null, null, tokens, null, null, ModelKind.EMBEDDINGS, null);
+        return new ModelBinding(null, null, null, tokens, null, null, ModelKind.EMBEDDINGS, null);
     }
 
     /** Pinned embeddings declaration: the exact embeddings spec, still subject to the gate. */
     public static ModelBinding embeddingsPinned(ModelSpec pinned, int tokens) {
         requirePinnedKind(pinned, ModelKind.EMBEDDINGS);
-        return new ModelBinding(null, null, tokens, null, null, ModelKind.EMBEDDINGS, pinned);
+        return new ModelBinding(null, null, null, tokens, null, null, ModelKind.EMBEDDINGS, pinned);
     }
 
     /** Decision declaration with a flat input count: no grade - decision models are a separate client family, named per deployment. */
     public static ModelBinding decision(int tokens) {
-        return new ModelBinding(null, null, tokens, null, null, ModelKind.DECISION, null);
+        return new ModelBinding(null, null, null, tokens, null, null, ModelKind.DECISION, null);
     }
 
     /** Decision declaration priced from the request text, counted post-resolution under the resolved spec's tokenizer. */
@@ -185,13 +222,13 @@ public class ModelBinding {
         if (requestText == null) {
             throw new IllegalArgumentException("Counted decision form requires the request text");
         }
-        return new ModelBinding(null, null, null, null, requestText, ModelKind.DECISION, null);
+        return new ModelBinding(null, null, null, null, null, requestText, ModelKind.DECISION, null);
     }
 
     /** Pinned decision declaration: the exact decision spec, still subject to the gate. */
     public static ModelBinding decisionPinned(ModelSpec pinned, int tokens) {
         requirePinnedKind(pinned, ModelKind.DECISION);
-        return new ModelBinding(null, null, tokens, null, null, ModelKind.DECISION, pinned);
+        return new ModelBinding(null, null, null, tokens, null, null, ModelKind.DECISION, pinned);
     }
 
     /** Pinned decision declaration priced from the request text, counted under the pinned spec's tokenizer. */
@@ -200,7 +237,7 @@ public class ModelBinding {
         if (requestText == null) {
             throw new IllegalArgumentException("Counted decision form requires the request text");
         }
-        return new ModelBinding(null, null, null, null, requestText, ModelKind.DECISION, pinned);
+        return new ModelBinding(null, null, null, null, null, requestText, ModelKind.DECISION, pinned);
     }
 
     /** Whether this binding names its exact spec. The dispatcher gates a pin instead of consulting the picker. */
@@ -223,13 +260,18 @@ public class ModelBinding {
         if (spec == null) {
             throw new IllegalArgumentException("preResolved requires a spec");
         }
-        ModelBinding binding = new ModelBinding(spec.getGrade(), null, null, null, null, spec.kind(), null);
+        ModelBinding binding = new ModelBinding(spec.getGrade(), null, null, null, null, null, spec.kind(), null);
         binding.spec = spec;
         return binding;
     }
 
     public Grade getGrade() {
         return grade;
+    }
+
+    /** The role the work declared, or null for a binding that declared a grade, a pin, an embeddings or a decision need. */
+    public ModelRole getRole() {
+        return role;
     }
 
     public Depth getDepth() {

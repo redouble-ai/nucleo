@@ -120,6 +120,43 @@ decision model (the third kind of model, in [Decision models](../../tools/decidi
 Each must name an entry of its own kind, and a `pins` key that is neither a grade nor one
 of these two is refused, so a misspelled key also fails at start-up.
 
+Pins are where a deployment's choice of model belongs: per grade, for embeddings and for
+decisions. The loader checks every pin before the first call, a person changes the choice
+without a build, and the discovery reports on every pinned entry. A picker class can name
+models too, and a deployment is free to write one that does; what it gives up is the
+check at start-up, since a model named in code is judged only when a request reaches it.
+The pickers Nucleo ships name none.
+
+## A model for one kind of work
+
+Sometimes one kind of work is measured and found to run as well on a particular model as
+on the grade's default: parsing a table row, say, at a seventh of the price. That choice
+belongs to the work, not to the deployment's catalog and not to every job of the grade,
+and the work is often done from several classes. A **model role** states it once:
+
+```java
+public static final ModelRole TABLE_ROW = new ModelRole("table-row", "<catalog id of the measured entry>", Grade.MEDIUM);
+```
+
+The role names the work, the entry it prefers and the grade that stands in when the entry
+cannot serve. Every call doing the work declares the role where it would declare a grade:
+`requireModel(TABLE_ROW, Depth.STANDARD, ...)` in a job's requirements,
+`new ThinkerDeclaration(TABLE_ROW, OutputSize.COMPACT)` in a thinker, or
+`conversation.setRole(TABLE_ROW)` on a conversation an `LLMCall` runs. Work done from one
+class declares the role in that class; work shared by many classes shares one constant.
+Nothing is registered.
+
+The picker serves a role from its entry when the entry can serve the request: it is in
+this deployment's catalog, open, its provider's library is on the classpath with a
+credential, the compliance envelope permits it, it accepts what the request sends, and the
+availability probe has not reported it down. Overload failover applies to it as to any
+pick. Otherwise the log says once, per role and reason, which entry cannot serve and why,
+and the request is served from the role's grade like any other. An entry absent from the
+catalog is one of those reasons: an application ships to deployments whose catalogs it did
+not write. The entry may be of any grade, since the role chose it by measurement, and the
+call record carries the role's name beside the model that served it, so cost and quality
+can be read per role.
+
 ## How a request finds its model
 
 When a job is about to run, the picker chooses an entry for each model call it declared.
@@ -193,27 +230,36 @@ pin to write.
 
 A job may name the entry it runs on: `requireModel(ModelSpec, Depth, ...)` in its
 requirements, or `pinModel(spec)` on a model-dependent job. The picker is then skipped, and
-every check above still applies except the grade, since a named entry declares none. A named entry has no fallback when it is busy or down, so
-this is for the rare job that must run on one model, and for measuring models one against
-another, which is what [the benchmark](../../tools/benchmark/PACKAGE.md) does.
+every check above still applies except the grade, since a named entry declares none. The
+spec is handed over by code that enumerated the catalog or by a person's choice, never
+spelled as an id in the job. A named entry has no fallback when it is busy or down, so this
+is for the rare job that must run on one model, and for measuring models one against
+another, which is what [the benchmark](../../tools/benchmark/PACKAGE.md) does; work that
+prefers one model but must still run when it is down declares a model role instead.
 
 ## A picker of your own
 
-When pins cannot express the policy, a deployment writes a picker. `AbstractModelPicker` is
+A picker class is policy over the catalog's entries: which endpoints may stand in for each
+other, how availability or price weighs, what the pins cannot say. `AbstractModelPicker` is
 the base: a subclass implements `pick(Seat, Situation)`, where the `Seat` is the job class,
-its grade and the kind of model, and the `Situation` is everything known about the request
-(its depth, what it sends, earlier attempts, the envelope). A request declaring `CEILING`
-reaches `pick` as declared, for the picker to serve from the strongest grade it can. The
-base keeps out a model the deployment's availability probe reports down (`isTurnedOff` lets
-a policy pass such a model over instead), and moves new work off an overloaded endpoint onto the same model on
-another endpoint; `eligibleForFailover` is where the subclass says which endpoints may stand
-in for each other. `OpenModelPicker` lets any endpoint stand in, and the Bedrock library
-ships `BedrockOnlyModelPicker` and `ZdrOnlyModelPicker`, which keep substitutes on Bedrock,
-and on Bedrock at zero data retention.
+its grade, the kind of model and the role when the work declared one, and the `Situation`
+is everything known about the request (its depth, what it sends, earlier attempts, the
+envelope). A request declaring `CEILING` reaches `pick` as declared, for the picker to serve
+from the strongest grade it can; a request with a role reaches `pick` only when the role's
+entry cannot serve it. The base keeps out a model the deployment's availability probe
+reports down (`isTurnedOff`, or `whyNot` for every reason an entry cannot serve, lets a
+policy pass such a model over instead), and moves new work off an overloaded endpoint onto
+the same model on another endpoint; `eligibleForFailover` is where the subclass says which
+endpoints may stand in for each other. `OpenModelPicker` lets any endpoint stand in, and the
+Bedrock library ships `BedrockOnlyModelPicker` and `ZdrOnlyModelPicker`, which keep
+substitutes on Bedrock, and on Bedrock at zero data retention. A deployment whose only
+policy is the failover route extends `DefaultModelPicker` and overrides
+`eligibleForFailover` alone, keeping the pins.
 
 The deployment declares its picker once, at start-up, with `ModelPickers.use(picker)`, or
-names a class without constructor arguments in `ModelSettings.pickerClass`. The catalog file
-and the picker class are the only two places a model id may appear.
+names a class without constructor arguments in `ModelSettings.pickerClass`. A picker may
+name models; when it does, those choices are checked only when a request reaches them,
+where a pin is checked at start-up.
 
 ## How it works inside
 

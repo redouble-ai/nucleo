@@ -246,7 +246,12 @@ first call and the compaction fit check read them before any per-call code runs.
   application may call, and the picker serves it from MEGA downward - MEGA where the
   deployment can call one, XL where it cannot. A chat that wants the
   strongest model the deployment serves declares CEILING; a chat that wants a fixed rung
-  declares that rung instead. A `SubThinker` always works at its parent's rung, and a
+  declares that rung instead. A thinker doing the work of a `ModelRole` declares the role
+  (`ThinkerDeclaration.role`, `AbstractThinker.getRole`), its grade becoming the role's;
+  `ConversationService.stampDeclarations` puts the role on the conversation beside the grade,
+  the thinker's `LLMCall` reads it from there (`ModelDependent.getRole`), and
+  `ModelDependent.requireSeat` declares it on the requirements ahead of the grade. `setGrade`
+  drops the role: the caller named a rung. A `SubThinker` always works at its parent's rung, and a
   one-call tool that declares no grade of its own inherits its parent's when
   `ClassToolProvider` creates it. A caller may raise a thinker's grade for a particular run
   after construction. The one tool whose grade is INPUT rather than a seat declaration is

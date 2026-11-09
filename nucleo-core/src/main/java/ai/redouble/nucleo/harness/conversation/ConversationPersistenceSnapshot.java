@@ -52,8 +52,12 @@ public class ConversationPersistenceSnapshot  {
      * is unbound until a job wires a fresh binding.
      */
     private String modelIdentifier;
-    // Seat declaration - what the conversation asks for, independent of any resolution.
+    // Seat declaration - what the conversation asks for, independent of any resolution. A
+    // role is stored by its parts, so a restored conversation says what work it was doing
+    // until the adopting thinker stamps its own declarations over it.
     private Grade grade;
+    private String roleName;
+    private String roleCatalogId;
     private Depth depth;
     private boolean interactive;
     // Artifact map for preserving artifacts across persistence.
@@ -87,6 +91,10 @@ public class ConversationPersistenceSnapshot  {
         // The serving spec when one is resolved, else whatever prior the context carries
         snapshot.modelIdentifier = context.isModelResolved() ? context.getModel().getId() : context.getPriorSpecId();
         snapshot.grade = context.getGrade();
+        if (context.getRole() != null) {
+            snapshot.roleName = context.getRole().name();
+            snapshot.roleCatalogId = context.getRole().catalogId();
+        }
         snapshot.depth = context.getDepth();
         snapshot.interactive = context.isInteractive();
         // Preserve artifacts
@@ -100,6 +108,9 @@ public class ConversationPersistenceSnapshot  {
         ConversationContext context = new ConversationContext(conversationId);
         context.setPriorSpecId(modelIdentifier);
         context.setGrade(grade);
+        if (roleName != null) {
+            context.setRole(new ModelRole(roleName, roleCatalogId, grade));
+        }
         context.setDepth(depth);
         context.setInteractive(interactive);
         context.setWorkflowId(workflowId);

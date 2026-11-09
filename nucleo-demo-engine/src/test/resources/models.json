@@ -21,6 +21,7 @@
     "MEDIUM": ["claude-sonnet-5-bedrock"],
     "LARGE": ["claude-opus-5-bedrock"],
     "XL": ["claude-opus-5-bedrock"],
-    "embeddings": "cohere-embed-v4-bedrock"
+    "embeddings": "cohere-embed-v4-bedrock",
+    "decision": "fake-decider"
   }
 }

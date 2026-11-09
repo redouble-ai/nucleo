@@ -72,8 +72,8 @@ class DefaultModelPickerTest {
         Models.resetAll();
     }
 
-    /** Serves {@code /models-pins.json} with the edit applied to its root. */
-    private static void useEdited(Consumer<ObjectNode> edit) {
+    /** Serves {@code /models-pins.json} with the edit applied to its root. Shared with {@link ModelRoleTest}. */
+    static void useEdited(Consumer<ObjectNode> edit) {
         try (InputStream is = DefaultModelPickerTest.class.getResourceAsStream("/models-pins.json")) {
             ObjectNode root = (ObjectNode) NucleoJsonSerializer.readTree(new String(is.readAllBytes(), StandardCharsets.UTF_8));
             edit.accept(root);
@@ -404,13 +404,13 @@ class DefaultModelPickerTest {
         return entry;
     }
 
-    private static ObjectNode accepting(ObjectNode entry, boolean images, boolean documents) {
+    static ObjectNode accepting(ObjectNode entry, boolean images, boolean documents) {
         entry.put("supports_vision", images);
         entry.put("supports_documents", documents);
         return entry;
     }
 
-    private static ObjectNode entry(String id, String grade) {
+    static ObjectNode entry(String id, String grade) {
         ObjectNode entry = NucleoJsonSerializer.createObjectNode();
         entry.put("id", id);
         entry.put("identity", id);

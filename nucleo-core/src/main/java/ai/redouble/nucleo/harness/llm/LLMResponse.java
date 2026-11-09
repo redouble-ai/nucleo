@@ -35,6 +35,7 @@ public class LLMResponse<T> {
      * Set centrally by the abstract client templates.
      */
     protected String model;
+    protected String role;
 
     /** The tokens this call spent, as the provider reported them; null when it reported nothing. */
     protected TokenLedger usage;
@@ -115,6 +116,15 @@ public class LLMResponse<T> {
 
     public void setModel(String model) {
         this.model = model;
+    }
+
+    /** The name of the role the conversation declared, stamped by the client templates, or null for a call that declared a grade. */
+    public String getRole() {
+        return role;
+    }
+
+    public void setRole(String role) {
+        this.role = role;
     }
 
     public String getServedModelId() {

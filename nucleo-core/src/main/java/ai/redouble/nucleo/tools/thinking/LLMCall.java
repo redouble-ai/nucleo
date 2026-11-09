@@ -97,6 +97,12 @@ public class LLMCall<T> extends AbstractModelDependentTool<Void, T> {
         conversation.setGrade(grade);
     }
 
+    /** The seat's role is the conversation's too, stamped there from the thinker's declaration. */
+    @Override
+    public ModelRole getRole() {
+        return conversation.getRole();
+    }
+
     @Override
     public JobRequirements getRequirements() {
         JobRequirements req = new JobRequirements();

@@ -303,8 +303,11 @@ thinker without its `ThinkerDeclaration` does not compile.
 
 - **Grade**: the lowest rung of model that can do the work, from `Grade.MICRO` to
   `Grade.MEGA`, or `Grade.CEILING` for the strongest model the deployment serves. The
-  deployment's picker turns the grade into a model on every call. A caller may raise the
-  grade for a particular run with `setGrade`. `QuickLLMQuestionTool` is the one tool whose
+  deployment's picker turns the grade into a model on every call. A thinker doing the work
+  of a `ModelRole` declares the role in place of the grade, `new ThinkerDeclaration(TABLE_ROW,
+  OutputSize.COMPACT)`, and the picker serves the role's entry when it can
+  ([A model for one kind of work](../harness/models/PACKAGE.md)). A caller may raise the
+  grade for a particular run with `setGrade`, which drops a declared role. `QuickLLMQuestionTool` is the one tool whose
   grade comes with its input: it is how code or a model asks one question without writing a
   thinker, so the asker names the rung in `QuickLLMQuestionInput.grade`, which is required.
 - **Output size**: how much answer each turn may produce. It becomes the turn's `max_tokens`

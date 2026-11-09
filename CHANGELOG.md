@@ -5,6 +5,18 @@ group `ai.redouble`; a published version is never changed in place.
 
 ## Unreleased
 
+- A model role names the model for one kind of work, wherever that work is done:
+  `ModelRole(name, catalogId, grade)`, a constant the application declares once and every
+  call doing the work declares in place of a grade, through `requireModel(ModelRole, ...)`,
+  `ThinkerDeclaration(ModelRole, ...)` or `ConversationContext.setRole`. The picker serves
+  the role's entry when it can and the role's grade otherwise, with one warning per role and
+  reason, and the call record carries the role's name. The documentation now recommends one
+  home per kind of choice: the deployment's choice per grade in the catalog's `pins`, the
+  application's choice for one kind of work in a role; Nucleo's own pickers name no model.
+  Breaking: `Seat` gains a `role` component (the three-argument constructor stays for a
+  grade seat), `CostLedger.Call` a `role` component after `servedModelId`, and
+  `AbstractModelPicker` gains the protected `whyNot`, `whyNotProvisioned` and
+  `whyNotCallable` ([#20](https://github.com/redouble-ai/nucleo/issues/20)).
 - The shipped picker always serves the best model available. A request is served from its
   grade, else from the nearest grade above, else from the nearest grade below, with a
   warning in the log each time the picker moves, and fails only when no entry the walk

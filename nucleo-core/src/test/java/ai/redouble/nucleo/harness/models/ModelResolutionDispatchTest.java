@@ -37,7 +37,7 @@ class ModelResolutionDispatchTest {
     /** Delegates to the suite's pins while recording every situation it is consulted with. */
     public static class RecordingPicker implements ModelPicker {
         static final List<Situation> SITUATIONS = new CopyOnWriteArrayList<>();
-        private final ModelPicker delegate = new TestModelPicker();
+        private final ModelPicker delegate = new SuiteModelPicker();
 
         @Override
         public ModelSpec provide(Seat seat, Situation situation) {
@@ -73,6 +73,29 @@ class ModelResolutionDispatchTest {
                 throw new TransientErrorRetryException("simulated upstream fault", "test-provider", "boom", 503, 1, null);
             }
             return mintedBindings.get(mintedBindings.size() - 1).getModel().getId();
+        }
+    }
+
+    private static class RoleJob extends AbstractJob<String> {
+        final ModelRole role;
+        ModelBinding binding;
+
+        RoleJob(Identifiable parent, ModelRole role) {
+            super(parent, "role-test");
+            this.role = role;
+        }
+
+        @Override
+        public JobRequirements getRequirements() {
+            JobRequirements req = new JobRequirements();
+            binding = req.requireModel(role, Depth.IMMEDIATE, 10, OutputDeclaration.of(10));
+            req.setRequiresTransaction(false);
+            return req;
+        }
+
+        @Override
+        public String execute(JobResources resources, JobContext<String> context) {
+            return binding.getModel().getId();
         }
     }
 
@@ -117,6 +140,19 @@ class ModelResolutionDispatchTest {
     }
 
     @Test
+    void aRoleJobIsServedByTheRolesEntryThroughTheDispatcher() throws Exception {
+        // the role prefers the XL default for work declared at SMALL: the seat reaches the
+        // picker with its role and the entry serves, whatever grade it carries
+        ModelRole role = new ModelRole("table-row", TestModels.grade(Grade.XL).getId(), Grade.SMALL);
+        RoleJob job = new RoleJob(Job.workflow("test-user", "resolution-role"), role);
+        assertEquals(TestModels.grade(Grade.XL).getId(), JobDispatcher.getInstance().submit(job).get());
+        // the role's entry requires data sharing the sealed envelope forbids: the role's grade serves
+        RoleJob refused = new RoleJob(Job.workflow("test-user", "resolution-role-refused"),
+                new ModelRole("frontier-row", TestModels.requiringLax().getId(), Grade.SMALL));
+        assertEquals(TestModels.small().getId(), JobDispatcher.getInstance().submit(refused).get());
+    }
+
+    @Test
     void pinnedJobStillDiesAtTheSealedEnvelope() {
         PinnedJob job = new PinnedJob(Job.workflow("test-user", "resolution-pinned-refused"),
                 TestModels.requiringLax());
@@ -130,7 +166,7 @@ class ModelResolutionDispatchTest {
     void declaredGradeResolvesPricesAndCapturesRequirementsOncePerAttempt() throws Exception {
         FlatJob job = new FlatJob(Job.workflow("test-user", "resolution-flat"), Grade.SMALL);
         String servedId = JobDispatcher.getInstance().submit(job).get();
-        assertEquals(new TestModelPicker().provide(new Seat(FlatJob.class, Grade.SMALL, ModelKind.LLM), null).getId(), servedId);
+        assertEquals(TestModels.small().getId(), servedId);
         ModelBinding resolved = job.mintedBindings.get(job.mintedBindings.size() - 1);
         assertEquals(100 + ConversationContext.outputReserve(resolved.getModel(), 50, Depth.STANDARD), resolved.getReservedTokens(),
                 "flat pricing = in + declared out + the depth's thinking on the resolved entry, clamped as the wire is");

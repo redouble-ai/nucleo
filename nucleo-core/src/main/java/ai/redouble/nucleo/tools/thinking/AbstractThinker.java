@@ -106,6 +106,8 @@ public abstract class AbstractThinker<I extends ThinkerInput, O extends ThinkerO
      * work the thinker does, and a caller may raise it afterwards for a particular run.
      */
     protected Grade grade;
+    /** The role this thinker's calls do the work of, or null for a seat that declared a grade; dropped when a caller names a rung with {@link #setGrade}. */
+    protected ModelRole role;
     /**
      * How much answer this thinker's turns book: an {@link OutputSize} rung sized to the
      * largest turn (a loop turn may be a tool call or the final answer), or a raw count for
@@ -250,6 +252,7 @@ public abstract class AbstractThinker<I extends ThinkerInput, O extends ThinkerO
                     + " there is no default, silent or otherwise");
         }
         this.grade = declaration.getGrade();
+        this.role = declaration.getRole();
         this.outputDeclaration = declaration.getOutput();
         this.comfortContextTokens = declaration.getComfortContextTokens();
         this.compactionTrigger = declaration.getCompactionTrigger();
@@ -291,10 +294,10 @@ public abstract class AbstractThinker<I extends ThinkerInput, O extends ThinkerO
     }
 
     /**
-     * Declares which capability grade this thinker's calls need. The harness resolves the
-     * actual spec per call through the deployment's picker. A thinker declares its own in
-     * its {@link ThinkerDeclaration}; this setter is for a caller raising it for a
-     * particular run.
+     * Declares which grade this thinker's calls ask for. The harness resolves the actual
+     * spec per call through the deployment's picker. A thinker declares its own in its
+     * {@link ThinkerDeclaration}; this setter is for a caller raising it for a particular
+     * run, and a role the thinker declared is dropped, the caller having named a rung.
      */
     @Override
     public void setGrade(Grade grade) {
@@ -302,11 +305,17 @@ public abstract class AbstractThinker<I extends ThinkerInput, O extends ThinkerO
             throw new IllegalArgumentException(getClass().getSimpleName() + ": a thinker's grade cannot be unset");
         }
         this.grade = grade;
+        this.role = null;
     }
 
     @Override
     public Grade getGrade() {
         return grade;
+    }
+
+    @Override
+    public ModelRole getRole() {
+        return role;
     }
 
     /**

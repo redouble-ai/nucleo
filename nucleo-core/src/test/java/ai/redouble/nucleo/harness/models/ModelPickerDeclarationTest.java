@@ -44,19 +44,19 @@ class ModelPickerDeclarationTest {
 
     @Test
     void aSecondDeclarationIsRefused() {
-        ModelPickers.use(new TestModelPicker());
+        ModelPickers.use(new SuiteModelPicker());
         UncorrectableRuntimeLLMException ex = assertThrows(UncorrectableRuntimeLLMException.class,
-                () -> ModelPickers.use(new TestModelPicker()));
+                () -> ModelPickers.use(new SuiteModelPicker()));
         assertTrue(ex.getMessage().contains("once"), ex.getMessage());
     }
 
     @Test
     void aDeclarationAfterTheFirstResolutionIsRefused() {
-        // The configured class (the suite's TestModelPicker) answered already; policy is set.
+        // The configured class (the suite's SuiteModelPicker) answered already; policy is set.
         ModelPickers.resolve(new Seat(ModelPickerDeclarationTest.class, Grade.SMALL, ModelKind.LLM), permitting());
         UncorrectableRuntimeLLMException ex = assertThrows(UncorrectableRuntimeLLMException.class,
-                () -> ModelPickers.use(new TestModelPicker()));
-        assertTrue(ex.getMessage().contains(TestModelPicker.class.getName()), ex.getMessage());
+                () -> ModelPickers.use(new SuiteModelPicker()));
+        assertTrue(ex.getMessage().contains(SuiteModelPicker.class.getName()), ex.getMessage());
     }
 
     @Test

@@ -111,10 +111,11 @@ public JobRequirements getRequirements() {
   gets one without asking.
 - **`requireRateLimiter`** asks for a slot on a limit of your own, such as a service that
   allows ten requests a second ([Admission](admission/PACKAGE.md) shows how to declare one).
-- **`requireModel`** asks for a model by grade, and `requireEmbeddings` and
-  `requireDecision` ask for the embeddings and decision models, which have no grades. The
-  job names what it needs, never a concrete model, and the deployment's catalog decides
-  which model serves it ([The catalog, grades and the picker](models/PACKAGE.md)):
+- **`requireModel`** asks for a model by grade, or by the `ModelRole` of the work the job
+  does, and `requireEmbeddings` and `requireDecision` ask for the embeddings and decision
+  models, which have no grades. The job names what it needs, never a concrete model, and
+  the deployment's catalog decides which model serves it
+  ([The catalog, grades and the picker](models/PACKAGE.md)):
 
 ```java
 binding = requirements.requireModel(Grade.SMALL, Depth.STANDARD, 4000, OutputDeclaration.of(OutputSize.COMPACT));

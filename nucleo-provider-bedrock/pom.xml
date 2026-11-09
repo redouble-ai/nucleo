@@ -113,7 +113,7 @@
                         <aws.sharedCredentialsFile>${project.build.directory}/no-aws-credentials</aws.sharedCredentialsFile>
                         <aws.disableEc2Metadata>true</aws.disableEc2Metadata>
                         <!-- The suite runs on the shared test fixture catalog, the same one
-                             nucleo-core's tests and TestModelPicker are written against; the
+                             nucleo-core's tests and their pins are written against; the
                              shipped fragment is a bootstrap kernel for deployments, not a test
                              surface, and tests must not pin its contents. -->
                         <nucleo.models>${project.basedir}/../nucleo-core/src/test/resources/test-models.json</nucleo.models>

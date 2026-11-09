@@ -11,12 +11,13 @@ import ai.redouble.nucleo.harness.models.*;
 
 /**
  * A job that holds a model seat: a thinker, the call a thinker spawns per turn, a tool whose
- * work is one exchange with a model. It declares the grade the seat needs, and it can be
- * pinned to one exact catalog entry for a run, which is how a benchmark races the same job
- * on every model of a grade. An unpinned seat resolves through the deployment's picker; a
- * pinned one skips the picker and nothing else, since the gate's other walls, kind, envelope,
- * vision and deprecation, stand for a pin as for a pick. A job that queries a database
- * depends on no model and does not implement this.
+ * work is one exchange with a model. It declares the grade the seat needs, or the
+ * {@link ModelRole} whose work it does, and it can be pinned to one exact catalog entry for
+ * a run, which is how a benchmark races the same job on every model of a grade. An unpinned
+ * seat resolves through the deployment's picker; a pinned one skips the picker and nothing
+ * else, since the gate's other walls, kind, envelope, vision and deprecation, stand for a
+ * pin as for a pick. A job that queries a database depends on no model and does not
+ * implement this.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-08-28)
@@ -28,6 +29,11 @@ public interface ModelDependent {
     /** Raises or lowers the declared grade for a run; a thinker refuses null. */
     void setGrade(Grade grade);
 
+    /** The role whose work the seat does, or null (the default) for a seat that declared a grade alone. */
+    default ModelRole getRole() {
+        return null;
+    }
+
     /** Runs the seat on this exact entry instead of resolving its grade. Null unpins. */
     void pinModel(ModelSpec model);
 
@@ -36,9 +42,13 @@ public interface ModelDependent {
 
     /**
      * The seat's binding on the job's requirements: the pinned entry when there is one,
-     * else the declared grade through the picker. The one place the branch is written.
+     * else the declared role, else the declared grade, through the picker. The one place
+     * the branch is written.
      */
     default ModelBinding requireSeat(JobRequirements req, Depth depth) {
-        return pinnedModel() != null ? req.requireModel(pinnedModel(), depth) : req.requireModel(getGrade(), depth);
+        if (pinnedModel() != null) {
+            return req.requireModel(pinnedModel(), depth);
+        }
+        return getRole() != null ? req.requireModel(getRole(), depth) : req.requireModel(getGrade(), depth);
     }
 }

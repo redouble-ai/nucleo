@@ -98,6 +98,31 @@ public class JobRequirements {
     }
 
     /**
+     * The wired form for work with a {@link ModelRole}: the picker serves the role's entry
+     * when it can, else the role's grade. Declared where the grade form would be, by every
+     * job doing the role's work.
+     */
+    public ModelBinding requireModel(ModelRole role, Depth depth) {
+        ModelBinding binding = new ModelBinding(role, depth);
+        modelBindings.add(binding);
+        return binding;
+    }
+
+    /** The flat form for work with a role. */
+    public ModelBinding requireModel(ModelRole role, Depth depth, int inTokens, OutputDeclaration output) {
+        ModelBinding binding = new ModelBinding(role, depth, inTokens, output);
+        modelBindings.add(binding);
+        return binding;
+    }
+
+    /** The counted-prompt form for work with a role. */
+    public ModelBinding requireModelForPrompt(ModelRole role, Depth depth, String promptText, OutputDeclaration output) {
+        ModelBinding binding = new ModelBinding(role, depth, promptText, output);
+        modelBindings.add(binding);
+        return binding;
+    }
+
+    /**
      * Declares an LLM need priced from a prompt text the job already holds: the text is
      * counted at resolution time under the resolved spec's tokenizer, plus the declared
      * output and the spec's thinking budget for the depth.

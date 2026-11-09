@@ -430,7 +430,9 @@ The documentation reads in one order from `nucleo-docs/CONTENTS.md`; the publish
 
 - Do not edit the runtime to get past a refusal. A refusal names what to provide; provide it
   or report it to the person.
-- Do not hardcode a model id anywhere in code. Model ids live in `models.json` and nowhere else.
+- Do not hardcode a model id anywhere in code. Model ids live in `models.json`, and in a
+  `ModelRole` an application declares for one kind of work, and nowhere else; Nucleo itself
+  declares no role, and its pickers name no model (`CatalogIdLeakTest` holds the line).
 - Do not skip tests to save time and then report the build as green.
 - Do not hand-roll native support for a third-party dependency. For a Quarkus native build,
   never hand-write `reflect-config.json` / `resource-config.json` / `reachability-metadata.json`

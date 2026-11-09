@@ -31,7 +31,7 @@ class DeprecatedModelTest {
 
     @Test
     void pickerNeverServesARetiredSpec() {
-        TestModelPicker picker = new TestModelPicker();
+        SuiteModelPicker picker = new SuiteModelPicker();
         Situation situation = new Situation();
         situation.setEnvelope(spec -> true);
         for (Grade grade : Grade.rungs()) {

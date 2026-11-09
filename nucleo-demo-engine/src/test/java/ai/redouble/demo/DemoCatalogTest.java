@@ -199,7 +199,7 @@ class DemoCatalogTest {
             IllegalArgumentException notADecision = assertThrows(IllegalArgumentException.class,
                     () -> CATALOG.pin("decision", "nova-micro"));
             assertTrue(notADecision.getMessage().contains("not a decision entry"), "the loader's own rule: " + notADecision.getMessage());
-            assertNull(CATALOG.status().pins().get("decision"), "no decision pin yet");
+            assertEquals("fake-decider", CATALOG.status().pins().get("decision"), "the suite's decision pin, the fake decider");
             status = CATALOG.pin("decision", "kev");
             assertEquals("kev", status.pins().get("decision"), "the decision pin is a slot like embeddings");
             assertEquals("kev", Models.pins().decision(), "and the runtime adopted it live");

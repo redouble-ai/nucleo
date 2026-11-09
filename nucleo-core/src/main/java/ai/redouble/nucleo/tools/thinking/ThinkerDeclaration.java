@@ -14,7 +14,8 @@ import ai.redouble.nucleo.harness.models.*;
  * seat's vocabulary - "MEDIUM model, COMPACT answer" - stated where the compiler can see it.
  * A thinker that names no grade and no answer size does not compile; a chat that wants the
  * strongest model the deployment serves says so with {@link Grade#CEILING}, never by leaving
- * the grade out.
+ * the grade out. A thinker doing the work of a {@link ModelRole} declares the role in place
+ * of the grade, and the picker serves the role's entry when it can.
  *
  * <p>The required words are constructor arguments. The optional knobs - the comfort context
  * window and the compaction trigger, see {@code ContextWindowManager} - are void setters, so
@@ -31,31 +32,55 @@ import ai.redouble.nucleo.harness.models.*;
  */
 public final class ThinkerDeclaration {
     private final Grade grade;
+    private final ModelRole role;
     private final OutputDeclaration output;
     private Integer comfortContextTokens;
     private Double compactionTrigger;
 
-    /** The ordinary seat: a capability floor and an answer rung sized to the largest turn. */
+    /** The ordinary seat: the rung the work asks for and an answer rung sized to the largest turn. */
     public ThinkerDeclaration(Grade grade, OutputSize output) {
-        this(grade, OutputDeclaration.of(output));
+        this(grade, null, OutputDeclaration.of(output));
     }
 
     /** The documented exception: a seat whose answer fits no rung declares its tokens. */
     public ThinkerDeclaration(Grade grade, int outputTokens) {
-        this(grade, OutputDeclaration.of(outputTokens));
+        this(grade, null, OutputDeclaration.of(outputTokens));
     }
 
-    private ThinkerDeclaration(Grade grade, OutputDeclaration output) {
+    /** A seat doing the work of a {@link ModelRole}: the role's entry when it can serve, else the role's grade. */
+    public ThinkerDeclaration(ModelRole role, OutputSize output) {
+        this(gradeOf(role), role, OutputDeclaration.of(output));
+    }
+
+    /** A role seat whose answer fits no rung. */
+    public ThinkerDeclaration(ModelRole role, int outputTokens) {
+        this(gradeOf(role), role, OutputDeclaration.of(outputTokens));
+    }
+
+    private ThinkerDeclaration(Grade grade, ModelRole role, OutputDeclaration output) {
         if (grade == null) {
             throw new IllegalArgumentException("A thinker declares its grade; there is no default, silent or otherwise");
         }
         // a null answer size cannot reach here: OutputDeclaration.of refuses it first
         this.grade = grade;
+        this.role = role;
         this.output = output;
+    }
+
+    private static Grade gradeOf(ModelRole role) {
+        if (role == null) {
+            throw new IllegalArgumentException("A thinker declaring a role names it; there is no default, silent or otherwise");
+        }
+        return role.grade();
     }
 
     public Grade getGrade() {
         return grade;
+    }
+
+    /** The role the seat declared, or null for a seat that declared a grade. */
+    public ModelRole getRole() {
+        return role;
     }
 
     public OutputDeclaration getOutput() {

@@ -6,9 +6,11 @@
 
 package ai.redouble.nucleo.harness.models;
 
+import ai.redouble.nucleo.*;
 import ai.redouble.nucleo.harness.admission.*;
 import ai.redouble.nucleo.harness.errors.*;
 import ai.redouble.nucleo.harness.errors.retry.*;
+import ai.redouble.nucleo.harness.llm.*;
 import org.slf4j.*;
 
 import java.time.*;
@@ -21,8 +23,16 @@ import java.util.concurrent.*;
  * additional models and treat them as deprecated" default. Subclasses implement
  * {@link #pick(Seat, Situation)} with their policy; {@link #provide(Seat, Situation)} is
  * the template that applies the turnoff on the way out. A policy that would rather pass a
- * turned-off entry over than be refused for it asks {@link #isTurnedOff(ModelSpec)} before
- * choosing, as {@link DefaultModelPicker} does.
+ * turned-off entry over than be refused for it asks {@link #isTurnedOff(ModelSpec)}, or
+ * {@link #whyNot(ModelSpec, Situation)} for every reason at once, before choosing, as
+ * {@link DefaultModelPicker} does.
+ *
+ * <p>A seat with a {@link ModelRole} is served from the role's entry before {@code pick} is
+ * asked, when that entry can serve the request ({@link #whyNot(ModelSpec, Situation)}: in
+ * this catalog, open, its provider on the classpath with a credential, permitted by the
+ * envelope, accepting the declared inputs, not turned off); otherwise one WARN per role and
+ * reason, and {@code pick} serves the seat at the role's grade. The family invariant
+ * ({@link #vetPick}) and the overload failover apply to a role's entry as to any pick.
  *
  * <p>The turnoff rule counts ONLY {@link ProbeOutcome.Classification#AVAILABILITY}
  * failures: a spec is off when it has an availability failure inside the window and no
@@ -49,7 +59,10 @@ public abstract class AbstractModelPicker implements ModelPicker {
 
     @Override
     public final ModelSpec provide(Seat seat, Situation situation) {
-        ModelSpec picked = pick(seat, situation);
+        ModelSpec picked = seat.role() != null ? forRole(seat, situation) : null;
+        if (picked == null) {
+            picked = pick(seat, situation);
+        }
         if (picked != null) {
             vetPick(picked, seat, situation);
             SpecHealth h = health.get(picked.getId());
@@ -70,6 +83,103 @@ public abstract class AbstractModelPicker implements ModelPicker {
             }
         }
         return picked;
+    }
+
+    /**
+     * The role's entry when it can serve the request, else null with one WARN per role and
+     * reason, and the request falls to {@link #pick} at the role's grade. An entry absent
+     * from this deployment's catalog is one reason among the others: an application ships
+     * to deployments whose catalogs it did not write.
+     */
+    private ModelSpec forRole(Seat seat, Situation situation) {
+        ModelRole role = seat.role();
+        ModelSpec entry = Models.findSpec(role.catalogId());
+        String why = entry == null ? "this deployment's catalog has no entry " + role.catalogId() : whyNot(entry, situation);
+        if (why == null) {
+            return entry;
+        }
+        if (roleWarned.add(role.name() + "/" + why)) {
+            log.warn("Model role {} prefers {}, which cannot serve seat {} ({}): serving the role from grade {} instead.",
+                    role.name(), role.catalogId(), seat.jobClass().getSimpleName(), why, role.grade());
+        }
+        return null;
+    }
+
+    /** Role and reason pairs already warned about, so a fan-out of one role's work warns once. */
+    private final Set<String> roleWarned = ConcurrentHashMap.newKeySet();
+
+    /**
+     * Why the entry cannot serve a request under this situation, in words for a log line, or
+     * null when it can: {@link #whyNot(ModelSpec)}, then the compliance envelope, then the
+     * inputs the request declares ({@link Situation#getSends()}).
+     */
+    protected final String whyNot(ModelSpec candidate, Situation situation) {
+        String why = whyNot(candidate);
+        if (why != null) {
+            return why;
+        }
+        if (situation.getEnvelope() != null && !situation.getEnvelope().permits(candidate)) {
+            return "the compliance envelope " + situation.getEnvelope().getClass().getSimpleName() + " refuses it";
+        }
+        if (situation.getSends() != null) {
+            for (Input input : situation.getSends()) {
+                if (!candidate.accepts(input)) {
+                    return "it does not accept " + input.name().toLowerCase(Locale.ROOT);
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Why the entry cannot be called by this deployment now, in words for a log line, or
+     * null when it can: it is closed, this deployment cannot call it
+     * ({@link #whyNotCallable}), or the availability probe has turned it off
+     * ({@link #isTurnedOff(ModelSpec)}).
+     */
+    protected final String whyNot(ModelSpec candidate) {
+        if (candidate.getStatus() != ModelStatus.OPEN) {
+            return "it is " + candidate.getStatus().name().toLowerCase(Locale.ROOT);
+        }
+        String why = whyNotCallable(candidate);
+        if (why != null) {
+            return why;
+        }
+        if (isTurnedOff(candidate)) {
+            return "the availability probe reports it down";
+        }
+        return null;
+    }
+
+    /**
+     * Why this deployment cannot call the entry, in words for a log line, or null when it
+     * can: {@link #whyNotProvisioned} (its provider on the classpath, its data-share posture
+     * provisioned), then its provider's credential in the store. A test suite that makes no
+     * calls and holds no credential answers null for everything.
+     */
+    protected String whyNotCallable(ModelSpec candidate) {
+        String why = whyNotProvisioned(candidate);
+        if (why != null) {
+            return why;
+        }
+        return ClientProviders.get(candidate.getProviderKey()).configured() ? null
+                : "its provider " + candidate.getProviderKey() + " has no credential";
+    }
+
+    /**
+     * Why this classpath and configuration cannot serve the entry at all, before any
+     * credential: no provider artifact on the classpath declares its provider, or it is
+     * served only under provider data sharing and no Mantle project
+     * ({@code ModelSettings.mantleLaxProject}) provides it. Null when it is provisioned.
+     */
+    protected String whyNotProvisioned(ModelSpec candidate) {
+        if (ClientProviders.find(candidate.getProviderKey()) == null) {
+            return "no provider artifact on the classpath declares " + candidate.getProviderKey();
+        }
+        if (candidate.requiresLax() && Settings.get(ModelSettings.class).mantleLaxProject == null) {
+            return "it is served only under provider data sharing and no Mantle project provides it";
+        }
+        return null;
     }
 
     /**

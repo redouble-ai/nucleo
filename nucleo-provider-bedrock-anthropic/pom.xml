@@ -80,7 +80,7 @@
                         <aws.sharedCredentialsFile>${project.build.directory}/no-aws-credentials</aws.sharedCredentialsFile>
                         <aws.disableEc2Metadata>true</aws.disableEc2Metadata>
                         <!-- The suite runs on the shared test fixture catalog, the same one
-                             nucleo-core's tests and TestModelPicker are written against. -->
+                             nucleo-core's tests and their pins are written against. -->
                         <nucleo.models>${project.basedir}/../nucleo-core/src/test/resources/test-models.json</nucleo.models>
                     </systemPropertyVariables>
                 </configuration>

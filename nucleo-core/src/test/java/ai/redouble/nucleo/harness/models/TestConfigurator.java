@@ -20,6 +20,6 @@ import ai.redouble.nucleo.*;
 public class TestConfigurator implements NucleoConfigurator {
     @Override
     public void configure() {
-        Settings.get(ModelSettings.class).pickerClass = TestModelPicker.class;
+        Settings.get(ModelSettings.class).pickerClass = SuiteModelPicker.class;
     }
 }

@@ -133,6 +133,7 @@ public class ConversationContext implements Serializable {
     // Declaration fields: what this conversation's seat asks for, readable before any
     // resolution has happened. The binding is the answer; these are the question.
     private Grade grade;
+    private ModelRole role;
     private boolean interactive;
     /**
      * Id of the spec that served this conversation last, stamped by
@@ -351,8 +352,23 @@ public class ConversationContext implements Serializable {
         return grade;
     }
 
+    /** Declares the rung this conversation's calls ask for; a role declared before is dropped, the caller having named a rung. */
     public void setGrade(Grade grade) {
         this.grade = grade;
+        this.role = null;
+    }
+
+    /** The role this conversation's calls declared, or null for a conversation that declared a grade. */
+    public ModelRole getRole() {
+        return role;
+    }
+
+    /** Declares the role this conversation's calls do the work of; the grade becomes the role's. Null drops the role and keeps the grade. */
+    public void setRole(ModelRole role) {
+        this.role = role;
+        if (role != null) {
+            this.grade = role.grade();
+        }
     }
 
     public boolean isInteractive() {

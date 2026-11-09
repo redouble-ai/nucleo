@@ -41,14 +41,14 @@ class EmbeddingsResolutionTest {
 
     @Test
     void theDeclarationResolvesFreezesAndRefusesAMidProcessChange() {
-        ModelPicker declaring = new TestModelPicker();
+        ModelPicker declaring = new SuiteModelPicker();
         ModelSpec first = ModelPickers.resolveEmbeddingsWith(declaring, embeddingsSeat(), permitting());
         assertEquals(TestModels.embeddings().getId(), first.getId());
         // The same declaration resolves freely forever
         assertEquals(first.getId(),
                 ModelPickers.resolveEmbeddingsWith(declaring, embeddingsSeat(), permitting()).getId());
         // A different declaration mid-process is the corruption the freeze exists to stop
-        ModelPicker swapped = new TestModelPicker() {
+        ModelPicker swapped = new SuiteModelPicker() {
             @Override
             public ModelSpec embeddingsSpec() {
                 return TestModels.otherEmbeddings();
@@ -70,7 +70,7 @@ class EmbeddingsResolutionTest {
 
     @Test
     void aNonEmbeddingsDeclarationDiesAtTheKindWall() {
-        ModelPicker wrongKind = new TestModelPicker() {
+        ModelPicker wrongKind = new SuiteModelPicker() {
             @Override
             public ModelSpec embeddingsSpec() {
                 return TestModels.small();
@@ -85,6 +85,6 @@ class EmbeddingsResolutionTest {
         Situation refusing = new Situation();
         refusing.setEnvelope(spec -> false);
         assertThrows(UncorrectableRuntimeLLMException.class,
-                () -> ModelPickers.resolveEmbeddingsWith(new TestModelPicker(), embeddingsSeat(), refusing));
+                () -> ModelPickers.resolveEmbeddingsWith(new SuiteModelPicker(), embeddingsSeat(), refusing));
     }
 }

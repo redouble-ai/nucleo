@@ -29,7 +29,7 @@ class RowAttributionTest {
     }
 
     private static CostLedger.Call call(String jobId, String modelId, long inputTokens, double cost, String currency) {
-        return new CostLedger.Call(jobId, jobId, modelId, modelId + "-served", inputTokens, 0, 0, 0, 10, new Cost(cost, currency));
+        return new CostLedger.Call(jobId, jobId, modelId, modelId + "-served", null, inputTokens, 0, 0, 0, 10, new Cost(cost, currency));
     }
 
     private static ExtractReport.FileOutcome row(String path, Tier tier) {

@@ -16,7 +16,8 @@ import static org.junit.jupiter.api.Assertions.*;
  * nearest rung whose answer the envelope permits. A CEILING seat walks downward from MEGA
  * (it asked for the best this application may call); an explicit-grade seat walks upward
  * from its own rung, then downward. The walk is for a picker of the deployment's own, here
- * the suite's switch; the shipped picker passes over a refused entry itself. A pin stays
+ * one that answers with the grade's pinned default whatever the envelope says; the shipped
+ * picker passes over a refused entry itself. A pin stays
  * terminal, and a walk the envelope refuses whole raises {@link ModelResolutionError} - an
  * {@link Error}, because a deployment whose policy permits no model for a seat is broken,
  * not correctable.
@@ -37,11 +38,16 @@ class ModelResolutionEnvelopeWalkTest {
         return situation;
     }
 
+    /** A picker of the deployment's own: the grade's pinned default whatever the envelope says, so the gate's walk has work to do. */
+    private static ModelPicker blind() {
+        return (seat, situation) -> TestModels.grade(seat.grade() == Grade.CEILING ? Grade.MEGA : seat.grade());
+    }
+
     @Test
     void aCeilingSeatRefusedAtTheTopIsServedFromTheBestPermittedRung() {
         // The production shape: the ceiling entry requires data sharing, the application's
         // envelope does not permit it - the chat seat rides the best permitted rung below
-        ModelSpec served = ModelPickers.resolveWith(new TestModelPicker(),
+        ModelSpec served = ModelPickers.resolveWith(blind(),
                 new Seat(ModelResolutionEnvelopeWalkTest.class, Grade.CEILING, ModelKind.LLM),
                 refusing(spec -> !spec.requiresLax()));
         assertEquals("claude-opus-5-mantle", served.getId(),
@@ -50,7 +56,7 @@ class ModelResolutionEnvelopeWalkTest {
 
     @Test
     void anExplicitSeatRefusedAtItsRungIsServedFromAbove() {
-        ModelSpec served = ModelPickers.resolveWith(new TestModelPicker(),
+        ModelSpec served = ModelPickers.resolveWith(blind(),
                 new Seat(ModelResolutionEnvelopeWalkTest.class, Grade.LARGE, ModelKind.LLM),
                 refusing(spec -> !"gpt-5".equals(spec.getId())));
         assertEquals("claude-opus-5-mantle", served.getId(), "the refused rung is served from the rung above first");
@@ -60,7 +66,7 @@ class ModelResolutionEnvelopeWalkTest {
     void aSeatRefusedAtItsRungAndAboveIsServedFromBelow() {
         // The one MEGA entry requires data sharing and nothing is above MEGA: the seat runs
         // on the XL entry, below the grade it declared, rather than not at all
-        ModelSpec served = ModelPickers.resolveWith(new TestModelPicker(),
+        ModelSpec served = ModelPickers.resolveWith(blind(),
                 new Seat(ModelResolutionEnvelopeWalkTest.class, Grade.MEGA, ModelKind.LLM),
                 refusing(spec -> !spec.requiresLax()));
         assertEquals("claude-opus-5-mantle", served.getId(), "the nearest rung below whose answer the envelope permits");
@@ -69,7 +75,7 @@ class ModelResolutionEnvelopeWalkTest {
     @Test
     void anEnvelopeRefusingEverythingIsTheBrokenDeploymentError() {
         ModelResolutionError refusal = assertThrows(ModelResolutionError.class,
-                () -> ModelPickers.resolveWith(new TestModelPicker(),
+                () -> ModelPickers.resolveWith(blind(),
                         new Seat(ModelResolutionEnvelopeWalkTest.class, Grade.CEILING, ModelKind.LLM),
                         refusing(spec -> false)));
         assertInstanceOf(Error.class, refusal,

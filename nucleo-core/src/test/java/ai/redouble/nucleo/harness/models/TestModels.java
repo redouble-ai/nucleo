@@ -11,10 +11,9 @@ import ai.redouble.nucleo.harness.conversation.*;
 
 /**
  * Test-side spec derivation and conversation helpers. Tests never name catalog ids - models come
- * and go - so a test declares the PROPERTY it needs (a grade the suite picker serves, a data-share
- * spec, a retired spec, a provider family) and takes whatever qualifies. The only test-side homes
- * for concrete ids are {@link TestModelPicker} (a deployment picker, one of the two legal id homes)
- * and the fixture json catalogs.
+ * and go - so a test declares the PROPERTY it needs (the grade's default under the suite catalog's
+ * {@code pins}, a data-share spec, a retired spec, a provider family) and takes whatever qualifies.
+ * The only test-side home for concrete ids is the fixture json catalogs.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-08-28)
@@ -22,26 +21,32 @@ import ai.redouble.nucleo.harness.conversation.*;
 public final class TestModels {
     private TestModels() {}
 
-    /** The spec the suite's deployment picker serves for a grade. */
+    /** The grade's default under the suite catalog's {@code pins}: the first entry of its order. */
     public static ModelSpec grade(Grade grade) {
-        Situation situation = new Situation();
-        situation.setEnvelope(spec -> true);
-        return new TestModelPicker().provide(new Seat(TestModels.class, grade, ModelKind.LLM), situation);
+        CatalogPins pins = Models.pins();
+        if (pins == null || !pins.grades().containsKey(grade) || pins.grades().get(grade).isEmpty()) {
+            throw new IllegalStateException("the suite catalog pins nothing for grade " + grade);
+        }
+        return Models.spec(pins.grades().get(grade).get(0));
     }
 
-    /** The picker-served SMALL spec. */
+    /** The pinned SMALL spec. */
     public static ModelSpec small() {
         return grade(Grade.SMALL);
     }
 
-    /** The picker-served MICRO spec. */
+    /** The pinned MICRO spec. */
     public static ModelSpec micro() {
         return grade(Grade.MICRO);
     }
 
-    /** The suite's frozen embeddings declaration. */
+    /** The suite's frozen embeddings declaration: the catalog's {@code embeddings} pin. */
     public static ModelSpec embeddings() {
-        return new TestModelPicker().embeddingsSpec();
+        CatalogPins pins = Models.pins();
+        if (pins == null || pins.embeddings() == null) {
+            throw new IllegalStateException("the suite catalog pins no embeddings entry");
+        }
+        return Models.spec(pins.embeddings());
     }
 
     /** A live embeddings spec other than the frozen declaration - the corpus-migration hazard. */

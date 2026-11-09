@@ -71,6 +71,7 @@ import java.util.function.*;
  */
 public class DefaultModelPicker extends OpenModelPicker {
     private static final Logger log = LoggerFactory.getLogger(DefaultModelPicker.class);
+    /** The injected "can this deployment call it" answer, or null for the credential store's. */
     private final Predicate<ModelSpec> callable;
     /** Every choice or skip already logged, by grade, inputs and entry, so a fan-out logs each once. */
     private final Set<String> logged = ConcurrentHashMap.newKeySet();
@@ -78,7 +79,7 @@ public class DefaultModelPicker extends OpenModelPicker {
     private volatile ModelSpec chosenDecision;
 
     public DefaultModelPicker() {
-        this(DefaultModelPicker::providerConfigured);
+        this.callable = null;
     }
 
     /** Over an explicit "can this deployment call it" answer, so the rules are testable without a credential store. */
@@ -86,8 +87,16 @@ public class DefaultModelPicker extends OpenModelPicker {
         this.callable = callable;
     }
 
-    private static boolean providerConfigured(ModelSpec spec) {
-        return ClientProviders.get(spec.getProviderKey()).configured();
+    @Override
+    protected String whyNotCallable(ModelSpec candidate) {
+        if (callable == null) {
+            return super.whyNotCallable(candidate);
+        }
+        String why = whyNotProvisioned(candidate);
+        if (why != null) {
+            return why;
+        }
+        return callable.test(candidate) ? null : "its provider " + candidate.getProviderKey() + " has no credential";
     }
 
     @Override
@@ -253,17 +262,12 @@ public class DefaultModelPicker extends OpenModelPicker {
      * a build that carried the provider): nothing here can call it, so its seat falls to the
      * picker's own choice, as it does for a pin the catalog loader dropped.
      */
-    private static ModelSpec servablePin(String id) {
+    private ModelSpec servablePin(String id) {
         ModelSpec spec = Models.spec(id);
-        return spec != null && ClientProviders.find(spec.getProviderKey()) != null ? spec : null;
+        return spec != null && whyNotProvisioned(spec) == null ? spec : null;
     }
 
-    /**
-     * Callable now: not closed, a provider artifact on the classpath declares its provider,
-     * the data-share posture is provisioned where the entry needs it (a LAX-requiring model
-     * without a LAX project fails at the first call, so it is never served), the provider's
-     * credential is in the store, and the availability probe has not turned it off.
-     */
+    /** Callable now, under {@link AbstractModelPicker#whyNot(ModelSpec)}: open, provider on the classpath with a credential, data-share posture provisioned, not turned off. */
     private boolean eligible(ModelSpec candidate) {
         return whyNot(candidate) == null;
     }
@@ -275,26 +279,6 @@ public class DefaultModelPicker extends OpenModelPicker {
             return why;
         }
         return envelope.permits(candidate) ? null : "the compliance envelope " + envelope.getClass().getSimpleName() + " refuses it";
-    }
-
-    /** Why the entry cannot be called now, in words for a log line, or null when it can. */
-    private String whyNot(ModelSpec candidate) {
-        if (candidate.getStatus() != ModelStatus.OPEN) {
-            return "it is " + candidate.getStatus().name().toLowerCase(Locale.ROOT);
-        }
-        if (ClientProviders.find(candidate.getProviderKey()) == null) {
-            return "no provider artifact on the classpath declares " + candidate.getProviderKey();
-        }
-        if (candidate.requiresLax() && Settings.get(ModelSettings.class).mantleLaxProject == null) {
-            return "it is served only under provider data sharing and no Mantle project provides it";
-        }
-        if (!callable.test(candidate)) {
-            return "its provider " + candidate.getProviderKey() + " has no credential";
-        }
-        if (isTurnedOff(candidate)) {
-            return "the availability probe reports it down";
-        }
-        return null;
     }
 
     /** Per provider present in the pool, what would make one of its entries callable. */

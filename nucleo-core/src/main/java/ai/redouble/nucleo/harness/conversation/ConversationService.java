@@ -212,8 +212,8 @@ public class ConversationService extends AbstractStoppable {
 
     /**
      * The thinker's declarations onto its conversation, at every point a conversation is
-     * created or rehydrated for it: the grade (which model), the depth (how much effort) and
-     * the output declaration (how much answer). Stamped here, once, so nothing downstream
+     * created or rehydrated for it: the grade or the role (which model), the depth (how much
+     * effort) and the output declaration (how much answer). Stamped here, once, so nothing downstream
      * ever finds a conversation that does not say what its seat asked for - the compaction
      * fit check and the first call read them before any per-call code runs. A rehydrated
      * conversation takes the adopting thinker's CURRENT declarations, not the ones it was
@@ -221,6 +221,7 @@ public class ConversationService extends AbstractStoppable {
      */
     private static void stampDeclarations(ConversationContext context, Thinker<?, ?> thinker) {
         context.setGrade(thinker.getGrade());
+        context.setRole(thinker.getRole());
         context.setDepth(thinker.getDepth());
         context.setOutputDeclaration(thinker.getOutputDeclaration());
         context.setInteractive(thinker.isInteractive());

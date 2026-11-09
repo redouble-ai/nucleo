@@ -71,8 +71,8 @@ public class CostLedger implements JobObserver<JobEvent>, SpendGate {
         this.specs = specs;
     }
 
-    /** One call, as priced. */
-    public record Call(String jobId, String jobName, String modelId, String servedModelId, long inputTokens,
+    /** One call, as priced; {@code role} is the name of the model role the call declared, null for a call that declared a grade. */
+    public record Call(String jobId, String jobName, String modelId, String servedModelId, String role, long inputTokens,
                        long cacheWriteTokens, long cacheReadTokens, long outputTokens, long latencyMs, Cost cost) {}
 
     /** One model's share of a workflow: how many calls, how many tokens, how long, how much. */
@@ -200,7 +200,7 @@ public class CostLedger implements JobObserver<JobEvent>, SpendGate {
             log.warn("Call by {} on model '{}' which the catalog does not know; counted unpriced", snapshot.getJobId(), modelId);
         }
         Call call = new Call(snapshot.getJobId(), snapshot.getDisplayName(), spec != null ? spec.getId() : modelId,
-                response.getServedModelId(), input, cacheWrite, cacheRead, output, response.getLatencyMs(), cost);
+                response.getServedModelId(), response.getRole(), input, cacheWrite, cacheRead, output, response.getLatencyMs(), cost);
         workflows.computeIfAbsent(snapshot.getWorkflowId(), Workflow::new).add(call);
     }
 

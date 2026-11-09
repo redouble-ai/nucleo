@@ -45,5 +45,15 @@
     { "id": "claude-haiku-4-5-bedrock", "identity": "haiku-4.5", "grade": "SMALL", "provider_key": "anthropic-bedrock", "wire_model_id": "global.anthropic.claude-haiku-4-5-20251001-v1:0", "max_context_tokens": 200000, "max_output_tokens": 64000, "supports_vision": true, "supports_documents": true, "thinking_mode": "EXTENDED", "tpm": 5000000, "rpm": 10000, "input_price_per_million": 1.0, "output_price_per_million": 5.0 },
 
     { "id": "fake-decider", "identity": "fake-decider", "provider_key": "fake-decision", "wire_model_id": "fake-decider", "max_context_tokens": 65536, "max_output_tokens": 0, "supports_vision": false, "thinking_mode": "NONE", "max_concurrent": 2, "input_price_per_million": 0.042 }
-  ]
+  ],
+  "pins": {
+    "MICRO": ["nova-micro"],
+    "SMALL": ["claude-haiku-4-5-mantle"],
+    "MEDIUM": ["claude-sonnet-5-mantle"],
+    "LARGE": ["gpt-5"],
+    "XL": ["claude-opus-5-mantle"],
+    "MEGA": ["claude-fable-5-mantle"],
+    "embeddings": "cohere-embed-v4-bedrock",
+    "decision": "fake-decider"
+  }
 }

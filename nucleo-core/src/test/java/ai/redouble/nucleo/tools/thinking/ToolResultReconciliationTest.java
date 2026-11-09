@@ -46,7 +46,7 @@ public class ToolResultReconciliationTest {
 
     @BeforeAll
     static void boot() {
-        // Model resolution goes through the suite's TestModelPicker (TestConfigurator)
+        // Model resolution goes through the suite's SuiteModelPicker (TestConfigurator)
         JobDispatcher.getInstance().start();
     }
 

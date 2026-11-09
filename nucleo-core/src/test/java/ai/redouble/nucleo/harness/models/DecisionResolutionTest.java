@@ -53,14 +53,14 @@ class DecisionResolutionTest {
     void theDeclarationResolves_andMayChangeBetweenCalls() {
         StandardModelSpec first = decision("kev-a");
         StandardModelSpec second = decision("kev-b");
-        ModelPicker declaring = new TestModelPicker() {
+        ModelPicker declaring = new SuiteModelPicker() {
             @Override
             public ModelSpec decisionSpec() {
                 return first;
             }
         };
         assertEquals("kev-a", ModelPickers.resolveDecisionWith(declaring, seat(), permitting()).getId());
-        ModelPicker swapped = new TestModelPicker() {
+        ModelPicker swapped = new SuiteModelPicker() {
             @Override
             public ModelSpec decisionSpec() {
                 return second;
@@ -72,7 +72,7 @@ class DecisionResolutionTest {
 
     @Test
     void aPickerDeclaringNoDecisionModelIsRefusedByName() {
-        ModelPicker silent = new TestModelPicker() {
+        ModelPicker silent = new SuiteModelPicker() {
             @Override
             public ModelSpec decisionSpec() {
                 return null;
@@ -86,7 +86,7 @@ class DecisionResolutionTest {
 
     @Test
     void theKindWallHoldsOnBothSides() {
-        ModelPicker wrongKind = new TestModelPicker() {
+        ModelPicker wrongKind = new SuiteModelPicker() {
             @Override
             public ModelSpec decisionSpec() {
                 return TestModels.embeddings();
@@ -99,7 +99,7 @@ class DecisionResolutionTest {
                 () -> ModelPickers.resolvePinned(decision("kev-x"), new Seat(DecisionResolutionTest.class, Grade.SMALL, ModelKind.LLM), permitting()));
         assertTrue(pinned.getMessage().contains("an LLM seat must resolve to an entry of its own kind"), pinned.getMessage());
         UncorrectableRuntimeLLMException viaPicker = assertThrows(UncorrectableRuntimeLLMException.class,
-                () -> ModelPickers.resolveWith(new TestModelPicker(), seat(), permitting()));
+                () -> ModelPickers.resolveWith(new SuiteModelPicker(), seat(), permitting()));
         assertTrue(viaPicker.getMessage().contains("cannot resolve through the picker"), viaPicker.getMessage());
     }
 

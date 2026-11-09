@@ -25,8 +25,24 @@ class ThinkerDeclarationTest {
     @Test
     void aNullGradeIsRefusedNamingTheRule() {
         IllegalArgumentException refusal = assertThrows(IllegalArgumentException.class,
-                () -> new ThinkerDeclaration(null, OutputSize.COMPACT));
+                () -> new ThinkerDeclaration((Grade) null, OutputSize.COMPACT));
         assertTrue(refusal.getMessage().contains("grade"), refusal.getMessage());
+    }
+
+    @Test
+    void aNullRoleIsRefusedNamingTheRule() {
+        IllegalArgumentException refusal = assertThrows(IllegalArgumentException.class,
+                () -> new ThinkerDeclaration((ModelRole) null, OutputSize.COMPACT));
+        assertTrue(refusal.getMessage().contains("role"), refusal.getMessage());
+    }
+
+    @Test
+    void aRoleDeclarationCarriesTheRoleAndItsGrade() {
+        ModelRole role = new ModelRole("table-row", TestModels.small().getId(), Grade.MEDIUM);
+        ThinkerDeclaration declaration = new ThinkerDeclaration(role, OutputSize.COMPACT);
+        assertSame(role, declaration.getRole());
+        assertEquals(Grade.MEDIUM, declaration.getGrade(), "the seat's grade is the role's, where the picker starts when the entry cannot serve");
+        assertNull(new ThinkerDeclaration(Grade.SMALL, OutputSize.COMPACT).getRole(), "a grade declaration declares no role");
     }
 
     @Test

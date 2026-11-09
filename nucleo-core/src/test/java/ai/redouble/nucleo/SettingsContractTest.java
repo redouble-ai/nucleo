@@ -85,7 +85,7 @@ class SettingsContractTest {
             assertTrue(all.contains("HttpSettings.poolSize = 1717"), "a mutated knob shows its live value");
             assertTrue(all.contains("McpSettings.stdioPoolMax = "), "a registered settings class the test never touched is listed");
             assertTrue(all.contains("SecretsSettings.secretsClass = "), "class-typed knobs print the class name");
-            assertTrue(all.contains("ModelSettings.pickerClass = " + TestModelPicker.class.getName()),
+            assertTrue(all.contains("ModelSettings.pickerClass = " + SuiteModelPicker.class.getName()),
                     "what the discovered configurator assigned is visible");
         }
         finally {

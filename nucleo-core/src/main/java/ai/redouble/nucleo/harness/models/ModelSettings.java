@@ -22,9 +22,11 @@ public class ModelSettings extends Settings {
     public volatile Class<? extends ModelsBackend> backendClass = JsonModelsBackend.class;
 
     /**
-     * The deployment's {@link ModelPicker} as a no-arg class - the one place besides
-     * {@code models.json} where model ids may legally live. A picker that needs constructor
-     * arguments is declared with {@link ModelPickers#use} at startup instead.
+     * The deployment's {@link ModelPicker} as a no-arg class: policy over the catalog's
+     * entries, such as which endpoints may stand in for each other. Which entry serves a
+     * grade is the catalog's {@code pins}, and the shipped {@link DefaultModelPicker} reads
+     * them, so most deployments name no class. A picker that needs constructor arguments is
+     * declared with {@link ModelPickers#use} at startup instead.
      */
     public volatile Class<? extends ModelPicker> pickerClass = DefaultModelPicker.class;
 

@@ -30,9 +30,7 @@ class ModelsTest {
     }
 
     private static ModelSpec pick(Grade grade) {
-        Situation situation = new Situation();
-        situation.setEnvelope(spec -> true);
-        return new TestModelPicker().provide(new Seat(ModelsTest.class, grade, ModelKind.LLM), situation);
+        return TestModels.grade(grade);
     }
 
     @Test
@@ -41,7 +39,7 @@ class ModelsTest {
         assertNull(Models.findSpec("no-such-model"));
         // Round-trips: whatever the suite picker serves must be findable by its own id.
         assertNotNull(Models.findSpec(pick(Grade.XL).getId()));
-        assertNotNull(Models.findSpec(new TestModelPicker().embeddingsSpec().getId()));
+        assertNotNull(Models.findSpec(TestModels.embeddings().getId()));
     }
 
     @Test
@@ -146,7 +144,7 @@ class ModelsTest {
         for (ModelSpec spec : pool) {
             assertTrue(spec.isEmbeddings(), spec.getId());
         }
-        assertTrue(pool.stream().anyMatch(s -> s.getId().equals(new TestModelPicker().embeddingsSpec().getId())),
+        assertTrue(pool.stream().anyMatch(s -> s.getId().equals(TestModels.embeddings().getId())),
                 "the picker's embeddings channel must be in the pool");
         // Classification is provider-key-based: a dimensionless embeddings spec is still embeddings.
         StandardModelSpec dimensionless = new StandardModelSpec();
@@ -155,16 +153,16 @@ class ModelsTest {
     }
 
     @Test
-    void everyTestPickerGradeResolvesThroughTheGate() {
-        // The suite's deployment picker must satisfy the gate for every grade it can be
-        // asked for - the same check a real deployment's first resolution performs.
-        TestModelPicker picker = new TestModelPicker();
+    void everySuitePinServesItsGradeThroughTheGate() {
+        // The suite's picker, the shipped one over the test catalog's pins, must serve every
+        // grade from its pinned default - the same check a real deployment's first resolution performs.
+        SuiteModelPicker picker = new SuiteModelPicker();
         Situation situation = new Situation();
         situation.setEnvelope(spec -> true);
         for (Grade grade : Grade.rungs()) {
             ModelSpec spec = picker.provide(new Seat(ModelsTest.class, grade, ModelKind.LLM), situation);
             assertNotNull(spec, "grade did not resolve: " + grade);
-            assertTrue(spec.getGrade().atLeast(grade), spec.getId() + " below declared floor " + grade);
+            assertEquals(TestModels.grade(grade).getId(), spec.getId(), "the grade's pinned default serves it");
         }
     }
 
@@ -172,7 +170,7 @@ class ModelsTest {
     void pickerEmbeddingsChannelResolvesAsEmbeddingsFamily() {
         // The frozen per-deployment embeddings declaration must land on the embeddings client
         // family with a callable wire id, and be reachable through its identity's variants.
-        ModelSpec spec = new TestModelPicker().embeddingsSpec();
+        ModelSpec spec = TestModels.embeddings();
         assertTrue(spec.isEmbeddings(), spec.getId());
         assertNotNull(spec.getWireModelId(), spec.getId());
         assertTrue(Models.variants(spec.getIdentity()).stream().anyMatch(s -> s.getId().equals(spec.getId())));
