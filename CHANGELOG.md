@@ -5,6 +5,18 @@ group `ai.redouble`; a published version is never changed in place.
 
 ## Unreleased
 
+- The shipped picker always serves the best model available. A request is served from its
+  grade, else from the nearest grade above, else from the nearest grade below, with a
+  warning in the log each time the picker moves, and fails only when no entry the walk
+  reached can be called; an entry the compliance envelope refuses or the availability probe
+  reports down is passed over like one with no credential. `ModelSettings.fallbackToStronger`
+  and `ModelSettings.fallbackToWeaker`, both on by default, switch the two directions off.
+  `Grade.CEILING` is a request for the strongest model the application may call, served
+  from `MEGA` downward. Breaking: the gate no longer refuses an entry below the seat's grade,
+  no longer lowers a seat to `ModelPicker.ceiling()`, and hands a `CEILING` seat to the
+  picker as declared, so a picker of your own that switches over the grade needs a `CEILING`
+  case; `ModelPicker.ceiling()` is read for reporting and by the benchmark alone
+  ([#19](https://github.com/redouble-ai/nucleo/issues/19)).
 - The catalog discovery prices every Bedrock entry from the AWS price list, the public files
   AWS publishes per region, instead of inheriting prices from an older entry or keeping what
   a person typed: the regional rate for a `us.` or `eu.` profile, the global rate for a

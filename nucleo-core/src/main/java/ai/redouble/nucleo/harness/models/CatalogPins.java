@@ -20,8 +20,8 @@ import java.util.*;
  * a text-only model names the seeing or document-reading model it prefers next, at the same
  * grade, and no request picks a model by what its history happens to hold. Entries of the
  * grade the list leaves out follow it, cheapest first, and a grade with nothing that
- * qualifies is served from the grade above. A grade the file leaves out is served the same way
- * from its entries alone. The strongest grade the deployment serves is never declared: the
+ * qualifies is served from the nearest grade above, else the nearest below. A grade the file
+ * leaves out is served the same way from its entries alone. The strongest grade the deployment serves is never declared: the
  * picker derives it ({@link DefaultModelPicker#ceiling()}). A null embeddings or decision means
  * the file declares none.
  *

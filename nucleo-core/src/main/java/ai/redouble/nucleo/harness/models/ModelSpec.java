@@ -129,7 +129,7 @@ public interface ModelSpec {
      * This identity's rung on the capability ladder, or null for embeddings specs, which
      * are not on the ladder. Stamped per entry in {@code models.json} and identity-uniform
      * across endpoint variants; the same curation judgment as {@link #getStatus()}.
-     * The resolution gate refuses an LLM spec below a seat's declared floor.
+     * The picker serves a seat from this rung when it can, else from the nearest it can.
      */
     Grade getGrade();
 

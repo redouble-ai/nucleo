@@ -22,21 +22,20 @@ import java.util.concurrent.*;
  * submission door.
  *
  * <p>Gate order is fixed: kind first (an embeddings seat must resolve to an embeddings
- * spec and vice versa - also what makes the later grade check null-safe), then the
- * {@link ComplianceEnvelope}, then the inputs (every input the payload carries is one the
- * request declared, and every declared input one the entry accepts), then deprecation, and
- * the grade floor last, on the picked path alone (under-qualification refused,
- * over-qualification legal: promotion and upward failover depend on it; a pin declares no
- * floor). Every refusal names the seat and the reason; none is an NPE. The
- * floor is the picker's ceiling at most: a seat asking for a grade above everything the
- * deployment serves is lowered to the ceiling before the picker sees it, with a warning,
- * so code written for the whole ladder runs on a deployment with one model.
+ * spec and vice versa), then the {@link ComplianceEnvelope}, then the inputs (every input
+ * the payload carries is one the request declared, and every declared input one the entry
+ * accepts), then deprecation. Every refusal names the seat and the reason; none is an NPE.
+ * The grade is the picker's to honour, never the gate's to enforce: an entry below the
+ * seat's grade is a served request, warned about by the picker that chose it, so a
+ * deployment with one small model answers every seat. A seat declaring {@link Grade#CEILING}
+ * reaches the picker as declared; {@link DefaultModelPicker} serves it from {@code MEGA}
+ * downward, and a picker of the deployment's own answers it as its policy says.
  *
  * <p>An envelope refusal of an UNPINNED seat is not terminal: the seat is served from the
- * best rung the envelope permits. A {@link Grade#CEILING} seat walks downward from the
- * picker's ceiling (it declared no floor - it asked for the best this application may
- * call), and an explicit-grade seat walks upward from its floor (over-qualification is
- * legal, serving below a declared floor never is), each walked rung logged once. A pin
+ * nearest rung whose answer the envelope permits. A {@link Grade#CEILING} seat walks
+ * downward from {@code MEGA}; an explicit-grade seat walks upward from its own rung, then
+ * downward; each walked rung is logged once. {@link DefaultModelPicker} never yields an
+ * entry the envelope refuses, so the walk is for pickers of the deployment's own. A pin
  * stays terminal: the job named one exact entry, and an entry the envelope refuses is
  * refused. When the whole walk is refused, resolution fails with
  * {@link ModelResolutionError} - the deployment's model policy permits no model for the
@@ -103,9 +102,8 @@ public final class ModelPickers {
 
     /**
      * Gates a job-pinned spec: the pin skips the picker consult - the job already
-     * decided - but kind, envelope, vision, and deprecation still judge it. The grade
-     * floor does not apply: a pin declares no floor, and a grade-less catalog entry is
-     * legally pinnable.
+     * decided - but kind, envelope, inputs, and deprecation still judge it. A pin declares
+     * no grade, and a grade-less catalog entry is legally pinnable.
      */
     public static ModelSpec resolvePinned(ModelSpec pinned, Seat seat, Situation situation) {
         requireEnvelope(seat, situation);
@@ -150,22 +148,19 @@ public final class ModelPickers {
                     + " (ModelPicker.decisionSpec), resolved via resolveDecision");
         }
         requireEnvelope(seat, situation);
-        boolean bestAvailable = seat.grade() == Grade.CEILING;
-        Seat declared = atRung(picker, seat);
         Set<String> refused = new LinkedHashSet<>();
         RuntimeException walkEnd = null;
-        for (Grade rung : rungsToTry(picker, declared.grade(), bestAvailable)) {
-            Seat tried = rung == declared.grade() ? declared : new Seat(declared.jobClass(), rung, ModelKind.LLM);
+        for (Seat tried : walk(seat)) {
             ModelSpec spec;
             try {
                 spec = picker.provide(tried, situation);
             }
             catch (RuntimeException e) {
-                if (rung == declared.grade()) {
+                if (tried == seat) {
                     throw e;
                 }
-                // A walked rung the picker itself cannot serve ends the walk; the seat's own
-                // rung failing in the picker keeps its meaning and propagates above
+                // A walked rung the picker itself cannot serve ends the walk; the seat as
+                // declared failing in the picker keeps its meaning and propagates above
                 walkEnd = e;
                 break;
             }
@@ -178,24 +173,20 @@ public final class ModelPickers {
                 continue;
             }
             gate(spec, tried, situation, "Model picker resolved");
-            // An embeddings seat never reaches this point (refused at entry), so every seat
-            // here declares a grade floor to enforce
+            // An embeddings seat never reaches this point (refused at entry): an LLM seat is
+            // served by an entry on the ladder
             if (spec.getGrade() == null) {
                 throw new UncorrectableRuntimeLLMException("Catalog entry " + spec.getId()
                         + " carries no grade and cannot serve LLM seat " + describe(tried));
             }
-            if (!spec.getGrade().atLeast(tried.grade())) {
-                throw new UncorrectableRuntimeLLMException("Model picker resolved " + spec.getId() + " (grade "
-                        + spec.getGrade() + ") below the declared floor of seat " + describe(tried));
-            }
-            if (rung != declared.grade() && walkWarned.add(declared.jobClass().getName() + "/" + declared.grade() + "/" + rung)) {
-                log.warn("Compliance envelope {} refuses {} for seat {}: serving it at rung {} ({}), the best this"
+            if (tried != seat && walkWarned.add(seat.jobClass().getName() + "/" + seat.grade() + "/" + tried.grade())) {
+                log.warn("Compliance envelope {} refuses {} for seat {}: serving it at rung {} ({}), the nearest this"
                                 + " application may call.", situation.getEnvelope().getClass().getSimpleName(),
-                        refused, describe(declared), rung, spec.getId());
+                        refused, describe(seat), tried.grade(), spec.getId());
             }
             return spec;
         }
-        throw new ModelResolutionError("This deployment cannot serve seat " + describe(declared)
+        throw new ModelResolutionError("This deployment cannot serve seat " + describe(seat)
                 + ": the compliance envelope " + situation.getEnvelope().getClass().getSimpleName()
                 + " refuses every entry the picker " + picker.getClass().getSimpleName()
                 + " yields for it (" + String.join(", ", refused) + "). The deployment's model policy"
@@ -204,31 +195,26 @@ public final class ModelPickers {
     }
 
     /**
-     * The rungs a seat may legally be served from, in preference order: its own rung first,
-     * then upward to the picker's ceiling (over-qualification is legal, serving below a
-     * declared floor never is). A best-available seat - one declared {@link Grade#CEILING} -
-     * walks downward from the ceiling instead: it declared no floor, and the best entry the
-     * envelope permits is exactly what it asked for.
+     * The seats the picker is asked for when the envelope refuses its answer, in order: the
+     * seat as declared, then each rung above it nearest first, then each rung below nearest
+     * first. A seat declaring {@link Grade#CEILING} asked for the strongest entry this
+     * application may call, so after it come the rungs from {@code MEGA} down.
      */
-    private static List<Grade> rungsToTry(ModelPicker picker, Grade declared, boolean bestAvailable) {
+    private static List<Seat> walk(Seat seat) {
         List<Grade> rungs = Grade.rungs();
-        int at = rungs.indexOf(declared);
-        List<Grade> order = new ArrayList<>();
-        if (bestAvailable) {
-            for (int i = at; i >= 0; i--) {
-                order.add(rungs.get(i));
-            }
-            return order;
+        List<Seat> order = new ArrayList<>();
+        order.add(seat);
+        int at = seat.grade() == Grade.CEILING ? rungs.size() : rungs.indexOf(seat.grade());
+        for (int i = at + 1; i < rungs.size(); i++) {
+            order.add(new Seat(seat.jobClass(), rungs.get(i), ModelKind.LLM));
         }
-        Grade ceiling = picker.ceiling();
-        int top = ceiling != null && ceiling.isRung() ? Math.max(rungs.indexOf(ceiling), at) : rungs.size() - 1;
-        for (int i = at; i <= top; i++) {
-            order.add(rungs.get(i));
+        for (int i = at - 1; i >= 0; i--) {
+            order.add(new Seat(seat.jobClass(), rungs.get(i), ModelKind.LLM));
         }
         return order;
     }
 
-    /** Seat, declared rung and served rung triplets already warned about, so a fan-out warns once. */
+    /** Seat, declared grade and served rung triplets already warned about, so a fan-out warns once. */
     private static final Set<String> walkWarned = ConcurrentHashMap.newKeySet();
 
     private static void requireEnvelope(Seat seat, Situation situation) {
@@ -357,21 +343,18 @@ public final class ModelPickers {
         return picker().describePins();
     }
 
-    /** The rung a seat declaring {@link Grade#CEILING} resolves to under the configured picker. */
-    public static Grade ceiling() {
-        return ceilingOf(picker());
-    }
-
     /**
-     * The strongest grade a picker serves - what a seat declaring {@link Grade#CEILING}
-     * resolves to. Refuses loudly when the picker names none: the picker serves no rung, so
-     * a seat asking for the best available model has nothing to land on.
+     * The strongest grade the configured picker reports serving ({@link ModelPicker#ceiling()}),
+     * for reporting surfaces and for the benchmark, which races the models of that rung when
+     * the job under test declares {@link Grade#CEILING}. No resolution reads it. Refuses
+     * loudly when the picker names none or names something other than a rung.
      */
-    private static Grade ceilingOf(ModelPicker p) {
+    public static Grade ceiling() {
+        ModelPicker p = picker();
         Grade ceiling = p.ceiling();
         if (ceiling == null) {
             throw new UncorrectableRuntimeLLMException("Picker " + p.getClass().getSimpleName()
-                    + " serves no rung, so a seat asking for the best available model has nothing to land on."
+                    + " serves no rung, so there is no strongest grade to report."
                     + " Provide a credential for an entry of the catalog, or, in a picker of your own, implement ModelPicker.ceiling().");
         }
         if (!ceiling.isRung()) {
@@ -380,34 +363,6 @@ public final class ModelPickers {
         }
         return ceiling;
     }
-
-    /**
-     * A seat declaring {@link Grade#CEILING} becomes a seat at the picker's strongest served
-     * rung, here and only here: no picker and no ladder comparison ever sees CEILING. A seat
-     * declaring a rung above that ceiling becomes a seat at the ceiling too, with a warning
-     * once per job class and grade: the code asked for more than this deployment serves, and
-     * the deployment's best is what it gets, which is what a deployment with one model wants.
-     * The grade floor below the ceiling stays a wall: a picker that returns less than it
-     * could is a bug, and is refused.
-     */
-    private static Seat atRung(ModelPicker picker, Seat seat) {
-        if (seat.grade() == Grade.CEILING) {
-            return new Seat(seat.jobClass(), ceilingOf(picker), seat.kind());
-        }
-        Grade ceiling = picker.ceiling();
-        if (ceiling != null && ceiling.isRung() && !ceiling.atLeast(seat.grade())) {
-            if (loweredWarned.add(seat.jobClass().getName() + "/" + seat.grade())) {
-                log.warn("Seat {} asks for grade {} and this deployment serves nothing above {}: serving it at {}."
-                        + " Provide a credential for a stronger entry, or pin one in models.json, to serve it as declared.",
-                        seat.jobClass().getSimpleName(), seat.grade(), ceiling, ceiling);
-            }
-            return new Seat(seat.jobClass(), ceiling, seat.kind());
-        }
-        return seat;
-    }
-
-    /** Job class and grade pairs already warned about being served at the ceiling, so a fan-out warns once. */
-    private static final Set<String> loweredWarned = ConcurrentHashMap.newKeySet();
 
     /** The configured picker's embeddings declaration, for reporting surfaces - ungated, possibly null. */
     public static ModelSpec declaredEmbeddings() {
@@ -423,7 +378,6 @@ public final class ModelPickers {
     static void resetForTests() {
         picker = null;
         frozenEmbeddingsId = null;
-        loweredWarned.clear();
         walkWarned.clear();
     }
 }

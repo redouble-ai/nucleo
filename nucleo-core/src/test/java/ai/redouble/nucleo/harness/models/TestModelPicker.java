@@ -38,8 +38,7 @@ public class TestModelPicker implements ModelPicker {
             case MEDIUM -> Models.spec("claude-sonnet-5-mantle");
             case LARGE -> Models.spec("gpt-5");
             case XL -> Models.spec("claude-opus-5-mantle");
-            case MEGA -> Models.spec("claude-fable-5-mantle");
-            case CEILING -> throw new IllegalArgumentException("Grade.CEILING reached the picker unresolved");
+            case MEGA, CEILING -> Models.spec("claude-fable-5-mantle");
         };
     }
 }

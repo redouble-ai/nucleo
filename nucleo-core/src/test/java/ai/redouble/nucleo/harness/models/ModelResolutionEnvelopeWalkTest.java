@@ -13,12 +13,13 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * An envelope refusal of an unpinned seat is not terminal: the seat is served from the
- * best rung the envelope permits. A CEILING seat walks downward from the picker's ceiling
- * (it declared no floor - it asked for the best this application may call); an
- * explicit-grade seat walks upward from its floor (over-qualification is legal, serving
- * below a declared floor never is). A pin stays terminal, and a walk the envelope refuses
- * whole raises {@link ModelResolutionError} - an {@link Error}, because a deployment whose
- * policy permits no model for a seat is broken, not correctable.
+ * nearest rung whose answer the envelope permits. A CEILING seat walks downward from MEGA
+ * (it asked for the best this application may call); an explicit-grade seat walks upward
+ * from its own rung, then downward. The walk is for a picker of the deployment's own, here
+ * the suite's switch; the shipped picker passes over a refused entry itself. A pin stays
+ * terminal, and a walk the envelope refuses whole raises {@link ModelResolutionError} - an
+ * {@link Error}, because a deployment whose policy permits no model for a seat is broken,
+ * not correctable.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-09-20)
@@ -52,20 +53,17 @@ class ModelResolutionEnvelopeWalkTest {
         ModelSpec served = ModelPickers.resolveWith(new TestModelPicker(),
                 new Seat(ModelResolutionEnvelopeWalkTest.class, Grade.LARGE, ModelKind.LLM),
                 refusing(spec -> !"gpt-5".equals(spec.getId())));
-        assertEquals("claude-opus-5-mantle", served.getId(),
-                "over-qualification is legal, so the refused rung is served from the rung above");
+        assertEquals("claude-opus-5-mantle", served.getId(), "the refused rung is served from the rung above first");
     }
 
     @Test
-    void aDeclaredFloorIsNeverServedFromBelow() {
-        // A MEGA floor with the one MEGA entry refused has nowhere legal to go: below the
-        // floor is never an answer, and the exhausted walk is the broken-deployment Error
-        ModelResolutionError refusal = assertThrows(ModelResolutionError.class,
-                () -> ModelPickers.resolveWith(new TestModelPicker(),
-                        new Seat(ModelResolutionEnvelopeWalkTest.class, Grade.MEGA, ModelKind.LLM),
-                        refusing(spec -> !spec.requiresLax())));
-        assertTrue(refusal.getMessage().contains("claude-fable-5-mantle"), refusal.getMessage());
-        assertTrue(refusal.getMessage().contains("MEGA"), "the refusal names the seat's declared grade");
+    void aSeatRefusedAtItsRungAndAboveIsServedFromBelow() {
+        // The one MEGA entry requires data sharing and nothing is above MEGA: the seat runs
+        // on the XL entry, below the grade it declared, rather than not at all
+        ModelSpec served = ModelPickers.resolveWith(new TestModelPicker(),
+                new Seat(ModelResolutionEnvelopeWalkTest.class, Grade.MEGA, ModelKind.LLM),
+                refusing(spec -> !spec.requiresLax()));
+        assertEquals("claude-opus-5-mantle", served.getId(), "the nearest rung below whose answer the envelope permits");
     }
 
     @Test

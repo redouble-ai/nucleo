@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * The dispatcher's resolution step, end to end through real job submission: a declared
  * grade resolves through the configured picker and prices before acquisition; an
- * envelope-refused grade fails the job with the refusal; a transparent retry re-mints a
+ * envelope-refused grade is served from the nearest permitted rung; a transparent retry re-mints a
  * fresh binding and hands the picker the attempt history; and getRequirements() is
  * captured exactly once at submit plus once per attempt - never more.
  *
@@ -138,14 +138,11 @@ class ModelResolutionDispatchTest {
     }
 
     @Test
-    void envelopeRefusedGradeFailsTheJobWithTheRefusal() {
+    void envelopeRefusedGradeIsServedFromTheNearestPermittedRung() throws Exception {
+        // the suite's MEGA entry requires data sharing and the sealed envelope forbids it: the job
+        // runs on the XL entry, below the grade it declared, rather than failing
         FlatJob job = new FlatJob(Job.workflow("test-user", "resolution-refused"), Grade.MEGA);
-        ExecutionException failure = assertThrows(ExecutionException.class,
-                () -> JobDispatcher.getInstance().submit(job).get());
-        Throwable cause = failure.getCause();
-        assertNotNull(cause);
-        assertTrue(String.valueOf(cause.getMessage()).contains("refuses"),
-                "the refusal names the envelope: " + cause.getMessage());
+        assertEquals(TestModels.grade(Grade.XL).getId(), JobDispatcher.getInstance().submit(job).get());
     }
 
     @Test

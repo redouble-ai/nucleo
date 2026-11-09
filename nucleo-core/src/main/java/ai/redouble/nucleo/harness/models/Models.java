@@ -125,7 +125,7 @@ public final class Models {
      */
     public static Collection<ModelSpec> pool(Grade grade) {
         if (!grade.isRung()) {
-            throw new IllegalArgumentException("Grade.CEILING is not a rung and has no pool; it is resolved at the picker gate");
+            throw new IllegalArgumentException("Grade.CEILING is not a rung and has no pool; it asks for the strongest rung the picker can serve");
         }
         Map<String, ModelSpec> byId = new LinkedHashMap<>();
         for (ModelSpec s : backend().all()) {

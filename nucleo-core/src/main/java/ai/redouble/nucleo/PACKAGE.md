@@ -85,6 +85,8 @@ field the property wins.
 | `SecretsSettings.secretsClass` | `nucleo.secrets.secrets-class` | the store every credential is read from ([Credentials](secrets/PACKAGE.md)) | `EnvironmentSecrets` |
 | `ModelSettings.backendClass` | `nucleo.model.backend-class` | where the model catalog is read from ([The catalog, grades and the picker](harness/models/PACKAGE.md)) | `JsonModelsBackend` |
 | `ModelSettings.pickerClass` | `nucleo.model.picker-class` | which picker turns a grade into a model | `DefaultModelPicker` |
+| `ModelSettings.fallbackToStronger` | `nucleo.model.fallback-to-stronger` | whether the shipped picker serves a grade with nothing callable from the nearest grade above | `true` |
+| `ModelSettings.fallbackToWeaker` | `nucleo.model.fallback-to-weaker` | whether the shipped picker serves a grade with nothing callable at or above it from the nearest grade below | `true` |
 | `ModelSettings.mantleLaxProject` | `nucleo.model.mantle-lax-project` | the Bedrock Mantle project whose data retention mode is `provider_data_share`; models that require data sharing are served only under it | none |
 | `ModelSettings.mantleStrictProject` | `nucleo.model.mantle-strict-project` | the Bedrock Mantle project whose data retention mode is `none`; when set, every Mantle request for a model that does not require data sharing is pinned to it | none |
 | `HttpSettings.poolSize` | `nucleo.http.pool-size` | the size of the one shared HTTP connection pool ([The HTTP connection pool](http/PACKAGE.md)) | 1000 |

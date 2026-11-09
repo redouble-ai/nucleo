@@ -98,7 +98,7 @@ public class ModelBinding {
      * the picker keep the system resilient - but first-class: the pin skips only the
      * picker consult, never the gate, and a retry re-mints the same spec (no failover
      * for pins, structurally). The grade is the spec's own, recorded for observability;
-     * there is no floor to enforce.
+     * the seat declares none.
      */
     public ModelBinding(ModelSpec pinned, Depth depth) {
         this(gradeOf(pinned), depth, null, null, null, ModelKind.LLM, pinned);
@@ -147,7 +147,7 @@ public class ModelBinding {
 
     private static void requireDeclaration(Grade grade, Depth depth) {
         if (grade == null) {
-            throw new IllegalArgumentException("An LLM requirement must declare its grade - the seat's capability floor");
+            throw new IllegalArgumentException("An LLM requirement must declare its grade - the rung its work asks for");
         }
         if (depth == null) {
             throw new IllegalArgumentException("An LLM requirement must declare its depth");

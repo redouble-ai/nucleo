@@ -10,8 +10,8 @@ import ai.redouble.nucleo.*;
 
 /**
  * The model-resolution knobs: which catalog backend serves specs, which picker resolves
- * seats, and the deployment's Bedrock Mantle projects that model eligibility and request
- * routing consult.
+ * seats, how far the shipped picker may stray from a request's grade, and the deployment's
+ * Bedrock Mantle projects that model eligibility and request routing consult.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-09-18)
@@ -27,6 +27,20 @@ public class ModelSettings extends Settings {
      * arguments is declared with {@link ModelPickers#use} at startup instead.
      */
     public volatile Class<? extends ModelPicker> pickerClass = DefaultModelPicker.class;
+
+    /**
+     * Whether {@link DefaultModelPicker} serves a request from a grade above its own when
+     * nothing of its grade can serve it. Off, a request whose grade has nothing callable is
+     * refused with a {@link ModelResolutionError} rather than run on a stronger, dearer model.
+     */
+    public volatile boolean fallbackToStronger = true;
+
+    /**
+     * Whether {@link DefaultModelPicker} serves a request from a grade below its own when
+     * nothing of its grade or above can serve it. Off, such a request is refused with a
+     * {@link ModelResolutionError} rather than run on a model weaker than the work declared.
+     */
+    public volatile boolean fallbackToWeaker = true;
 
     /**
      * Bedrock Mantle project (workspace) id whose data retention mode is

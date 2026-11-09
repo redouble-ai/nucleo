@@ -241,11 +241,10 @@ future seat-level word joins it there without touching any constructor signature
 `ConversationService` stamps all three words onto the conversation at obtain time so the
 first call and the compaction fit check read them before any per-call code runs.
 
-- **Grade** (`ThinkerDeclaration.grade`): the capability floor the work needs, a rung of
-  the ladder or `Grade.CEILING`. CEILING is not a rung: it names the strongest grade the
-  deployment serves, and the picker gate resolves it to that rung
-  (`ModelPickers.resolveWith`, through `ModelPicker.ceiling()`) before any picker sees
-  the seat - MEGA where the deployment pins one, XL where it does not. A chat that wants the
+- **Grade** (`ThinkerDeclaration.grade`): the rung the work asks for, a rung of the
+  ladder or `Grade.CEILING`. CEILING is not a rung: it asks for the strongest model the
+  application may call, and the picker serves it from MEGA downward - MEGA where the
+  deployment can call one, XL where it cannot. A chat that wants the
   strongest model the deployment serves declares CEILING; a chat that wants a fixed rung
   declares that rung instead. A `SubThinker` always works at its parent's rung, and a
   one-call tool that declares no grade of its own inherits its parent's when

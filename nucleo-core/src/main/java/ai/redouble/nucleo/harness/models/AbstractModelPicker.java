@@ -20,7 +20,9 @@ import java.util.concurrent.*;
  * refuses to serve a spec the observations say is down - the deployment's "turn off
  * additional models and treat them as deprecated" default. Subclasses implement
  * {@link #pick(Seat, Situation)} with their policy; {@link #provide(Seat, Situation)} is
- * the template that applies the turnoff on the way out.
+ * the template that applies the turnoff on the way out. A policy that would rather pass a
+ * turned-off entry over than be refused for it asks {@link #isTurnedOff(ModelSpec)} before
+ * choosing, as {@link DefaultModelPicker} does.
  *
  * <p>The turnoff rule counts ONLY {@link ProbeOutcome.Classification#AVAILABILITY}
  * failures: a spec is off when it has an availability failure inside the window and no
@@ -243,6 +245,15 @@ public abstract class AbstractModelPicker implements ModelPicker {
             return new SpecHealth(lastSuccess, lastFailure, consecutive, outcome);
         });
         return displaced[0];
+    }
+
+    /**
+     * Whether the probe's observations have turned the spec off, under {@link #isTurnedOff(ModelSpec, SpecHealth)}
+     * over what this picker has recorded for it. For a policy that chooses among entries and
+     * would rather skip a turned-off one than be refused for it by {@link #provide}.
+     */
+    protected final boolean isTurnedOff(ModelSpec spec) {
+        return isTurnedOff(spec, health.get(spec.getId()));
     }
 
     /**

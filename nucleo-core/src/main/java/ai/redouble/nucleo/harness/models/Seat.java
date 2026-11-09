@@ -16,7 +16,7 @@ package ai.redouble.nucleo.harness.models;
  * families entirely, named per deployment, never on the capability ladder.
  *
  * @param jobClass the declaring job's class (the seat's identity)
- * @param grade    the declared capability floor; null for embeddings and decision seats
+ * @param grade    the rung the work asks for, or {@link Grade#CEILING}; null for embeddings and decision seats
  * @param kind     which client family the seat asks for
  * @author Andrey Santrosyan
  * @since 0.1 (2026-08-28)

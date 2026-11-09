@@ -13,7 +13,10 @@ import java.util.*;
  * The deployment's model-resolution policy: turns a declared need into a concrete
  * {@link ModelSpec}. One picker per process, configured via {@code ModelSettings.pickerClass},
  * consulted ONLY by the harness through {@code ModelPickers.resolve} - never by call sites
- * directly - so the gate (envelope, grade floor, capability fit) applies to every answer.
+ * directly - so the gate (kind, envelope, declared inputs, open status) applies to every
+ * answer. The grade is the picker's to honour: a seat's grade is the rung its work asks for,
+ * and a picker that serves it from another rung says so in the log, as
+ * {@link DefaultModelPicker} does when nothing of the grade can be called.
  *
  * <p>Total and side-effect-free toward the caller's state. The situation carries
  * everything the call site knows (occasion, history, demand, the sealed envelope);
@@ -54,16 +57,13 @@ public interface ModelPicker {
     }
 
     /**
-     * The strongest grade this deployment serves: the dual of a seat's floor. A seat
-     * that wants the best model the deployment has - every chat, where a human is
-     * waiting on the answer - declares this instead of naming a rung, so the same
-     * class rides MEGA where the deployment pins one and XL where it does not,
-     * with no per-app subclass knowing which. Such a seat declares {@link Grade#CEILING},
-     * and {@code ModelPickers.resolveWith} translates it to this grade before the picker
-     * sees the seat; the gate then applies as for any declaration. A picker derives it
-     * from what it can serve; {@link DefaultModelPicker} takes the highest rung with a pin
-     * or a callable entry. Null (the default) means the picker serves no rung, and every
-     * best-available seat refuses.
+     * The strongest grade this deployment serves, for reporting surfaces and for the
+     * benchmark, which races the models of this rung when the job under test declares
+     * {@link Grade#CEILING}. No resolution reads it: a seat declaring {@code CEILING} reaches
+     * {@link #provide} as declared, and the picker serves it from {@code MEGA} downward, as
+     * {@link DefaultModelPicker} does, or as its own policy says. A picker derives it from
+     * what it can serve; {@link DefaultModelPicker} takes the highest rung with a callable
+     * entry. Null (the default) means the picker serves no rung.
      */
     default Grade ceiling() {
         return null;

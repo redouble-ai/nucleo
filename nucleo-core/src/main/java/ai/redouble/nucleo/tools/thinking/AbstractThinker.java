@@ -100,7 +100,7 @@ public abstract class AbstractThinker<I extends ThinkerInput, O extends ThinkerO
             "Tool result was not produced due to an internal error; you may retry or choose a different tool.";
 
     /**
-     * The capability floor this thinker's calls need, or {@link Grade#CEILING} for a seat
+     * The rung this thinker's calls ask for, or {@link Grade#CEILING} for a seat
      * that wants the strongest model the deployment serves. No default, silent or otherwise:
      * it arrives in the {@link ThinkerDeclaration} the constructor requires, chosen for the
      * work the thinker does, and a caller may raise it afterwards for a particular run.

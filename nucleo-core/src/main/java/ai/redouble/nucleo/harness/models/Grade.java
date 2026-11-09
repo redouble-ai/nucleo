@@ -9,9 +9,11 @@ package ai.redouble.nucleo.harness.models;
 import java.util.*;
 
 /**
- * The capability ladder a seat declares its floor on. A spec's grade is its rung; a seat's
- * grade is the lowest rung that can do its work, and the resolution gate refuses a spec
- * below it while accepting an over-qualified one.
+ * The capability ladder a seat declares its grade on. A spec's grade is its rung; a seat's
+ * grade is the rung its work asks for, served by an entry of that rung when the deployment
+ * can call one, else by the nearest rung above, else by the nearest below, with a warning in
+ * the log each time the picker moves ({@link DefaultModelPicker}; the two fallbacks are
+ * {@link ModelSettings#fallbackToStronger} and {@link ModelSettings#fallbackToWeaker}).
  *
  * <p>A model's rung is decided by its vendor's own tier and its generation, never by its
  * price: the nano, micro and lite tier is {@link #MICRO}; mini, small, haiku, flash and luna
@@ -21,11 +23,11 @@ import java.util.*;
  * per token for a mixture of experts. The discovery's {@code GradeCriterion} applies the rule
  * when it writes an entry.
  *
- * <p>{@link #CEILING} is the one member that is not a rung: it means "the strongest grade
- * this deployment serves" ({@code ModelPicker.ceiling()}), the declaration of a seat that
- * wants the best model available wherever it runs - MEGA where the picker pins one, XL
- * where it does not. It is translated to that rung once, at the picker gate, before any
- * picker or comparison sees it; it is never a catalog entry's grade and never a pool.
+ * <p>{@link #CEILING} is the one member that is not a rung: the declaration of a seat that
+ * wants the strongest model this application may call wherever it runs - MEGA where the
+ * deployment can call one, XL where it cannot. The picker serves it from {@link #MEGA}
+ * downward; it is never a catalog entry's grade, never a pool, and has no rank for
+ * {@link #atLeast}.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-08-27)
@@ -37,7 +39,7 @@ public enum Grade {
     LARGE,
     XL,
     MEGA,
-    /** The deployment's strongest served grade, resolved at the picker gate; not a rung. */
+    /** The strongest model this application may call, served from {@link #MEGA} downward; not a rung. */
     CEILING;
 
     private static final List<Grade> RUNGS = List.of(MICRO, SMALL, MEDIUM, LARGE, XL, MEGA);
@@ -54,7 +56,7 @@ public enum Grade {
     /** Ladder comparison between two rungs; {@link #CEILING} has no rank and refuses. */
     public boolean atLeast(Grade required) {
         if (!isRung() || !required.isRung()) {
-            throw new IllegalArgumentException("Grade.CEILING has no rank on the ladder; it is resolved at the picker gate before comparison");
+            throw new IllegalArgumentException("Grade.CEILING has no rank on the ladder; it asks for the strongest rung the picker can serve");
         }
         return this.ordinal() >= required.ordinal();
     }

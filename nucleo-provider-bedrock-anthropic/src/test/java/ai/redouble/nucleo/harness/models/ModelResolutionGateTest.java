@@ -15,9 +15,10 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * The gate in front of the picker, every wall: envelope, kind, grade floor, inputs (declared
- * and accepted, carried and declared), deprecation - plus the Mantle client's last-line workspace decision and the stock
- * envelope's knobs. Each refusal must name its reason, never NPE.
+ * The gate in front of the picker, every wall: envelope, kind, inputs (declared and accepted,
+ * carried and declared), deprecation - and no grade wall, since the grade is the picker's to
+ * honour - plus the Mantle client's last-line workspace decision and the stock envelope's
+ * knobs. Each refusal must name its reason, never NPE.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-08-28)
@@ -62,9 +63,9 @@ class ModelResolutionGateTest {
     }
 
     @Test
-    void underQualificationIsRefusedOverQualificationIsLegal() {
-        assertThrows(UncorrectableRuntimeLLMException.class,
-                () -> ModelPickers.resolveWith((seat, situation) -> TestModels.small(), llmSeat(Grade.XL), permitting()));
+    void anAnswerOfAnyGradeIsServed() {
+        ModelSpec smaller = ModelPickers.resolveWith((seat, situation) -> TestModels.small(), llmSeat(Grade.XL), permitting());
+        assertEquals(TestModels.small().getId(), smaller.getId(), "below the seat's grade: the picker's choice, warned about by the picker");
         ModelSpec bigger = TestModels.grade(Grade.XL);
         ModelSpec overQualified = ModelPickers.resolveWith(
                 (seat, situation) -> bigger, llmSeat(Grade.SMALL), permitting());
@@ -136,9 +137,8 @@ class ModelResolutionGateTest {
     }
 
     @Test
-    void pinnedSpecPassesTheGateWithoutAGradeFloor() {
-        // A MICRO-grade pin resolves even though a grade seat this low would never be
-        // asked for it - a pin declares no floor
+    void pinnedSpecPassesTheGateWithoutAGrade() {
+        // A MICRO-grade pin resolves on a seat that declares no grade: the job named the entry
         ModelSpec pinned = ModelPickers.resolvePinned(TestModels.micro(),
                 new Seat(ModelResolutionGateTest.class, TestModels.micro().getGrade(), ModelKind.LLM), permitting());
         assertEquals(TestModels.micro().getId(), pinned.getId());

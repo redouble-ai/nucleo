@@ -24,8 +24,8 @@ import java.util.*;
  *
  * <p><b>Declaration.</b> A chat declares itself like every thinker, and a chat that
  * wants the best model the deployment serves declares {@link Grade#CEILING}: the picker
- * gate turns it into the deployment's strongest rung, so the same chat class runs at
- * MEGA where the deployment pins one and at XL where it does not. A chat with a
+ * serves it from MEGA downward, so the same chat class runs at MEGA where the deployment
+ * can call one and at XL where it cannot. A chat with a
  * genuinely narrower job declares its rung instead, the same way.
  *
  * <p><b>Note:</b> Subclasses must implement {@link #declareDefaultTools()} to specify tools.

@@ -17,8 +17,11 @@ A grade is a rung on a ladder of capability, from the smallest model to the stro
 `MICRO`, `SMALL`, `MEDIUM`, `LARGE`, `XL`, `MEGA`. A job declares the lowest rung that can
 do its work, as `Grade.SMALL` does in [Hello, model](../../../../../../../../../nucleo-examples/src/main/java/ai/redouble/examples/hello/PACKAGE.md)
 and in [Your first agent](../../../../../../../../../nucleo-examples/src/main/java/ai/redouble/examples/agent/PACKAGE.md).
-The grade is a floor: the job may be served by a model of its grade or of any grade above
-it, and never by one below.
+The grade is the rung the work asks for. The job is served by a model of that grade when the
+deployment can call one; otherwise by the nearest grade above, and when nothing above can be
+called either, by the nearest grade below, with a warning in the log each time the picker
+moves. A model call that is not served is worse than one served by a weaker model with a
+warning, so the picker never fails while the deployment can call any model at all.
 
 Which rung a model sits on is decided by its vendor's own tier and its generation, never by
 its price: the nano, micro and lite tier is `MICRO`; mini, small, haiku, flash and luna
@@ -29,17 +32,19 @@ discovery applies this rule when it writes an entry
 ([Discovering an account's models](discovery/PACKAGE.md)), and a person moves a model in
 the catalog when it is wrong.
 
-Two things follow from the grade being a floor. A deployment with one strong model runs
-every job on it, because a stronger model always qualifies. And a job that asks for more
-than the deployment has, say `XL` where the strongest model is `LARGE`, runs on the
-strongest there is, with a warning in the log, so code written for the whole ladder runs on
-a deployment with a single model.
+Two things follow. A deployment with one model, whatever its grade, runs every job on it:
+a job asking for less is served from above, a job asking for more from below, each with its
+warning, so code written for the whole ladder runs anywhere. And a deployment that would
+rather refuse than stray can say so: `ModelSettings.fallbackToStronger` and
+`ModelSettings.fallbackToWeaker`, both on by default, switch the two directions off, and a
+job the walk cannot serve then fails with a `ModelResolutionError` naming what to provide.
 
-One more value sits beside the rungs: `Grade.CEILING`, the strongest grade this deployment
-serves, whatever that is. A job that always wants the best model available, a chat with a
-person waiting on it for example, declares `CEILING`; it runs on `MEGA` where the deployment
-can call a `MEGA` model and on `XL` where its strongest is `XL`. `CEILING` is never a grade a
-model carries: the runtime works it out from what the deployment can call.
+One more value sits beside the rungs: `Grade.CEILING`, the strongest model this application
+may call, whatever that is. A job that always wants the best model available, a chat with a
+person waiting on it for example, declares `CEILING`; it is served from `MEGA` downward,
+whatever the fallback flags say, so it runs on `MEGA` where the deployment can call a `MEGA`
+model the application's compliance envelope permits and on `XL` where it cannot. `CEILING`
+is never a grade a model carries.
 
 ## The catalog: which models exist and what they cost
 
@@ -108,7 +113,7 @@ missing, or because the request sends pictures the default cannot read. An id ma
 entry of a higher grade than the one it serves, never a lower one, and each id appears once
 under a grade. The catalog refuses to load when a pin breaks one of these rules, so a
 mistyped id fails at start-up and never at the first call. `CEILING` cannot be pinned: it
-is derived.
+is a request, never a grade an entry carries.
 
 `embeddings` names the one model that turns text into vectors, and `decision` the one
 decision model (the third kind of model, in [Decision models](../../tools/deciding/PACKAGE.md)).
@@ -127,16 +132,19 @@ accepts everything the request sends:
 2. The grade's other entries, cheapest first by list price. The log says once which entry it
    chose, and that the choice was not the deployment's; pinning it makes the choice
    deliberate.
-3. The same two steps at the next grade up, and so on up the ladder.
+3. The same two steps at the next grade up, and so on up the ladder, the log saying once
+   per job class that the grade is served from above.
+4. The same two steps at the next grade down, and so on down the ladder, the log saying once
+   per job class that the grade is served from below.
 
 "Can call" means the entry is open, the provider's library is on the classpath, its
 credential is present, a model served only when prompts are shared with the provider has the
-Bedrock Mantle project that allows it configured (`ModelSettings.mantleLaxProject`), and the
-application's compliance envelope, below, permits it. When
-nothing at the grade or above qualifies, the job fails with a `ModelResolutionError` that
-names, per provider, the credential that would serve it. A deployment that has pinned
-nothing still runs: every grade is served by its cheapest callable entry, or by the grade
-above.
+Bedrock Mantle project that allows it configured (`ModelSettings.mantleLaxProject`), the
+application's compliance envelope, below, permits it, and the deployment's availability probe
+has not reported it down. Only when nothing the walk reached qualifies does the job fail,
+with a `ModelResolutionError` that names, per provider, the credential that would serve it.
+A deployment that has pinned nothing still runs: every grade is served by its cheapest
+callable entry, or by the nearest grade that has one.
 
 **Pictures and documents.** A request that sends images or whole files says so before it
 runs, on the `ModelBinding` its requirements return:
@@ -155,7 +163,8 @@ conversation never changes model because of something in its history.
 **The checks every answer passes.** Whichever picker answered, the runtime checks the entry
 before the call goes out: it is of the kind the request asked for (a chat model, an
 embeddings model or a decision model), the compliance envelope permits it, it accepts what
-the request sends, it is open, and for a chat model its grade is at least the request's.
+the request sends, and it is open. The grade is the picker's to honour, and a picker that
+serves a request from another grade says so in the log.
 
 **The compliance envelope** is the application's standing rule about which models may see
 its data at all. The host sets it once, before the dispatcher starts, with
@@ -163,9 +172,10 @@ its data at all. The host sets it once, before the dispatcher starts, with
 dispatcher started without one uses a fresh `DefaultComplianceEnvelope`.
 `DefaultComplianceEnvelope` covers the usual rules: only these provider keys, never these
 provider keys, never these models, and whether a model that is served only when prompts
-are shared with the provider may be used (`setAllowDataShare`, off by default). When the
-envelope refuses the entry a grade would get, the request is served from the nearest grade
-the envelope permits, above its own; a `CEILING` request walks down from the strongest.
+are shared with the provider may be used (`setAllowDataShare`, off by default). An entry
+the envelope refuses is one the shipped picker cannot call, passed over like one with no
+credential; a picker of your own that answers with a refused entry is asked again at the
+nearest grades, above first, then below, and a `CEILING` request from `MEGA` down.
 
 ## Embeddings and decision models
 
@@ -192,8 +202,10 @@ another, which is what [the benchmark](../../tools/benchmark/PACKAGE.md) does.
 When pins cannot express the policy, a deployment writes a picker. `AbstractModelPicker` is
 the base: a subclass implements `pick(Seat, Situation)`, where the `Seat` is the job class,
 its grade and the kind of model, and the `Situation` is everything known about the request
-(its depth, what it sends, earlier attempts, the envelope). The base keeps out a model the
-deployment's availability probe reports down, and moves new work off an overloaded endpoint onto the same model on
+(its depth, what it sends, earlier attempts, the envelope). A request declaring `CEILING`
+reaches `pick` as declared, for the picker to serve from the strongest grade it can. The
+base keeps out a model the deployment's availability probe reports down (`isTurnedOff` lets
+a policy pass such a model over instead), and moves new work off an overloaded endpoint onto the same model on
 another endpoint; `eligibleForFailover` is where the subclass says which endpoints may stand
 in for each other. `OpenModelPicker` lets any endpoint stand in, and the Bedrock library
 ships `BedrockOnlyModelPicker` and `ZdrOnlyModelPicker`, which keep substitutes on Bedrock,

@@ -103,7 +103,7 @@ class ModelsTest {
     @Test
     void ceilingIsNeverARungAnywhere() {
         assertFalse(Grade.rungs().contains(Grade.CEILING),
-                "the ladder proper omits CEILING - it is a seat's word, resolved at the picker gate");
+                "the ladder proper omits CEILING - it is a seat's word, served by the picker from MEGA downward");
         assertThrows(IllegalArgumentException.class, () -> Grade.CEILING.atLeast(Grade.SMALL),
                 "CEILING has no rank and refuses ladder comparison");
         assertThrows(IllegalArgumentException.class, () -> Grade.SMALL.atLeast(Grade.CEILING));

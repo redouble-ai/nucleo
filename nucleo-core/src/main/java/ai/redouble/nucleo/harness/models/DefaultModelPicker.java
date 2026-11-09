@@ -21,32 +21,39 @@ import java.util.function.*;
  * with no picker class in either case.
  *
  * <p>A request declares its grade and the inputs beyond text it sends ({@link Situation#getSends()},
- * from {@code ModelBinding.setSends}). It is served by the first entry, in this order, that is
- * eligible - not closed, a provider artifact on the classpath serving it, its data-share posture
+ * from {@code ModelBinding.setSends}). It is served by the first entry, in this order, that can
+ * serve it - not closed, a provider artifact on the classpath serving it, its data-share posture
  * provisioned where it needs one, its provider's credential in the store, permitted by the
- * request's compliance envelope - and accepts every declared input:
+ * request's compliance envelope, not turned off by the availability probe - and accepts every
+ * declared input:
  * <ol>
  *   <li>The grade's entries in the deployment's order ({@link CatalogPins#grades()}), the first
- *       being the grade's default. One that cannot be called is skipped, logged once naming it
- *       and why: the order names the fallback the deployment chose, so refusing would ignore it.
+ *       being the grade's default. One that cannot serve is skipped, logged once naming it and
+ *       why: the order names the fallback the deployment chose, so refusing would ignore it.
  *       One that does not accept a declared input is passed over silently; that is what the
  *       order is for.</li>
  *   <li>The grade's other entries, cheapest first by list price per million, input plus output
  *       (an unpriced entry after every priced one, in catalog order), logged once naming the
  *       entry and saying the choice was not the deployment's.</li>
- *   <li>Nothing of the grade qualifies: the same two steps at the next rung up, logged once. A
- *       deployment with one strong model runs every seat up to that model's grade on it;
- *       over-qualification is legal at the gate.</li>
- *   <li>Nothing at the grade or above: a {@link ModelResolutionError} naming, per provider in the
- *       pool, what to provide - the deployment cannot serve the seat at all, which is a broken
- *       deployment, not a correctable fault. A seat above everything the deployment serves never
- *       reaches this picker at its own grade: the gate lowers it to the picker's
- *       {@link #ceiling()} first, with a warning, so a deployment with one small model still
- *       answers every seat.</li>
+ *   <li>Nothing of the grade qualifies: the same two steps at each grade above, nearest first,
+ *       logged once per seat and grade. A deployment with one strong model runs every seat up
+ *       to that model's grade on it. {@link ModelSettings#fallbackToStronger} off skips this
+ *       step.</li>
+ *   <li>Nothing at the grade or above: the same two steps at each grade below, nearest first,
+ *       logged once per seat and grade, saying the request is served below the grade it
+ *       declared. A model call served by a weaker model with a warning in the log beats one
+ *       that is not served, so a deployment with one small model answers every seat.
+ *       {@link ModelSettings#fallbackToWeaker} off skips this step.</li>
+ *   <li>Nothing the walk reached can serve the request: a {@link ModelResolutionError} naming,
+ *       per provider in the pool, what to provide - the deployment cannot serve the seat,
+ *       which is a broken deployment, not a correctable fault.</li>
  * </ol>
- * The payload never chooses: a request that carries images or files it did not declare is
- * refused at the gate, so a conversation never changes model because of what its history holds.
- * Nothing is cached, so the choice follows the credentials and the order as they change.
+ * A request declaring {@link Grade#CEILING} asks for the strongest entry this application may
+ * call: it is served from {@code MEGA} downward whatever the flags say, and finding its answer
+ * below {@code MEGA} is not a fall worth a warning. The payload never chooses: a request that carries images or
+ * files it did not declare is refused at the gate, so a conversation never changes model
+ * because of what its history holds. Nothing is cached, so the choice follows the credentials,
+ * the probe and the order as they change.
  *
  * <p>The embeddings declaration and the decision declaration are single pins: the pin, unless
  * no provider on this classpath serves it, else the first eligible embeddings entry (the warning
@@ -87,30 +94,66 @@ public class DefaultModelPicker extends OpenModelPicker {
     protected ModelSpec pick(Seat seat, Situation situation) {
         // a situation built without a binding declares nothing beyond text
         Set<Input> sends = situation.getSends() != null ? situation.getSends() : Set.of();
-        List<Grade> rungs = Grade.rungs();
-        for (int i = rungs.indexOf(seat.grade()); i < rungs.size(); i++) {
-            Grade rung = rungs.get(i);
+        boolean best = seat.grade() == Grade.CEILING;
+        Grade asked = best ? Grade.MEGA : seat.grade();
+        List<Grade> walked = walk(asked, best);
+        for (Grade rung : walked) {
             ModelSpec spec = fromGrade(rung, sends, situation.getEnvelope());
-            if (spec != null) {
-                if (rung != seat.grade() && logged.add("above/" + seat.grade() + "/" + sends + "/" + spec.getId())) {
-                    log.warn("Nothing of grade {}{} can be called by this deployment ({}): serving {} ({} via {}) of grade {},"
-                                    + " the nearest above, for every such {} seat. Provide the credential for an entry of {}, or place one"
-                                    + " in the grade's order in models.json (\"pins\").",
-                            seat.grade(), describe(sends), explain(qualifying(seat.grade(), sends)), spec.getId(), spec.getIdentity(),
-                            spec.getProviderKey(), rung, seat.grade(), seat.grade());
-                }
-                return spec;
+            if (spec == null) {
+                continue;
             }
+            if (rung != asked && !best && logged.add("walk/" + seat.jobClass().getName() + "/" + asked + "/" + rung + "/" + sends)) {
+                boolean above = rung.atLeast(asked);
+                log.warn("Nothing of grade {}{} can serve seat {} ({}): serving {} ({} via {}) of grade {}, the nearest {}{}."
+                                + " Provide the credential for an entry of {}, or place one in the grade's order in models.json (\"pins\").",
+                        asked, describe(sends), seat.jobClass().getSimpleName(), explain(qualifying(asked, sends)), spec.getId(),
+                        spec.getIdentity(), spec.getProviderKey(), rung, above ? "above" : "below",
+                        above ? "" : ", so the seat runs below the grade it declared", asked);
+            }
+            return spec;
         }
         List<ModelSpec> pool = new ArrayList<>();
-        for (int i = rungs.indexOf(seat.grade()); i < rungs.size(); i++) {
-            pool.addAll(qualifying(rungs.get(i), sends));
+        for (Grade rung : walked) {
+            pool.addAll(qualifying(rung, sends));
         }
-        throw new ModelResolutionError("No catalog entry of grade " + seat.grade() + " or above" + describe(sends)
-                + " can be called by this deployment. "
-                + (pool.isEmpty() && !sends.isEmpty() ? "The catalog carries no entry of that grade or above" + describe(sends) + " at all."
+        throw new ModelResolutionError("No catalog entry of grade " + reach(asked, walked) + describe(sends) + " can serve seat "
+                + seat.jobClass().getSimpleName() + " (grade " + seat.grade() + "). "
+                + (pool.isEmpty() && !sends.isEmpty() ? "The catalog carries no entry of grade " + reach(asked, walked) + describe(sends) + " at all."
                 : explain(pool))
-                + " Or place an entry for " + seat.grade() + " in models.json (\"pins\").");
+                + " Or place an entry for " + asked + " in models.json (\"pins\").");
+    }
+
+    /** The grades a refusal searched, in words: "MEDIUM", "MEDIUM or above", "MEDIUM or below", or "MEDIUM, above or below". */
+    private static String reach(Grade asked, List<Grade> walked) {
+        boolean above = walked.stream().anyMatch(rung -> rung != asked && rung.atLeast(asked));
+        boolean below = walked.stream().anyMatch(rung -> !rung.atLeast(asked));
+        if (above && below) {
+            return asked + ", above or below";
+        }
+        return asked + (above ? " or above" : below ? " or below" : "");
+    }
+
+    /**
+     * The rungs a request of the grade is served from, in order: the grade, each above nearest
+     * first while {@link ModelSettings#fallbackToStronger}, each below nearest first while
+     * {@link ModelSettings#fallbackToWeaker}. A best-available request walks every rung below
+     * whatever the flags say: the strongest entry this application may call is what it asked for.
+     */
+    private static List<Grade> walk(Grade grade, boolean best) {
+        ModelSettings settings = Settings.get(ModelSettings.class);
+        List<Grade> rungs = Grade.rungs();
+        int at = rungs.indexOf(grade);
+        List<Grade> order = new ArrayList<>();
+        order.add(grade);
+        if (settings.fallbackToStronger) {
+            order.addAll(rungs.subList(at + 1, rungs.size()));
+        }
+        if (best || settings.fallbackToWeaker) {
+            for (int i = at - 1; i >= 0; i--) {
+                order.add(rungs.get(i));
+            }
+        }
+        return order;
     }
 
     /**
@@ -218,8 +261,8 @@ public class DefaultModelPicker extends OpenModelPicker {
     /**
      * Callable now: not closed, a provider artifact on the classpath declares its provider,
      * the data-share posture is provisioned where the entry needs it (a LAX-requiring model
-     * without a LAX project fails at the first call, so it is never served), and the
-     * provider's credential is in the store.
+     * without a LAX project fails at the first call, so it is never served), the provider's
+     * credential is in the store, and the availability probe has not turned it off.
      */
     private boolean eligible(ModelSpec candidate) {
         return whyNot(candidate) == null;
@@ -247,6 +290,9 @@ public class DefaultModelPicker extends OpenModelPicker {
         }
         if (!callable.test(candidate)) {
             return "its provider " + candidate.getProviderKey() + " has no credential";
+        }
+        if (isTurnedOff(candidate)) {
+            return "the availability probe reports it down";
         }
         return null;
     }
@@ -359,8 +405,9 @@ public class DefaultModelPicker extends OpenModelPicker {
     }
 
     /**
-     * The highest rung with an entry this deployment can call, else null. Derived on every
-     * call, never declared: it follows the credentials and the order as they change.
+     * The highest rung with an entry this deployment can call, else null, for reporting and
+     * for the benchmark's reference rung; no resolution reads it. Derived on every call, never
+     * declared: it follows the credentials and the probe as they change.
      */
     @Override
     public Grade ceiling() {
@@ -376,19 +423,18 @@ public class DefaultModelPicker extends OpenModelPicker {
 
     /**
      * Per grade, the entry the order and the credentials choose for a text-only request now, the
-     * nearest grade above standing in for one with nothing callable, as {@link #pick} does; a
-     * grade nothing at or above serves is left out. Declarative, as the contract says: judged
-     * before any application's envelope, which only a resolution carries.
+     * nearest grade above, else the nearest below, standing in for one with nothing callable,
+     * as {@link #pick} does; with nothing callable at all the map is empty. Declarative, as the
+     * contract says: judged before any application's envelope, which only a resolution carries.
      */
     @Override
     public Map<Grade, ModelSpec> describePins() {
         Map<Grade, ModelSpec> result = new EnumMap<>(Grade.class);
-        List<Grade> rungs = Grade.rungs();
-        for (int i = 0; i < rungs.size(); i++) {
-            for (int j = i; j < rungs.size(); j++) {
-                ModelSpec spec = fromGrade(rungs.get(j), Set.of(), candidate -> true);
+        for (Grade grade : Grade.rungs()) {
+            for (Grade rung : walk(grade, false)) {
+                ModelSpec spec = fromGrade(rung, Set.of(), candidate -> true);
                 if (spec != null) {
-                    result.put(rungs.get(i), spec);
+                    result.put(grade, spec);
                     break;
                 }
             }

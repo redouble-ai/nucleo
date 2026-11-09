@@ -262,7 +262,8 @@ constant, and the value behind it comes from the deployment's secret store (see
 | Knob | Purpose |
 |---|---|
 | `ModelSettings.mantleLaxProject` / `mantleStrictProject` | Bedrock Mantle project ids for `provider_data_share` and `none` retention |
-| `ModelSettings.pickerClass` | Names the deployment's `ModelPicker` class; without one `DefaultModelPicker` ships - it serves the catalog's `pins` and falls back to the first configured entry of the grade (see [../models/PACKAGE.md](../models/PACKAGE.md)) |
+| `ModelSettings.pickerClass` | Names the deployment's `ModelPicker` class; without one `DefaultModelPicker` ships - it serves the catalog's `pins`, then the grade's cheapest callable entry, then the nearest grade that has one (see [../models/PACKAGE.md](../models/PACKAGE.md)) |
+| `ModelSettings.fallbackToStronger` / `fallbackToWeaker` | Whether `DefaultModelPicker` may serve a grade with nothing callable from the nearest grade above, or below; both true by default |
 | `ModelSettings.backendClass` | Catalog backend; defaults to `JsonModelsBackend`, which loads the deployment's file (the one `-Dnucleo.models` names, else `models.json` on the classpath, nearest first), and only without one the `META-INF/nucleo/seed_models.json` fragments the provider artifacts ship |
 | `EmbeddingsClient.DIMENSIONS` | The canonical vector width for unpinned specs - a frozen constant of the storage contract, never a knob |
 
