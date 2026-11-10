@@ -6,9 +6,9 @@ group `ai.redouble`; a published version is never changed in place.
 ## Unreleased
 
 - A sub-agent started with `sub_thinker` works at most one level of depth below its caller,
-  so a chain of sub-agents ends whatever depth the model asks for. A thinker that needs its
-  sub-agents at its own depth overrides `AbstractThinker.subAgentsWorkOneLevelBelow()`.
-  Breaking: a `STANDARD` thinker's sub-agents now work at `QUICK`
+  the step stopping at `STANDARD`, so a chain of sub-agents ends whatever depth the model
+  asks for. A thinker that needs its sub-agents at its own depth overrides
+  `AbstractThinker.subAgentsWorkOneLevelBelow()`
   ([#21](https://github.com/redouble-ai/nucleo/issues/21)).
 - A model role names the model for one kind of work, wherever that work is done:
   `ModelRole(name, catalogId, grade)`, a constant the application declares once and every

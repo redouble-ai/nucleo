@@ -323,8 +323,8 @@ thinker without its `ThinkerDeclaration` does not compile.
   tokens)`, or `setOutputBudget(int)` later.
 - **Depth**: how hard to work, from `Depth.IMMEDIATE` to `Depth.ULTRA_THOROUGH`. It comes with
   the input, `ThinkerInput.depth`, `STANDARD` unless the caller sets another, and a thinker
-  called by another thinker never works deeper than its caller (a sub-agent, one level
-  below it). The model reads the depth as
+  called by another thinker never works deeper than its caller (a sub-agent of a thinker
+  above `STANDARD`, one level below it). The model reads the depth as
   an instruction, and the catalog entry turns it into a budget of reasoning tokens.
 
 `OutputSize.STANDARD` and `Depth.STANDARD` share a name on purpose. Import neither enum
@@ -499,7 +499,8 @@ answers with a `SubThinkerOutput`: a summary of its findings, its reasoning, and
 it found, which reach the parent intact.
 
 A sub-agent works at most one level of depth below its caller: the depth the model asks for
-is lowered to that. A sub-agent may itself delegate only when it was started at
+is lowered to that. The step stops at `STANDARD`, so a `STANDARD` thinker's sub-agents work
+at `STANDARD`. A sub-agent may itself delegate only when it was started at
 `Depth.THOROUGH` or deeper, so a `THOROUGH` thinker's sub-agents, working at `STANDARD` at
 most, do their work directly, and an `ULTRA_THOROUGH` thinker gets two levels. Every chain of
 sub-agents ends, whatever the model asks for. A thinker whose sub-agents must work at its own

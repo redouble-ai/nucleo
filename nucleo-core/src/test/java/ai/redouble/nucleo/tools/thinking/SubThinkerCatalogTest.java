@@ -201,8 +201,16 @@ class SubThinkerCatalogTest {
                 "a THOROUGH caller's sub-agent works at STANDARD at most, where it cannot delegate: the chain ends");
         assertEquals(Depth.THOROUGH, parent.depthCeilingFor(sub, Depth.ULTRA_THOROUGH),
                 "an ULTRA_THOROUGH caller gets one more level");
-        assertEquals(Depth.QUICK, parent.depthCeilingFor(sub, Depth.STANDARD));
-        assertEquals(Depth.IMMEDIATE, parent.depthCeilingFor(sub, Depth.IMMEDIATE), "nothing is below IMMEDIATE");
+    }
+
+    @Test
+    void theStepDownStopsAtStandard() {
+        ParentThinker parent = new ParentThinker(root());
+        SubThinker sub = delegateOf(parent, Depth.STANDARD);
+        assertEquals(Depth.STANDARD, parent.depthCeilingFor(sub, Depth.STANDARD),
+                "a STANDARD sub-agent already cannot delegate, so a STANDARD caller's sub-agents keep its depth");
+        assertEquals(Depth.QUICK, parent.depthCeilingFor(sub, Depth.QUICK),
+                "the stop at STANDARD never raises a sub-agent above its caller");
     }
 
     @Test

@@ -39,7 +39,8 @@ import java.util.*;
  * different retrieval queries instead of converging on the same top-ranked results.
  *
  * <p>Recursion control: a sub-agent is started at most one level of depth below its
- * caller ({@link AbstractThinker#subAgentsWorkOneLevelBelow()}), and the delegate's
+ * caller, the step stopping at STANDARD
+ * ({@link AbstractThinker#subAgentsWorkOneLevelBelow()}), and the delegate's
  * {@link #delegationThreshold()} is THOROUGH. A THOROUGH thinker's sub-agents therefore
  * work at STANDARD at most and do their work directly; only an ULTRA_THOROUGH thinker's
  * may delegate once more. Every chain of sub-agents ends, whatever depth the model asks
@@ -64,7 +65,8 @@ import java.util.*;
         "Provide a clear objective in the query field, and set depth to tell the sub-agent " +
         "how hard to work (QUICK for a fast lookup, STANDARD for normal effort, " +
         "THOROUGH if it should itself delegate further). " +
-        "A sub-agent works at most one level below your own depth: a deeper request is lowered to that. " +
+        "A sub-agent works at most one level below your own depth, and at STANDARD when you work at STANDARD: " +
+        "a deeper request is lowered to that. " +
         "The sub-agent has access to all your tools and works independently, " +
         "returning findings with preserved artifacts. " +
         "When spawning multiple sub-agents over the same data, use the exclusions field " +

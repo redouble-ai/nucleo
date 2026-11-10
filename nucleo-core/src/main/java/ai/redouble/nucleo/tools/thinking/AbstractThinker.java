@@ -521,7 +521,8 @@ public abstract class AbstractThinker<I extends ThinkerInput, O extends ThinkerO
 
     /**
      * Whether the sub-agents this thinker's model starts with {@code sub_thinker} work at
-     * most one level of depth below this thinker. True by default: with
+     * most one level of depth below this thinker, the step stopping at STANDARD (a
+     * STANDARD thinker's sub-agents work at STANDARD). True by default: with
      * {@link SubThinker}'s THOROUGH {@link #delegationThreshold()} it ends every chain of
      * sub-agents, whatever depth the model asks for - a THOROUGH thinker's sub-agents
      * work at STANDARD at most and cannot delegate (gh-21). A thinker whose sub-agents
@@ -537,7 +538,13 @@ public abstract class AbstractThinker<I extends ThinkerInput, O extends ThinkerO
      * The deepest a thinker this one calls may work, given this thinker's own depth.
      */
     Depth depthCeilingFor(Thinker<?, ?> called, Depth ownDepth) {
-        return called instanceof SubThinker && subAgentsWorkOneLevelBelow() ? ownDepth.below() : ownDepth;
+        if (!(called instanceof SubThinker) || !subAgentsWorkOneLevelBelow()) {
+            return ownDepth;
+        }
+        // the step down stops at STANDARD, where a sub-agent already cannot delegate:
+        // going lower would end no chain and only weaken an ordinary thinker's sub-agents
+        Depth below = ownDepth.below();
+        return Depth.min(ownDepth, below.ordinal() < Depth.STANDARD.ordinal() ? Depth.STANDARD : below);
     }
 
     /**
