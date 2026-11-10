@@ -38,11 +38,13 @@ import java.util.*;
  * exclusions are appended to the objective so each sub-agent steers toward
  * different retrieval queries instead of converging on the same top-ranked results.
  *
- * <p>Recursion control: the delegate's {@link #delegationThreshold()} is THOROUGH, so a
- * sub-agent dispatched at QUICK or STANDARD does its work directly and only a
- * THOROUGH/ULTRA_THOROUGH one may delegate further - a single level of delegation is the
- * norm, never an unbounded chain. The sub-agent's own depth (passed by the parent on the
- * tool call) controls how hard <em>it</em> works, not whether it may run.
+ * <p>Recursion control: a sub-agent is started at most one level of depth below its
+ * caller ({@link AbstractThinker#subAgentsWorkOneLevelBelow()}), and the delegate's
+ * {@link #delegationThreshold()} is THOROUGH. A THOROUGH thinker's sub-agents therefore
+ * work at STANDARD at most and do their work directly; only an ULTRA_THOROUGH thinker's
+ * may delegate once more. Every chain of sub-agents ends, whatever depth the model asks
+ * for. The sub-agent's own depth (passed by the parent on the tool call) controls how
+ * hard <em>it</em> works, not whether it may run.
  *
  * <p><b>The catalog travels with the tools.</b> At construction the delegate captures the
  * parent's reconciled {@code request_tools} and {@code request_skill} catalogs, and its
@@ -62,6 +64,7 @@ import java.util.*;
         "Provide a clear objective in the query field, and set depth to tell the sub-agent " +
         "how hard to work (QUICK for a fast lookup, STANDARD for normal effort, " +
         "THOROUGH if it should itself delegate further). " +
+        "A sub-agent works at most one level below your own depth: a deeper request is lowered to that. " +
         "The sub-agent has access to all your tools and works independently, " +
         "returning findings with preserved artifacts. " +
         "When spawning multiple sub-agents over the same data, use the exclusions field " +
@@ -152,8 +155,9 @@ public class SubThinker extends SingleObjectiveThinker<SubThinkerInput, SubThink
 
     /**
      * Stricter than the default: a sub-agent may only spawn further sub-agents when
-     * its own depth is THOROUGH or above. This bounds recursive delegation - a
-     * SubThinker dispatched at QUICK/STANDARD does its work directly.
+     * its own depth is THOROUGH or above. A SubThinker dispatched at QUICK/STANDARD does
+     * its work directly, and since a sub-agent is started one level below its caller,
+     * each further level of delegation needs a caller one level deeper.
      */
     @Override
     protected Depth delegationThreshold() {

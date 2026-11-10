@@ -50,4 +50,11 @@ public enum Depth {
     public static Depth min(Depth a, Depth b) {
         return a.ordinal() <= b.ordinal() ? a : b;
     }
+
+    /**
+     * The depth one level below this one; IMMEDIATE has none below and returns itself.
+     */
+    public Depth below() {
+        return this == IMMEDIATE ? IMMEDIATE : values()[ordinal() - 1];
+    }
 }

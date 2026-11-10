@@ -323,7 +323,8 @@ thinker without its `ThinkerDeclaration` does not compile.
   tokens)`, or `setOutputBudget(int)` later.
 - **Depth**: how hard to work, from `Depth.IMMEDIATE` to `Depth.ULTRA_THOROUGH`. It comes with
   the input, `ThinkerInput.depth`, `STANDARD` unless the caller sets another, and a thinker
-  called by another thinker never works deeper than its caller. The model reads the depth as
+  called by another thinker never works deeper than its caller (a sub-agent, one level
+  below it). The model reads the depth as
   an instruction, and the catalog entry turns it into a budget of reasoning tokens.
 
 `OutputSize.STANDARD` and `Depth.STANDARD` share a name on purpose. Import neither enum
@@ -495,8 +496,16 @@ list of exclusions. As with any agent called as a tool, the sub-agent can read o
 artifacts listed in `artifact_refs`; a reference that appears in the objective alone is not
 handed over. The sub-agent has every tool of its parent, works at its parent's grade, and
 answers with a `SubThinkerOutput`: a summary of its findings, its reasoning, and the artifacts
-it found, which reach the parent intact. A sub-agent may itself delegate only when it was
-started at `Depth.THOROUGH` or deeper, so one level of delegation is the rule. It carries its
+it found, which reach the parent intact.
+
+A sub-agent works at most one level of depth below its caller: the depth the model asks for
+is lowered to that. A sub-agent may itself delegate only when it was started at
+`Depth.THOROUGH` or deeper, so a `THOROUGH` thinker's sub-agents, working at `STANDARD` at
+most, do their work directly, and an `ULTRA_THOROUGH` thinker gets two levels. Every chain of
+sub-agents ends, whatever the model asks for. A thinker whose sub-agents must work at its own
+depth overrides `AbstractThinker.subAgentsWorkOneLevelBelow()` to return false; its
+sub-agents are then capped at its own depth, their own sub-agents step down again, and
+bounding the chain is that author's to do. It carries its
 parent's scope and read-only binding.
 
 ```json

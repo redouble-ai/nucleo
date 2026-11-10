@@ -31,7 +31,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * parent's door instances, being per-turn snapshots, are never copied), the hub's
  * admission lookup honours the same capture, a delegate of a delegate still sees the
  * original catalog, and {@code sub_thinker} joins the delegate's own palette only at
- * THOROUGH.
+ * THOROUGH. A delegate is started at most one level of depth below its caller, so a
+ * chain of delegates ends; a named thinker called as a tool keeps its caller's depth as
+ * its ceiling, and a thinker may opt its own delegates out of the step down.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-09-18)
@@ -177,5 +179,56 @@ class SubThinkerCatalogTest {
         delegating.reconcileToolRegistry();
         assertTrue(delegating.toolRegistry.hasTool("sub_thinker"),
                 "at THOROUGH the delegate may itself delegate");
+    }
+
+    /** A parent whose author asked for sub-agents at its own depth. */
+    static class SameDepthParent extends ParentThinker {
+        SameDepthParent(Identifiable parent) {
+            super(parent);
+        }
+
+        @Override
+        protected boolean subAgentsWorkOneLevelBelow() {
+            return false;
+        }
+    }
+
+    @Test
+    void aSubAgentWorksAtMostOneLevelBelowItsCaller() {
+        ParentThinker parent = new ParentThinker(root());
+        SubThinker sub = delegateOf(parent, Depth.THOROUGH);
+        assertEquals(Depth.STANDARD, parent.depthCeilingFor(sub, Depth.THOROUGH),
+                "a THOROUGH caller's sub-agent works at STANDARD at most, where it cannot delegate: the chain ends");
+        assertEquals(Depth.THOROUGH, parent.depthCeilingFor(sub, Depth.ULTRA_THOROUGH),
+                "an ULTRA_THOROUGH caller gets one more level");
+        assertEquals(Depth.QUICK, parent.depthCeilingFor(sub, Depth.STANDARD));
+        assertEquals(Depth.IMMEDIATE, parent.depthCeilingFor(sub, Depth.IMMEDIATE), "nothing is below IMMEDIATE");
+    }
+
+    @Test
+    void aSubAgentOfASubAgentStepsDownAgain() {
+        ParentThinker parent = new ParentThinker(root());
+        SubThinker child = delegateOf(parent, Depth.THOROUGH);
+        SubThinker grandchild = delegateOf(child, Depth.THOROUGH);
+        assertEquals(Depth.STANDARD, child.depthCeilingFor(grandchild, Depth.THOROUGH),
+                "a sub-agent keeps the rule for its own sub-agents, so no chain holds its depth");
+    }
+
+    @Test
+    void aNamedThinkerCalledAsAToolIsCappedAtItsCallersDepth() {
+        ParentThinker parent = new ParentThinker(root());
+        assertEquals(Depth.THOROUGH, parent.depthCeilingFor(new ParentThinker(parent), Depth.THOROUGH),
+                "the step down is the sub-agent's alone");
+    }
+
+    @Test
+    void aThinkerMayKeepItsSubAgentsAtItsOwnDepthAndTheirsStillStepDown() {
+        SameDepthParent parent = new SameDepthParent(root());
+        SubThinker child = delegateOf(parent, Depth.THOROUGH);
+        assertEquals(Depth.THOROUGH, parent.depthCeilingFor(child, Depth.THOROUGH),
+                "the author's choice: sub-agents capped at the caller's own depth");
+        SubThinker grandchild = delegateOf(child, Depth.THOROUGH);
+        assertEquals(Depth.STANDARD, child.depthCeilingFor(grandchild, Depth.THOROUGH),
+                "the choice is the thinker's own and is not inherited by the sub-agents it starts");
     }
 }

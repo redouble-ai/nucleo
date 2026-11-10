@@ -512,10 +512,32 @@ public abstract class AbstractThinker<I extends ThinkerInput, O extends ThinkerO
     /**
      * The depth at which this thinker's palette offers {@code sub_thinker}. STANDARD for an
      * ordinary thinker, so QUICK and IMMEDIATE callers cannot delegate; {@link SubThinker}
-     * raises it to THOROUGH so one level of delegation does not become an unbounded chain.
+     * raises it to THOROUGH, which with {@link #subAgentsWorkOneLevelBelow()} ends every
+     * chain of sub-agents.
      */
     protected Depth delegationThreshold() {
         return Depth.STANDARD;
+    }
+
+    /**
+     * Whether the sub-agents this thinker's model starts with {@code sub_thinker} work at
+     * most one level of depth below this thinker. True by default: with
+     * {@link SubThinker}'s THOROUGH {@link #delegationThreshold()} it ends every chain of
+     * sub-agents, whatever depth the model asks for - a THOROUGH thinker's sub-agents
+     * work at STANDARD at most and cannot delegate (gh-21). A thinker whose sub-agents
+     * must work at its own depth returns false; bounding the chain is then its author's
+     * to do. A named thinker called as a tool is not affected: its ceiling is its
+     * caller's depth.
+     */
+    protected boolean subAgentsWorkOneLevelBelow() {
+        return true;
+    }
+
+    /**
+     * The deepest a thinker this one calls may work, given this thinker's own depth.
+     */
+    Depth depthCeilingFor(Thinker<?, ?> called, Depth ownDepth) {
+        return called instanceof SubThinker && subAgentsWorkOneLevelBelow() ? ownDepth.below() : ownDepth;
     }
 
     /**
@@ -834,10 +856,11 @@ public abstract class AbstractThinker<I extends ThinkerInput, O extends ThinkerO
             ((Thinker<?, ?>)tool).setInvokedAsTool(true);
         }
 
-        // Enforce that child never exceeds parent depth. Both sides default to STANDARD
-        // in ThinkerInput, so there are no null cases to handle.
-        if (tool instanceof Thinker && rawInput instanceof ThinkerInput childInput && this.input instanceof ThinkerInput parentInput) {
-            childInput.setDepth(Depth.min(childInput.getDepth(), parentInput.getDepth()));
+        // A called thinker never works deeper than its ceiling: the caller's depth, or one
+        // level below it for a sub-agent (gh-21). Both sides default to STANDARD in
+        // ThinkerInput, so there are no null cases to handle.
+        if (tool instanceof Thinker<?, ?> called && rawInput instanceof ThinkerInput childInput && this.input instanceof ThinkerInput parentInput) {
+            childInput.setDepth(Depth.min(childInput.getDepth(), depthCeilingFor(called, parentInput.getDepth())));
         }
 
         // Publish enhanced start info for thinker invocations (after depth propagation)
