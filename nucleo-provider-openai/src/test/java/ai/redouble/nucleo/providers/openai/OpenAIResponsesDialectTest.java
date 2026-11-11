@@ -36,15 +36,23 @@ class OpenAIResponsesDialectTest {
     private static final String OBJECTIVE = "OBJECTIVE-MARKER extract the port labels";
     private static final String REASONING_ITEM = "{\"type\":\"reasoning\",\"id\":\"rs_1\",\"summary\":[],\"encrypted_content\":\"ENCRYPTED-MARKER\"}";
 
+    /**
+     * An OpenAI entry that caches by itself, so the request is the dialect's plain shape; what
+     * a model that takes cache breakpoints adds to it is {@link OpenAICacheBreakpointTest}'s.
+     */
+    private static ModelSpec model() {
+        return Models.all().stream().filter(spec -> "openai".equals(spec.getProviderKey()) && spec.getCacheBreakpoints() == 0).findFirst().orElseThrow();
+    }
+
     private static OpenAISDKClient client() {
         OpenAISDKClient client = new OpenAISDKClient(WireApi.RESPONSES, "unused");
-        client.setModel(TestModels.onProvider("openai"));
+        client.setModel(model());
         return client;
     }
 
     /** A tool loop mid-flight: the objective, a tool, a prior assistant turn that reasoned and called, the user turn answering it with text and an image. */
     private static ConversationContext loop() throws IOException {
-        ConversationContext conversation = TestModels.conversation(TestModels.onProvider("openai"));
+        ConversationContext conversation = TestModels.conversation(model());
         conversation.setDepth(Depth.IMMEDIATE);
         conversation.setOutputDeclaration(OutputDeclaration.of(1000));
         conversation.putMainObjective("task", OBJECTIVE);
@@ -72,7 +80,7 @@ class OpenAIResponsesDialectTest {
     @Test
     void theRequestCarriesInstructionsToolsReasoningAndTheTurnsAsItems() throws IOException {
         ObjectNode request = build(loop());
-        assertEquals(TestModels.onProvider("openai").getWireModelId(), request.get("model").asText());
+        assertEquals(model().getWireModelId(), request.get("model").asText());
         assertFalse(request.get("store").asBoolean(), "the conversation is the runtime's; nothing is stored server-side");
         assertTrue(request.get("instructions").asText().contains(OBJECTIVE), "the objective is the instructions");
         assertEquals("low", request.get("reasoning").get("effort").asText(), "IMMEDIATE maps to the floor effort, beside the tools");
@@ -108,7 +116,7 @@ class OpenAIResponsesDialectTest {
     @Test
     void theRequestJsonBecomesTypedParamsWithNothingLost() throws IOException {
         ResponseCreateParams params = OpenAISDKClient.toResponsesParams(build(loop()));
-        assertEquals(TestModels.onProvider("openai").getWireModelId(), params.model().orElseThrow().asString());
+        assertEquals(model().getWireModelId(), params.model().orElseThrow().asString());
         assertFalse(params.store().orElseThrow());
         assertTrue(params.instructions().orElseThrow().contains(OBJECTIVE));
         assertEquals(ReasoningEffort.LOW, params.reasoning().orElseThrow().effort().orElseThrow());
@@ -123,7 +131,7 @@ class OpenAIResponsesDialectTest {
 
     @Test
     void aSchemaHandlerBindsTheAnswerToAJsonObject() {
-        ConversationContext conversation = TestModels.conversation(TestModels.onProvider("openai"));
+        ConversationContext conversation = TestModels.conversation(model());
         conversation.setDepth(Depth.IMMEDIATE);
         conversation.setOutputDeclaration(OutputDeclaration.of(1000));
         OutgoingMessage<Map> ask = new OutgoingMessage<>(new PojoResponseHandler<>(Map.class));
@@ -182,7 +190,7 @@ class OpenAIResponsesDialectTest {
     }
 
     private static LLMResponse<String> read(String body) {
-        ConversationContext conversation = TestModels.conversation(TestModels.onProvider("openai"));
+        ConversationContext conversation = TestModels.conversation(model());
         OutgoingMessage<String> ask = new OutgoingMessage<>(StringResponseHandler.instance);
         ask.setRole("user");
         ask.addText("ping");

@@ -133,8 +133,15 @@ public abstract class AbstractOpenAIChatClient extends AbstractLLMClient<ObjectN
         // This provider has no separate system channel: system content is expressed as
         // role:system messages at the front of the array. Admitted skills lead, then the
         // conversation's system content - the main objective, already rendered by the
-        // shared pipeline. OpenAI auto-caches stable prefixes, which is what its cache
-        // hit rate keys on.
+        // shared pipeline. A model the catalog gives no cache breakpoints caches stable
+        // prefixes by itself; one that takes breakpoints is sent them and nothing else is
+        // stored (prompt_cache_options), the first of them on the last system message
+        // when the conversation asks for it (cacheSystem).
+        int cacheBreakpoints = this.modelInfo.getCacheBreakpoints();
+        int cacheBreakpointsUsed = 0;
+        if (cacheBreakpoints > 0) {
+            requestJson.putObject("prompt_cache_options").put("mode", "explicit");
+        }
         ArrayNode messages = NucleoJsonSerializer.createArrayNode();
         for (Skill skill : context.getLoadedSkills()) {
             ObjectNode skillMsg = NucleoJsonSerializer.createObjectNode();
@@ -147,6 +154,10 @@ public abstract class AbstractOpenAIChatClient extends AbstractLLMClient<ObjectN
             systemMsg.put("role", "system");
             systemMsg.put("content", prepared.systemText());
             messages.add(systemMsg);
+        }
+        if (cacheBreakpoints > 0 && prepared.cacheSystem() && !messages.isEmpty()) {
+            markChatMessage((ObjectNode) messages.get(messages.size() - 1));
+            cacheBreakpointsUsed++;
         }
         // Every definition the request carries - palette and mid-conversation announcements -
         // goes through the native tools parameter; this client's own encoder suppresses the
@@ -169,7 +180,10 @@ public abstract class AbstractOpenAIChatClient extends AbstractLLMClient<ObjectN
         // tool result are message structure on this dialect: a call sits in the assistant
         // message's tool_calls, a result is a role:tool message that must directly follow the
         // assistant message it answers, ahead of whatever else the turn says
+        List<List<ObjectNode>> rendered = new ArrayList<>();
+        List<Boolean> carriers = new ArrayList<>();
         for (ProcessedMessageData msg : prepared.turns()) {
+            List<ObjectNode> turnMessages = new ArrayList<>();
             ArrayNode elements = NucleoJsonSerializer.createArrayNode();
             ArrayNode toolCalls = NucleoJsonSerializer.createArrayNode();
             List<ObjectNode> toolMessages = new ArrayList<>();
@@ -193,7 +207,7 @@ public abstract class AbstractOpenAIChatClient extends AbstractLLMClient<ObjectN
             String text = allText ? joinText(elements) : null;
             switch (msg.role()) {
                 case USER -> {
-                    messages.addAll(toolMessages);
+                    turnMessages.addAll(toolMessages);
                     if (!elements.isEmpty()) {
                         ObjectNode msgJson = NucleoJsonSerializer.createObjectNode();
                         msgJson.put("role", "user");
@@ -203,7 +217,7 @@ public abstract class AbstractOpenAIChatClient extends AbstractLLMClient<ObjectN
                         else {
                             msgJson.set("content", elements);
                         }
-                        messages.add(msgJson);
+                        turnMessages.add(msgJson);
                     }
                 }
                 case ASSISTANT -> {
@@ -220,12 +234,63 @@ public abstract class AbstractOpenAIChatClient extends AbstractLLMClient<ObjectN
                     if (!toolCalls.isEmpty()) {
                         msgJson.set("tool_calls", toolCalls);
                     }
-                    messages.add(msgJson);
+                    turnMessages.add(msgJson);
                 }
             }
+            rendered.add(turnMessages);
+            carriers.add(msg.role() == TurnRole.USER && !turnMessages.isEmpty());
         }
+        // The breakpoint of a chosen turn goes on the last message the turn rendered, its user
+        // message or else its last tool result, so the stored prefix holds the whole turn
+        if (cacheBreakpoints > 0) {
+            for (int turn : cacheBreakpointTurns(prepared.turns(), carriers, cacheBreakpoints - cacheBreakpointsUsed)) {
+                markChatMessage(rendered.get(turn).getLast());
+            }
+        }
+        rendered.forEach(messages::addAll);
         requestJson.set("messages", messages);
         return requestJson;
+    }
+
+    /**
+     * The turns that carry a cache breakpoint on a model that takes them, as indexes into
+     * {@code turns}: the default placement of {@link CacheBreakpointPlacement}, with the turn
+     * before the end marked beside it. OpenAI looks an earlier entry up only where the
+     * request carries a breakpoint, so the end of the previous request is marked again for
+     * this one to read what that one stored. Only a user turn carries one: its text and image
+     * parts and its tool results take a breakpoint on both dialects, an assistant turn's
+     * calls on neither. An engineer who wants another placement overrides this.
+     *
+     * @param turns the prepared turns, in order
+     * @param carriers per turn, whether it rendered something that can carry a breakpoint
+     * @param allowance the breakpoints left for turns on this request, out of the catalog
+     *                  entry's {@code cache_breakpoints}
+     */
+    protected Set<Integer> cacheBreakpointTurns(List<ProcessedMessageData> turns, List<Boolean> carriers, int allowance) {
+        return CacheBreakpointPlacement.turns(turns, carriers, allowance, 1);
+    }
+
+    /** What marks a content part as the end of a stored prefix, on both dialects. */
+    private static void markPart(ObjectNode part) {
+        part.putObject("prompt_cache_breakpoint").put("mode", "explicit");
+    }
+
+    /**
+     * Puts a cache breakpoint on a Chat Completions message of role system, user or tool: on
+     * the last part of its content, a content string first becoming the one text part that
+     * can carry it.
+     */
+    private static void markChatMessage(ObjectNode message) {
+        JsonNode content = message.get("content");
+        if (content.isTextual()) {
+            ArrayNode parts = message.putArray("content");
+            ObjectNode part = parts.addObject();
+            part.put("type", "text");
+            part.put("text", content.asText());
+            markPart(part);
+            return;
+        }
+        markPart((ObjectNode) content.get(content.size() - 1));
     }
 
     /**
@@ -285,9 +350,8 @@ public abstract class AbstractOpenAIChatClient extends AbstractLLMClient<ObjectN
         // The served-model echo: an alias like gpt-5.6 answers with its snapshot
         response.setServedModelId(responseJson.path("model").asText(null));
         // OpenAI reports prompt_tokens as the grand total; prompt_tokens_details.cached_tokens
-        // is a subset of prompt_tokens (unlike Anthropic's additive shape). There is no
-        // cache-creation concept on this provider; caching is automatic and first-call has
-        // no overhead.
+        // is a subset of prompt_tokens (unlike Anthropic's additive shape), and so is
+        // cache_write_tokens, which a model that bills its cache writes reports.
         JsonNode usage = responseJson.path("usage");
         if (usage.isObject()) {
             int promptTokens = usage.path("prompt_tokens").asInt(0);
@@ -295,7 +359,7 @@ public abstract class AbstractOpenAIChatClient extends AbstractLLMClient<ObjectN
             JsonNode promptDetails = usage.path("prompt_tokens_details");
             Integer cachedTokens = promptDetails.has("cached_tokens")
                     ? promptDetails.path("cached_tokens").asInt() : null;
-            response.setUsage(new OpenAITokenLedger(getModel(), promptTokens, cachedTokens, completionTokens));
+            response.setUsage(new OpenAITokenLedger(getModel(), promptTokens, cachedTokens, promptDetails.path("cache_write_tokens").asInt(0), completionTokens));
         }
         // Stop reason is provider-derived; the abstract client's template records the requested
         // ceiling (resolveWireMaxTokens) and centralizes the truncation decision.
@@ -425,8 +489,30 @@ public abstract class AbstractOpenAIChatClient extends AbstractLLMClient<ObjectN
         if (prepared.hasSystemText()) {
             instructions.append(prepared.systemText());
         }
+        // A model the catalog gives cache breakpoints is sent them and nothing else is stored
+        // (prompt_cache_options). The instructions parameter cannot carry a breakpoint, so a
+        // system content that is to end a stored prefix (cacheSystem) leads the input as a
+        // developer message, whose text part can
+        int cacheBreakpoints = this.modelInfo.getCacheBreakpoints();
+        int cacheBreakpointsUsed = 0;
+        if (cacheBreakpoints > 0) {
+            requestJson.putObject("prompt_cache_options").put("mode", "explicit");
+        }
+        ArrayNode input = NucleoJsonSerializer.createArrayNode();
         if (!instructions.isEmpty()) {
-            requestJson.put("instructions", instructions.toString().strip());
+            if (cacheBreakpoints > 0 && prepared.cacheSystem()) {
+                ObjectNode developer = input.addObject();
+                developer.put("type", "message");
+                developer.put("role", "developer");
+                ObjectNode part = developer.putArray("content").addObject();
+                part.put("type", "input_text");
+                part.put("text", instructions.toString().strip());
+                markPart(part);
+                cacheBreakpointsUsed++;
+            }
+            else {
+                requestJson.put("instructions", instructions.toString().strip());
+            }
         }
         List<ToolDefinitionBlock> toolDefinitions = prepared.allToolDefinitions();
         if (!toolDefinitions.isEmpty()) {
@@ -435,16 +521,18 @@ public abstract class AbstractOpenAIChatClient extends AbstractLLMClient<ObjectN
                 tools.add(functionTool(definition));
             }
         }
-        ArrayNode input = requestJson.putArray("input");
+        List<ArrayNode> rendered = new ArrayList<>();
+        List<Boolean> carriers = new ArrayList<>();
         for (ProcessedMessageData msg : prepared.turns()) {
+            ArrayNode turnItems = NucleoJsonSerializer.createArrayNode();
             String role = msg.role() == TurnRole.USER ? "user" : "assistant";
             String textType = msg.role() == TurnRole.USER ? "input_text" : "output_text";
             ArrayNode parts = NucleoJsonSerializer.createArrayNode();
             for (ContentBlock block : msg.contentBlocks()) {
                 switch (block) {
                     case ToolUseBlock use -> {
-                        flushMessage(input, role, parts);
-                        ObjectNode call = input.addObject();
+                        flushMessage(turnItems, role, parts);
+                        ObjectNode call = turnItems.addObject();
                         call.put("type", "function_call");
                         call.put("call_id", use.toolUseId());
                         call.put("name", use.toolName());
@@ -453,14 +541,14 @@ public abstract class AbstractOpenAIChatClient extends AbstractLLMClient<ObjectN
                     case ToolResultBlock result -> {
                         // A result answers a call by its id; it precedes the turn's own content,
                         // as the tool message does on the other dialect
-                        ObjectNode output = input.addObject();
+                        ObjectNode output = turnItems.addObject();
                         output.put("type", "function_call_output");
                         output.put("call_id", result.toolUseId());
                         output.put("output", result.resultJson());
                     }
                     case RedactedThinkingBlock reasoning -> {
-                        flushMessage(input, role, parts);
-                        input.add(reasoningItem(reasoning));
+                        flushMessage(turnItems, role, parts);
+                        turnItems.add(reasoningItem(reasoning));
                     }
                     default -> {
                         ObjectNode encoded = encodeBlock(block);
@@ -470,9 +558,39 @@ public abstract class AbstractOpenAIChatClient extends AbstractLLMClient<ObjectN
                     }
                 }
             }
-            flushMessage(input, role, parts);
+            flushMessage(turnItems, role, parts);
+            rendered.add(turnItems);
+            carriers.add(msg.role() == TurnRole.USER && !turnItems.isEmpty());
         }
+        // The breakpoint of a chosen turn goes on the last item the turn rendered, its user
+        // message or else its last tool result, so the stored prefix holds the whole turn
+        if (cacheBreakpoints > 0) {
+            for (int turn : cacheBreakpointTurns(prepared.turns(), carriers, cacheBreakpoints - cacheBreakpointsUsed)) {
+                ArrayNode turnItems = rendered.get(turn);
+                markResponsesItem((ObjectNode) turnItems.get(turnItems.size() - 1));
+            }
+        }
+        rendered.forEach(input::addAll);
+        requestJson.set("input", input);
         return requestJson;
+    }
+
+    /**
+     * Puts a cache breakpoint on a Responses input item of a user turn: on the last part of a
+     * message, or on a tool result, whose output string first becomes the one text part that
+     * can carry it.
+     */
+    private static void markResponsesItem(ObjectNode item) {
+        if ("function_call_output".equals(item.path("type").asText())) {
+            String output = item.get("output").asText();
+            ObjectNode part = item.putArray("output").addObject();
+            part.put("type", "input_text");
+            part.put("text", output);
+            markPart(part);
+            return;
+        }
+        JsonNode content = item.get("content");
+        markPart((ObjectNode) content.get(content.size() - 1));
     }
 
     /** The parts gathered so far as one message item of the turn's role; nothing when there are none. */
@@ -548,8 +666,9 @@ public abstract class AbstractOpenAIChatClient extends AbstractLLMClient<ObjectN
      * {@code status: incomplete} with {@code max_output_tokens} is the truncation the template
      * escalates; a {@code failed} response is refused with its error; a body without an
      * {@code output} array is not an answer. Usage is {@code input_tokens} as the grand total,
-     * {@code input_tokens_details.cached_tokens} the cached subset, {@code output_tokens} the
-     * output, reasoning included.
+     * {@code input_tokens_details.cached_tokens} the cached subset and
+     * {@code input_tokens_details.cache_write_tokens} the subset stored on this call,
+     * {@code output_tokens} the output, reasoning included.
      */
     <T> LLMResponse<T> finishResponses(LLMResponse<T> response, LLMRequest<T> request, String responseStr) {
         request.setOutputJson(responseStr);
@@ -581,7 +700,7 @@ public abstract class AbstractOpenAIChatClient extends AbstractLLMClient<ObjectN
             int outputTokens = usage.path("output_tokens").asInt(0);
             JsonNode inputDetails = usage.path("input_tokens_details");
             Integer cachedTokens = inputDetails.has("cached_tokens") ? inputDetails.path("cached_tokens").asInt() : null;
-            response.setUsage(new OpenAITokenLedger(getModel(), inputTokens, cachedTokens, outputTokens));
+            response.setUsage(new OpenAITokenLedger(getModel(), inputTokens, cachedTokens, inputDetails.path("cache_write_tokens").asInt(0), outputTokens));
         }
         StringBuilder text = new StringBuilder();
         List<ContentBlock> blocks = new ArrayList<>();

@@ -143,11 +143,11 @@ public class ConversationContext implements Serializable {
     private String priorSpecId;
     private boolean cacheMainObjective = true;
     /**
-     * Whether every outgoing turn is rendered with a cache breakpoint. A breakpoint says the
-     * prefix through that turn is stable and may be charged at the cached rate next time; that is
-     * a position on the wire, the end of a turn, never a property of what a turn says, so it is
-     * a policy of the conversation and not a flag a caller sets on a message it may not own
-     * whole. Instance-lifetime: the thinker that runs the conversation sets it each run.
+     * Whether the conversation caches its turns: the {@link Cacheability} of a message that
+     * states none. On, such a message is {@link Cacheability#AUTO} and the provider's client
+     * decides where its stored prefixes end. Off, it is {@link Cacheability#UNLIKELY}: no stored
+     * prefix ends on it, and a message that states a value of its own still gets what it asks
+     * for. Instance-lifetime: the thinker that runs the conversation sets it each run.
      */
     private transient boolean cacheTurns;
     private final List<Message> messages = new ArrayList<>();
@@ -274,7 +274,7 @@ public class ConversationContext implements Serializable {
         pendingTurn().setRequestedOutputTokens(tokens);
     }
 
-    /** Whether every outgoing turn renders with a cache breakpoint; see {@link #cacheTurns}. */
+    /** Whether the conversation caches its turns; see {@link #cacheTurns}. */
     public boolean isCacheTurns() {
         return cacheTurns;
     }
@@ -1177,8 +1177,9 @@ public class ConversationContext implements Serializable {
         String registrySection = processor.buildArtifactRegistrySection();
         if (!registrySection.isEmpty()) {
             // The registry is data derived from tool results, not instruction, so it is a
-            // user turn - never system content
-            result.add(ProcessedMessageData.textOnly(TurnRole.USER, registrySection, false));
+            // user turn - never system content. It is rewritten as artifacts arrive, so no
+            // stored prefix ends on it
+            result.add(ProcessedMessageData.textOnly(TurnRole.USER, registrySection, Cacheability.UNLIKELY));
         }
         return new PreparedConversation(systemText, cacheMainObjective, palette, result, registrySection.isEmpty() ? null : registrySection);
     }
@@ -1204,16 +1205,25 @@ public class ConversationContext implements Serializable {
                     processedBlocks.add(new TextBlock(instructions));
                 }
             }
-            return new ProcessedMessageData(TurnRole.of(message.getRole()), processedBlocks, cacheTurns || message.isEnableCache());
+            return new ProcessedMessageData(TurnRole.of(message.getRole()), processedBlocks, cacheabilityOf(message));
         }
         if (message instanceof IncomingMessage<?> incoming) {
             // the provider's blocks as they came back, so a tool call or a thinking block travels intact
             List<ContentBlock> blocks = (incoming.getContentBlocks() != null && !incoming.getContentBlocks().isEmpty())
                 ? incoming.getContentBlocks()
                 : List.of(new TextBlock(incoming.getRawContent()));
-            return new ProcessedMessageData(TurnRole.of(message.getRole()), blocks, message.isEnableCache());
+            return new ProcessedMessageData(TurnRole.of(message.getRole()), blocks, cacheabilityOf(message));
         }
-        return ProcessedMessageData.textOnly(TurnRole.of(message.getRole()), message.getRawContent(), message.isEnableCache());
+        return ProcessedMessageData.textOnly(TurnRole.of(message.getRole()), message.getRawContent(), cacheabilityOf(message));
+    }
+
+    /** What a message states about the prompt cache, or the conversation's default when it states nothing; see {@link #cacheTurns}. */
+    private Cacheability cacheabilityOf(Message message) {
+        Cacheability stated = message.getCacheability();
+        if (stated != null) {
+            return stated;
+        }
+        return cacheTurns ? Cacheability.AUTO : Cacheability.UNLIKELY;
     }
 
     /**

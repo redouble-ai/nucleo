@@ -109,12 +109,50 @@ public class AnthropicSDKClient extends AbstractLLMClient<ContentBlockParam> {
         return m;
     }
 
-    /** Text a cache-anchored block carries: the same string its default encoder wrapped. */
-    private String cacheAnchorText(ContentBlocks.ContentBlock block) {
-        if (block instanceof ContentBlocks.TextBlock tb) {
-            return tb.text();
+    /**
+     * The turns that carry a cache breakpoint, as indexes into {@code turns}: the default
+     * placement of {@link CacheBreakpointPlacement}, with no turn marked beside the end,
+     * since Anthropic itself looks back from a breakpoint for what an earlier request stored.
+     * A request with more {@code ALWAYS} turns than Anthropic accepts is refused by Anthropic,
+     * and the caller sees that refusal. An engineer who wants another placement overrides this.
+     *
+     * @param turns the prepared turns, in order
+     * @param carriers per turn, whether it rendered a block that can carry a breakpoint
+     * @param allowance the breakpoints left for turns on this request, out of the catalog
+     *                  entry's {@code cache_breakpoints}
+     */
+    protected Set<Integer> cacheBreakpointTurns(List<ProcessedMessageData> turns, List<Boolean> carriers, int allowance) {
+        return CacheBreakpointPlacement.turns(turns, carriers, allowance, 0);
+    }
+
+    /**
+     * Whether Anthropic lets this block carry a cache breakpoint: text that is not empty, an
+     * image, a document, a tool call, a tool result. A thinking block and an empty text block
+     * carry none.
+     */
+    private static boolean carriesCacheBreakpoint(ContentBlockParam param) {
+        if (param.isText()) {
+            return !param.asText().text().isEmpty();
         }
-        return Skill.renderBody(((ContentBlocks.SkillBlock) block).skill());
+        return param.isImage() || param.isDocument() || param.isToolUse() || param.isToolResult();
+    }
+
+    /** The same block with a cache breakpoint on it. */
+    private static ContentBlockParam withCacheBreakpoint(ContentBlockParam param) {
+        CacheControlEphemeral ephemeral = CacheControlEphemeral.builder().type(JsonValue.from("ephemeral")).build();
+        if (param.isText()) {
+            return ContentBlockParam.ofText(param.asText().toBuilder().cacheControl(ephemeral).build());
+        }
+        if (param.isImage()) {
+            return ContentBlockParam.ofImage(param.asImage().toBuilder().cacheControl(ephemeral).build());
+        }
+        if (param.isDocument()) {
+            return ContentBlockParam.ofDocument(param.asDocument().toBuilder().cacheControl(ephemeral).build());
+        }
+        if (param.isToolUse()) {
+            return ContentBlockParam.ofToolUse(param.asToolUse().toBuilder().cacheControl(ephemeral).build());
+        }
+        return ContentBlockParam.ofToolResult(param.asToolResult().toBuilder().cacheControl(ephemeral).build());
     }
 
 
@@ -217,12 +255,11 @@ public class AnthropicSDKClient extends AbstractLLMClient<ContentBlockParam> {
 
     /**
      * Builds SDK request parameters from the prepared conversation.
-     * Applies cache_control to turns marked for caching, up to Anthropic's limit of 4 breakpoints per request.
+     * Puts cache breakpoints on the system content and on the turns {@link #cacheBreakpointTurns} chooses.
      */
     protected MessageCreateParams buildMessageCreateParams(ConversationContext context, PreparedConversation prepared) {
-        // Track cache breakpoints (Anthropic allows max 4 per request)
+        // One breakpoint may go to the system content; the turns share what is left
         int cacheBreakpointsUsed = 0;
-        final int MAX_CACHE_BREAKPOINTS = 4;
 
         // Output budget must match what JobResources reserved locally - Anthropic/Bedrock pre-debit
         // this from the upstream TPM bucket. resolveWireMaxTokens folds the thinking budget into the
@@ -248,7 +285,7 @@ public class AnthropicSDKClient extends AbstractLLMClient<ContentBlockParam> {
         // already rendered by the shared pipeline. That is the only system content there is.
         // Cache strategy: ONE cache_control on the LAST system block marks the end of the
         // stable prefix (skills + tool defs + objective), taken when the conversation asks
-        // for it (cacheSystem). Counted before the turn loop so turn-level anchors cannot
+        // for it (cacheSystem). Counted before the turns are given theirs so they cannot
         // take the prefix's breakpoint - both the count and the apply key on the same
         // rendered blocks, so they cannot disagree.
         List<TextBlockParam> systemBlocks = new ArrayList<>();
@@ -258,34 +295,43 @@ public class AnthropicSDKClient extends AbstractLLMClient<ContentBlockParam> {
         if (prepared.hasSystemText()) {
             systemBlocks.add(TextBlockParam.builder().text(prepared.systemText()).build());
         }
-        boolean cacheSystemPrefix = !systemBlocks.isEmpty() && isCachingSupported() && prepared.cacheSystem();
+        int cacheBreakpoints = getModel().getCacheBreakpoints();
+        boolean cacheSystemPrefix = !systemBlocks.isEmpty() && isCachingSupported() && cacheBreakpoints > 0 && prepared.cacheSystem();
         if (cacheSystemPrefix) {
             cacheBreakpointsUsed++;
         }
 
-        // Render each turn
-        for (ProcessedMessageData msg : prepared.turns()) {
-            boolean shouldCache = isCachingSupported() && msg.cacheEnabled() && cacheBreakpointsUsed < MAX_CACHE_BREAKPOINTS;
+        // Render each turn, then put the cache breakpoints where cacheBreakpointTurns says:
+        // on the LAST block of a chosen turn that can carry one, so the stored prefix holds
+        // the whole turn and a turn of tool results can end it
+        List<ProcessedMessageData> turns = prepared.turns();
+        List<List<ContentBlockParam>> rendered = new ArrayList<>();
+        List<Boolean> carriers = new ArrayList<>();
+        for (ProcessedMessageData msg : turns) {
             List<ContentBlockParam> blocks = new ArrayList<>();
-            boolean appliedCache = false;
             for (ContentBlocks.ContentBlock block : msg.contentBlocks()) {
                 ContentBlockParam param = encodeBlock(block);
-                if (param == null) {
-                    continue;
+                if (param != null) {
+                    blocks.add(param);
                 }
-                // Cache anchor: the first text- or skill-derived block in a cacheable message carries the
-                // breakpoint. Those are the stable, worth-caching parts; image/tool/thinking params never
-                // anchor. Rebuild that one block's text param with cache_control.
-                if (shouldCache && !appliedCache && (block instanceof ContentBlocks.TextBlock || block instanceof ContentBlocks.SkillBlock)) {
-                    param = ContentBlockParam.ofText(TextBlockParam.builder()
-                            .text(cacheAnchorText(block))
-                            .cacheControl(CacheControlEphemeral.builder().type(JsonValue.from("ephemeral")).build())
-                            .build());
-                    appliedCache = true;
-                    cacheBreakpointsUsed++;
-                }
-                blocks.add(param);
             }
+            rendered.add(blocks);
+            carriers.add(blocks.stream().anyMatch(AnthropicSDKClient::carriesCacheBreakpoint));
+        }
+        if (isCachingSupported() && cacheBreakpoints > 0) {
+            for (int turn : cacheBreakpointTurns(turns, carriers, cacheBreakpoints - cacheBreakpointsUsed)) {
+                List<ContentBlockParam> blocks = rendered.get(turn);
+                for (int i = blocks.size() - 1; i >= 0; i--) {
+                    if (carriesCacheBreakpoint(blocks.get(i))) {
+                        blocks.set(i, withCacheBreakpoint(blocks.get(i)));
+                        break;
+                    }
+                }
+            }
+        }
+        for (int t = 0; t < turns.size(); t++) {
+            ProcessedMessageData msg = turns.get(t);
+            List<ContentBlockParam> blocks = rendered.get(t);
             if (blocks.isEmpty()) {
                 continue;
             }

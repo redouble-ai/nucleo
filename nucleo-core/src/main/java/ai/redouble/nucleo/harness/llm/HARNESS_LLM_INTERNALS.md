@@ -76,10 +76,10 @@ The three upstream signals (429, 529, plain 5xx) share the sealed parent `Upstre
 
 | Class | Provider | Native Tools | Notable Features |
 |-------|----------|:---:|------------------|
-| `AnthropicSDKClient` | Anthropic Direct | Yes | Streaming, prompt caching (4 breakpoints), extended thinking |
+| `AnthropicSDKClient` | Anthropic Direct | Yes | Streaming, prompt caching by breakpoints, extended thinking |
 | `AnthropicBedrockSDKClient` | AWS Bedrock (Claude) | Yes | Anthropic SDK with Bedrock backend, prompt caching |
 | `BedrockConverseClient` | AWS Bedrock (all models) | No | Converse API, supports Nova, Llama, Mistral, etc. |
-| `OpenAISDKClient` | OpenAI | Yes | OpenAI's own client; streaming, native tools, the answer bound to a JSON object, automatic cache-read tracking |
+| `OpenAISDKClient` | OpenAI | Yes | OpenAI's own client; streaming, native tools, the answer bound to a JSON object, prompt caching by breakpoints on the models that take them |
 | `OpenAICompatibleClient` | Any OpenAI-dialect endpoint | Yes | The same dialect over the framework's HTTP client, lenient about what comes back |
 
 A concrete client (`AbstractLLMClient<B>`) carries only its provider difference: how it encodes each content block, how it classifies the provider's errors, its auth/transport bootstrap, and its token-accounting shape. Cross-provider machinery lives in the abstract template - the rate-limit lifecycle, the request/response log envelope and caller attribution, `resolveWireMaxTokens` (the single source for both the wire `max_tokens` and the response truncation ceiling), and `setSuccessful`/provider stamping after `doSingleResponse`.
@@ -195,14 +195,14 @@ Both Bedrock-backed clients (`BedrockConverseClient`, `BedrockCohereEmbeddingsCl
 
 Cache-cost multipliers are per-provider (see `ModelSpec.getEffectiveCacheReadMultiplier()` / `getEffectiveCacheWriteMultiplier()`); a deployment's usage recorder applies them when it computes billable input tokens. What a response reports is one `TokenLedger` (`LLMResponse.getUsage()`), built by the provider's client from the provider's own usage record, so each provider's shape is normalized once, in its module: input is always the total the model read, cache reads and writes its subsets, a counter the provider does not report null ([Tokens](../tokens/PACKAGE.md)).
 
-**Anthropic / Bedrock-Anthropic** (`AnthropicSDKClient`, `AnthropicBedrockSDKClient`) - explicit breakpoint model. Write costs 125% of normal input tokens, reads cost 10%. Up to 4 breakpoints per request. One breakpoint on the last system block covers the whole stable prefix - tool definitions, skills, and the main objective - and is taken when the conversation asks for it (`cacheMainObjective`, default true); the rest go to turns where `msg.cacheEnabled()` is set, in order. Both the count and the apply key on the same rendered system blocks, so they cannot disagree. Anthropic reports usage as three additive counters (`input_tokens`, `cache_creation_input_tokens`, `cache_read_input_tokens`); `AnthropicTokenLedger` sums them into the input the model read.
+**Anthropic / Bedrock-Anthropic** (`AnthropicSDKClient`, `AnthropicBedrockSDKClient`) - explicit breakpoint model. Write costs 125% of normal input tokens, reads cost 10%. As many breakpoints per request as the catalog entry's `cache_breakpoints`, four on the shipped entries. One breakpoint on the last system block covers the whole stable prefix - tool definitions, skills, and the main objective - and is taken when the conversation asks for it (`cacheMainObjective`, default true); the rest go to the turns `cacheBreakpointTurns` chooses from each turn's `Cacheability`: every `ALWAYS` turn, the last turn a prefix may end on, `PREFERRED` turns from the latest backwards, the first turn, and none on or after a `NEVER`. Both the count and the apply key on the same rendered system blocks, so they cannot disagree. Anthropic reports usage as three additive counters (`input_tokens`, `cache_creation_input_tokens`, `cache_read_input_tokens`); `AnthropicTokenLedger` sums them into the input the model read.
 
 ```java
 context.setCacheMainObjective(true);  // Cache system prefix (default: true)
-message.setCache(true);               // Cache a specific message block
+message.setCacheability(Cacheability.PREFERRED);  // A stored prefix ending on this message is worth more than usual
 ```
 
-**OpenAI** (`OpenAISDKClient`) - automatic caching, no breakpoints. Reads are billed at ~50% (varies by model family); no write overhead. OpenAI reports `prompt_tokens` as the grand total with `prompt_tokens_details.cached_tokens` as a subset; `OpenAITokenLedger` takes them so, with cache writes at zero.
+**OpenAI** (`AbstractOpenAIChatClient`, both dialects and both transports) - two kinds of model, told apart by the catalog entry's `cache_breakpoints`. A model with them (GPT-5.6 and later) is sent `prompt_cache_options.mode: explicit` and a `prompt_cache_breakpoint` on the content parts `cacheBreakpointTurns` chooses from each turn's `Cacheability`, in the same order as on Anthropic plus the turn before the end, so nothing is stored but what is marked; the placement and what carries a breakpoint are in [Inside conversations](../conversation/HARNESS_CONVERSATION_INTERNALS.md). A model without them is sent neither and caches by itself, with no write overhead and nothing a conversation can keep out of the cache. OpenAI reports `prompt_tokens` (`input_tokens` on Responses) as the grand total, with `cached_tokens` and `cache_write_tokens` in its details as subsets; `OpenAITokenLedger` takes them so, the writes at zero when the response carries none.
 
 **Bedrock Converse** (`BedrockConverseClient`, for Nova/Llama/Titan/Mistral) - same additive shape as Anthropic, different AWS field names (`cacheWriteInputTokens` / `cacheReadInputTokens` on `TokenUsage`), summed by `BedrockTokenLedger`. The shipped catalog sets both multipliers to 1.0 for this provider.
 

@@ -47,7 +47,7 @@ public class OpenAIRequestShapeTest {
         assertEquals("system", roleOf(messages, OBJECTIVE),
                 "as system content, expressed the way this provider carries it");
         assertEquals(0, indexOf(messages, OBJECTIVE),
-                "at the front, where OpenAI's automatic prefix caching keys");
+                "at the front, where every stored prefix begins");
         assertEquals(3, messages.size(),
                 "every prepared part reaches the wire: system (objective), assistant turn, user turn");
     }

@@ -45,7 +45,7 @@ class AnthropicProviderModuleTest {
     void theFragmentsEntriesAreAnthropicSpecs() {
         ModelSpec spec = Models.spec("claude-opus-5-direct");
         assertInstanceOf(AnthropicModelSpec.class, spec);
-        assertEquals(4, ((AnthropicModelSpec) spec).getCacheBreakpoints(), "the provider default reaches every entry");
+        assertEquals(4, spec.getCacheBreakpoints(), "the provider default reaches every entry");
     }
 
     @Test

@@ -25,7 +25,7 @@ public class MessageSnapshot  {
     private String role;
     private String messageId;
     private Instant timestamp;
-    private boolean enableCache;
+    private Cacheability cacheability;
     private boolean compactable = true;  // Whether this message can be compacted
     private boolean appAuthored = false;  // Application-injected context on the user channel
     // For OutgoingMessage
@@ -40,7 +40,7 @@ public class MessageSnapshot  {
         snapshot.role = message.getRole();
         snapshot.messageId = message.getMessageId();
         snapshot.timestamp = message.getTimestamp();
-        snapshot.enableCache = message.isEnableCache();
+        snapshot.cacheability = message.getCacheability();
         snapshot.compactable = message.isCompactable();
         snapshot.appAuthored = message.isAppAuthored();
         if (message instanceof OutgoingMessage<?> outgoing) {
@@ -84,7 +84,7 @@ public class MessageSnapshot  {
             message.setRole(role);
             message.setMessageId(messageId);
             message.setTimestamp(timestamp);
-            message.setCache(enableCache);
+            message.setCacheability(cacheability);
             message.setCompactable(compactable);
             message.setAppAuthored(appAuthored);
             message.setRequestedOutputTokens(requestedOutputTokens);
@@ -149,7 +149,7 @@ public class MessageSnapshot  {
             IncomingMessage<?> message = new IncomingMessage<>(responseHandler);
             message.setMessageId(messageId);
             message.setTimestamp(timestamp);
-            message.setCache(enableCache);
+            message.setCacheability(cacheability);
             message.setCompactable(compactable);
             message.overwriteRawContent(rawContent);
             message.setActualOutputTokens(actualOutputTokens);
@@ -190,11 +190,24 @@ public class MessageSnapshot  {
     public void setTimestamp(Instant timestamp) {
         this.timestamp = timestamp;
     }
-    public boolean isEnableCache() {
-        return enableCache;
+    public Cacheability getCacheability() {
+        return cacheability;
     }
+    public void setCacheability(Cacheability cacheability) {
+        this.cacheability = cacheability;
+    }
+    /**
+     * Reads the boolean a conversation stored before {@link Cacheability} existed: {@code true}
+     * asked for a breakpoint on the message while the provider's allowance lasted, which is
+     * {@link Cacheability#PREFERRED}; {@code false} stated nothing. It is never read as
+     * {@link Cacheability#ALWAYS}: that value is only ever an engineer's explicit statement, and
+     * a stored conversation holding many flagged messages must stay sendable. There is no
+     * getter, so the boolean is never written again.
+     */
     public void setEnableCache(boolean enableCache) {
-        this.enableCache = enableCache;
+        if (enableCache) {
+            this.cacheability = Cacheability.PREFERRED;
+        }
     }
     public boolean isCompactable() {
         return compactable;

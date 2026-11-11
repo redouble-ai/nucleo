@@ -201,56 +201,68 @@ legend (`ConversationContext.SCHEMA_NOTATION_GUIDANCE`) explains.
 
 ---
 
-## Prompt Caching (Anthropic)
+## Prompt Caching
 
-Anthropic's prompt caching reduces costs by 90% for repeated context. Cache writes cost 125%, reads cost 10%.
+A provider's cache stores a prefix of a request, and a later request that repeats the prefix reads it at a fraction of the input price. On Anthropic a write costs 125% and a read 10%; on an OpenAI model that takes breakpoints a write costs 125% and a read 10% as well.
 
 ### Cache Control
 
 ```java
-context.setCacheMainObjective(true);  // Cache system prompt
-message.setCache(true);                // Cache this message
+context.setCacheMainObjective(true);              // Cache the system content
+context.setCacheTurns(true);                      // A message that states nothing is AUTO
+message.setCacheability(Cacheability.PREFERRED);  // What this one message states
 ```
 
-### Breakpoint Limit
+A message carries a `Cacheability` or none. `ConversationContext` resolves it when it
+renders a turn - the message's own value, else `AUTO` with `cacheTurns` and `UNLIKELY`
+without - and hands it to the provider's client on `ProcessedMessageData.cacheability()`,
+which is never null. The conversation decides no placement; that is the client's alone.
 
-Anthropic allows **4 cache breakpoints per request**. `AnthropicSDKClient.buildMessageCreateParams`
-enforces this. It first spends one breakpoint on the system prefix, when there are system
-blocks (admitted skills, then the main objective), the backend supports caching and the
-prepared conversation asks for it (`cacheSystem`). Then it walks the prepared turns in
-order and anchors a breakpoint on the first `TextBlock` or `SkillBlock` of each turn marked
-for caching, while breakpoints remain. Abridged from the client:
+### Breakpoint Placement
 
-```java
-int cacheBreakpointsUsed = 0;
-final int MAX_CACHE_BREAKPOINTS = 4;
+How many breakpoints one request may carry is the catalog entry's `cache_breakpoints`
+(`ModelSpec.getCacheBreakpoints()`): four on the shipped Anthropic entries and on the
+OpenAI entries that take breakpoints, zero on an entry whose endpoint caches by itself or
+not at all, where a client marks nothing.
 
-boolean cacheSystemPrefix = !systemBlocks.isEmpty() && isCachingSupported() && prepared.cacheSystem();
-if (cacheSystemPrefix) {
-    cacheBreakpointsUsed++;
-}
+The default choice of turns is one method, `CacheBreakpointPlacement.turns(turns,
+carriers, allowance, trail)`, shared by the clients. A client first spends one breakpoint
+on the system content when the prepared conversation asks for it (`cacheSystem`), then
+gives the method what is left. The method spends it in this order, stopping when nothing is
+left:
 
-for (ProcessedMessageData msg : prepared.turns()) {
-    boolean shouldCache = isCachingSupported() && msg.cacheEnabled() && cacheBreakpointsUsed < MAX_CACHE_BREAKPOINTS;
-    boolean appliedCache = false;
-    for (ContentBlocks.ContentBlock block : msg.contentBlocks()) {
-        ContentBlockParam param = encodeBlock(block);
-        // ...
-        if (shouldCache && !appliedCache && (block instanceof ContentBlocks.TextBlock || block instanceof ContentBlocks.SkillBlock)) {
-            // rebuild this one block as a text param carrying cache_control (ephemeral)
-            appliedCache = true;
-            cacheBreakpointsUsed++;
-        }
-    }
-}
+1. every `ALWAYS` turn, whatever their number - what the provider does with more than it
+   takes is the caller's to see
+2. the end of the conversation: the last turn whose value lets a prefix end on it
+3. the `trail` turns before the end that a prefix may end on
+4. `PREFERRED` turns, from the latest backwards
+5. the first turn of the conversation
 
-// after the turns: when cacheSystemPrefix, the LAST system block is rebuilt with cache_control
-```
+Nothing is chosen on or after the first `NEVER` turn, and a turn the client says cannot
+carry a breakpoint is passed over. Each client's `cacheBreakpointTurns` calls the method
+and is protected: a client subclass that wants another placement overrides it.
 
-Image, tool and thinking blocks never anchor a breakpoint. The system breakpoint is
-counted before the turn loop, so turn anchors cannot take it, and it is applied to the last
-system block, which covers the whole stable prefix: tool definitions, skills and the main
-objective.
+**Anthropic** (`AnthropicSDKClient.buildMessageCreateParams`). The system breakpoint goes
+on the last system block, which covers the whole stable prefix: tool definitions, skills
+and the main objective. The trail is zero, since Anthropic itself looks back from a
+breakpoint for what an earlier request stored. On a chosen turn the breakpoint goes on the
+last block that can carry one - text that is not empty, image, document, tool call, tool
+result - so the stored prefix holds the whole turn and a turn of tool results can end it.
+Thinking blocks carry none. A request with more `ALWAYS` turns than Anthropic accepts is
+refused by Anthropic.
+
+**OpenAI** (`AbstractOpenAIChatClient`, both dialects). A model with `cache_breakpoints`
+is sent `prompt_cache_options.mode: explicit`, so OpenAI stores nothing by itself, and a
+`prompt_cache_breakpoint` on each chosen content part. The trail is one: OpenAI looks an
+earlier entry up only where the incoming request carries a breakpoint, so the end of the
+previous request is marked again. Only a user turn carries a breakpoint: on its last
+message or item, which is its text or image part, or else its last tool result, whose
+string becomes the one text part that can carry it. On Chat Completions the system
+breakpoint goes on the last system message, its content string becoming one text part. On
+Responses the `instructions` parameter cannot carry a breakpoint, so a system content that
+is to end a stored prefix leads the input as a `developer` message instead. OpenAI accepts
+more breakpoints than it writes per request and writes the latest ones. A model without
+`cache_breakpoints` is sent none of this and caches by itself.
 
 ### Cache Metrics
 
@@ -266,12 +278,14 @@ usage.cacheHitRate();       // 0.0-1.0, null when the provider reports no cache
 
 ### What Gets Cached
 
-| Content | Typical Strategy |
+| Content | What to state |
 |---------|------------------|
-| System prompt | Always cache (`cacheMainObjective=true`) |
-| Tool definitions | Cached with system prompt |
-| Document context | Cache if reused across turns |
-| Recent messages | Usually don't cache (changing) |
+| System prompt | Cached by default (`cacheMainObjective=true`) |
+| Tool definitions | Cached with the system prompt |
+| A document many conversations share | `PREFERRED` on the message that carries it |
+| The turns of a growing conversation | Nothing: `cacheTurns` makes them `AUTO` and the end is stored on every call |
+| A message rewritten on every call | `UNLIKELY`, and placed last |
+| Content that must not be stored | `NEVER` |
 
 ---
 

@@ -26,7 +26,7 @@ import java.util.*;
 public class OutgoingMessage<T> implements Message, Serializable {
     private String messageId;
     private Instant timestamp;
-    protected boolean enableCache = false;
+    protected Cacheability cacheability;
     protected transient ResponseHandler<T> responseHandler;
     private String role = "user";
     private final List<ContentBlock> contentBlocks = new ArrayList<>();
@@ -102,12 +102,12 @@ public class OutgoingMessage<T> implements Message, Serializable {
     }
 
     // Cache control
-    public boolean isEnableCache() {
-        return enableCache;
+    public Cacheability getCacheability() {
+        return cacheability;
     }
 
-    public void setCache(boolean enableCache) {
-        this.enableCache = enableCache;
+    public void setCacheability(Cacheability cacheability) {
+        this.cacheability = cacheability;
     }
 
     // Content addition methods
@@ -279,7 +279,7 @@ public class OutgoingMessage<T> implements Message, Serializable {
         OutgoingMessage<T> copy = new OutgoingMessage<>(original.responseHandler);
         copy.messageId = original.messageId;
         copy.timestamp = original.timestamp;
-        copy.enableCache = original.enableCache;
+        copy.cacheability = original.cacheability;
         copy.role = original.role;
         copy.requestedOutputTokens = original.requestedOutputTokens;
         copy.compactable = original.compactable;

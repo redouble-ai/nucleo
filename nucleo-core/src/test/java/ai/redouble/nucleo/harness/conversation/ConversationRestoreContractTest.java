@@ -81,6 +81,33 @@ class ConversationRestoreContractTest {
     }
 
     @Test
+    void whatAMessageStatesAboutTheCacheSurvivesTheSnapshotRoundTrip() {
+        ConversationContext conversation = conversationWithToolExchange();
+        conversation.getMessages().get(0).setCacheability(Cacheability.PREFERRED);
+        conversation.getMessages().get(1).setCacheability(Cacheability.NEVER);
+        ConversationContext restored = conversation.toSnapshot().toConversation(StringResponseHandler.instance);
+        assertEquals(Cacheability.PREFERRED, restored.getMessages().get(0).getCacheability(), "an outgoing message's value is restored");
+        assertEquals(Cacheability.NEVER, restored.getMessages().get(1).getCacheability(), "an incoming message's value is restored");
+        assertNull(restored.getMessages().get(2).getCacheability(),
+                "a message that stated nothing is restored stating nothing, so it still takes its conversation's default");
+    }
+
+    @Test
+    void aBooleanStoredBeforeCacheabilityIsReadAsPreferredOrAsNothing_andNeverWrittenAgain() throws Exception {
+        MessageSnapshot flagged = ai.redouble.nucleo.harness.schema.NucleoJsonSerializer.parse(
+                "{\"message_type\":\"outgoing\",\"role\":\"user\",\"enable_cache\":true}", MessageSnapshot.class);
+        assertEquals(Cacheability.PREFERRED, flagged.getCacheability(),
+                "a stored true asked for a breakpoint while the allowance lasted, which is what PREFERRED states;"
+                        + " ALWAYS is only ever an engineer's own statement");
+        MessageSnapshot unflagged = ai.redouble.nucleo.harness.schema.NucleoJsonSerializer.parse(
+                "{\"message_type\":\"outgoing\",\"role\":\"user\",\"enable_cache\":false}", MessageSnapshot.class);
+        assertNull(unflagged.getCacheability(), "a stored false stated nothing");
+        String written = ai.redouble.nucleo.harness.schema.NucleoJsonSerializer.writeCompact(flagged);
+        assertFalse(written.contains("enable_cache"), "the boolean is read and never written: " + written);
+        assertTrue(written.contains("\"cacheability\":\"PREFERRED\""), "the value is stored by name: " + written);
+    }
+
+    @Test
     void theArtifactRegistrySurvivesTheSnapshotRoundTrip() {
         ConversationContext conversation = conversationWithToolExchange();
         ai.redouble.nucleo.harness.artifacts.WebPageArtifact artifact = new ai.redouble.nucleo.harness.artifacts.WebPageArtifact();

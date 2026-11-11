@@ -49,13 +49,14 @@ public interface Message {
      */
     void setTimestamp(Instant timestamp);
     /**
-     * Checks if this message should be cached by the LLM provider.
+     * What this message states about storing it in the provider's prompt cache, or null when
+     * it states nothing and takes its conversation's default.
      */
-    boolean isEnableCache();
+    Cacheability getCacheability();
     /**
-     * Sets whether this message should be cached by the LLM provider.
+     * States how cacheable this message is; null withdraws the statement.
      */
-    void setCache(boolean enableCache);
+    void setCacheability(Cacheability cacheability);
 
     /**
      * Checks if this message can be compacted during context window management.

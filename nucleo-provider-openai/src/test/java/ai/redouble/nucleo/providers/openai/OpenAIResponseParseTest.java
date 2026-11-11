@@ -46,7 +46,7 @@ public class OpenAIResponseParseTest {
                 "prompt_tokens is the grand total on this provider");
         assertEquals(100, response.getUsage().cacheReadTokens(),
                 "cached_tokens is a subset of prompt_tokens, not additive");
-        assertEquals(0, response.getUsage().cacheWriteTokens(), "OpenAI bills no cache writes: zero is the fact");
+        assertEquals(0, response.getUsage().cacheWriteTokens(), "a response that reports no cache write stored nothing: zero is the fact");
         assertEquals(20, response.getUsage().uncachedInputTokens(), "the uncached part is the total less the cached subset");
         assertEquals(30, response.getUsage().outputTokens());
         assertEquals(LLMStopReason.END_TURN, response.getStopReason(),

@@ -70,16 +70,31 @@ class ConversationTurnTest {
     }
 
     @Test
-    void theCachePolicyRendersEveryOutgoingTurnWithABreakpoint() {
+    void aMessageThatStatesNothingTakesTheConversationsCacheDefault() {
         ConversationContext conversation = TestModels.conversation(TestModels.small());
         conversation.addText("first");
         conversation.setResponseHandler(StringResponseHandler.instance);
-        assertFalse(conversation.render(new GenericContentFormatter(), false).turns().getFirst().cacheEnabled(),
-                "without the policy a turn renders uncached unless its message says otherwise");
+        assertEquals(Cacheability.UNLIKELY, conversation.render(new GenericContentFormatter(), false).turns().getFirst().cacheability(),
+                "a conversation that does not cache its turns renders a silent message UNLIKELY");
         conversation.setCacheTurns(true);
-        assertTrue(conversation.render(new GenericContentFormatter(), false).turns().getFirst().cacheEnabled(),
-                "with the policy every outgoing turn carries the breakpoint, whoever added its blocks");
-        assertFalse(conversation.getLastOutgoingMessage().isEnableCache(), "the policy is the conversation's, not written onto the message");
+        assertEquals(Cacheability.AUTO, conversation.render(new GenericContentFormatter(), false).turns().getFirst().cacheability(),
+                "one that caches its turns renders it AUTO, whoever added its blocks");
+        assertNull(conversation.getLastOutgoingMessage().getCacheability(), "the default is the conversation's, not written onto the message");
+    }
+
+    @Test
+    void aMessagesOwnCacheabilityWinsOverTheConversationsDefault() {
+        ConversationContext conversation = TestModels.conversation(TestModels.small());
+        conversation.addText("first");
+        conversation.setResponseHandler(StringResponseHandler.instance);
+        conversation.getLastOutgoingMessage().setCacheability(Cacheability.NEVER);
+        conversation.setCacheTurns(true);
+        assertEquals(Cacheability.NEVER, conversation.render(new GenericContentFormatter(), false).turns().getFirst().cacheability(),
+                "what the message states is what the client is handed, with the conversation caching its turns");
+        conversation.setCacheTurns(false);
+        conversation.getLastOutgoingMessage().setCacheability(Cacheability.ALWAYS);
+        assertEquals(Cacheability.ALWAYS, conversation.render(new GenericContentFormatter(), false).turns().getFirst().cacheability(),
+                "and without it: a message that asks by name is heard in a conversation that caches nothing else");
     }
 
     @Test

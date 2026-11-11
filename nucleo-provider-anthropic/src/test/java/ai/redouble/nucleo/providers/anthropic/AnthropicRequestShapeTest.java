@@ -111,29 +111,168 @@ public class AnthropicRequestShapeTest {
     }
 
     @Test
-    void cacheBreakpointsAreCappedAtFour_spentInOrder() {
-        // Anthropic allows 4 breakpoints per request. With the system prefix taking the
-        // first, only the three EARLIEST cache-flagged turns get one; the rest are
-        // silently unmarked rather than overflowing the request.
+    void aConversationThatCachesItsTurnsCarriesABreakpointOnItsFirstAndItsLastTurn_theLastMovingForward() {
+        // A growing conversation is cheap only when a stored prefix ends at its end on every
+        // request: each request then reads what the previous one sent
+        for (int length : List.of(3, 6)) {
+            MessageCreateParams params = build(true, conversation -> {
+                conversation.setCacheTurns(true);
+                addTurns(conversation, length);
+            });
+            assertTrue(lastSystemBlockIsCached(params), "the system prefix keeps its breakpoint");
+            assertEquals(List.of(ASSISTANT_TURN, "CACHE-TURN-" + (length - 1) + ";"), breakpointTurns(params),
+                    "the original request and the end of the conversation, and no turn between them (" + length + " turns added)");
+        }
+    }
+
+    @Test
+    void aConversationThatDoesNotCacheItsTurnsCarriesABreakpointOnlyWhereAMessageAsksByName() {
+        assertEquals(List.of(), breakpointTurns(build(true, conversation -> addTurns(conversation, 4))),
+                "every turn is UNLIKELY, so no stored prefix ends on one");
         MessageCreateParams params = build(true, conversation -> {
-            for (int i = 0; i < 6; i++) {
-                OutgoingMessage<String> turn = message("user", "CACHE-TURN-" + i);
-                turn.setCache(true);
-                conversation.getMessages().add(turn);
+            addTurns(conversation, 4);
+            turn(conversation, 1).setCacheability(Cacheability.ALWAYS);
+            turn(conversation, 2).setCacheability(Cacheability.PREFERRED);
+        });
+        assertEquals(List.of("CACHE-TURN-1;", "CACHE-TURN-2;"), breakpointTurns(params),
+                "a message that states ALWAYS or PREFERRED is heard in a conversation that caches nothing else");
+    }
+
+    @Test
+    void everyAlwaysTurnCarriesABreakpoint_whateverTheirNumber() {
+        // How many breakpoints a request may carry is Anthropic's rule; a request that
+        // carries more is refused by Anthropic, and the caller sees that refusal. The
+        // client drops none of what the caller asked for by name
+        MessageCreateParams params = build(true, conversation -> {
+            conversation.setCacheTurns(true);
+            addTurns(conversation, 6);
+            for (int i = 0; i < 5; i++) {
+                turn(conversation, i).setCacheability(Cacheability.ALWAYS);
             }
         });
-        assertTrue(lastSystemBlockIsCached(params), "the system prefix keeps the first breakpoint");
-        List<MessageParam> turns = params.messages();
-        for (int i = 0; i < 6; i++) {
-            boolean cached = turns.get(indexOfTurnContaining(turns, "CACHE-TURN-" + i))
-                    .toString().contains("CacheControlEphemeral");
-            if (i < 3) {
-                assertTrue(cached, "flagged turn " + i + " takes one of the remaining breakpoints, in order");
+        assertEquals(List.of("CACHE-TURN-0;", "CACHE-TURN-1;", "CACHE-TURN-2;", "CACHE-TURN-3;", "CACHE-TURN-4;"), breakpointTurns(params),
+                "all five ALWAYS turns, and with the allowance spent neither the end nor the first turn");
+    }
+
+    @Test
+    void whatIsLeftAfterTheEndGoesToPreferredTurnsFromTheLatestBackwards_thenToTheFirstTurn() {
+        java.util.function.Consumer<ConversationContext> threePreferred = conversation -> {
+            conversation.setCacheTurns(true);
+            addTurns(conversation, 6);
+            for (int i = 0; i < 3; i++) {
+                turn(conversation, i).setCacheability(Cacheability.PREFERRED);
             }
-            else {
-                assertTrue(!cached, "flagged turn " + i + " is beyond the provider's limit and stays unmarked");
+        };
+        assertEquals(List.of("CACHE-TURN-1;", "CACHE-TURN-2;", "CACHE-TURN-5;"), breakpointTurns(build(true, threePreferred)),
+                "three are left beside the system prefix: the end, then the two latest PREFERRED turns");
+        assertEquals(List.of("CACHE-TURN-0;", "CACHE-TURN-1;", "CACHE-TURN-2;", "CACHE-TURN-5;"), breakpointTurns(build(false, threePreferred)),
+                "with the system prefix uncached a fourth is left, and it goes to the third PREFERRED turn before the first turn");
+        MessageCreateParams onePreferred = build(true, conversation -> {
+            conversation.setCacheTurns(true);
+            addTurns(conversation, 6);
+            turn(conversation, 2).setCacheability(Cacheability.PREFERRED);
+        });
+        assertEquals(List.of(ASSISTANT_TURN, "CACHE-TURN-2;", "CACHE-TURN-5;"), breakpointTurns(onePreferred),
+                "the first turn takes what the PREFERRED turns leave");
+    }
+
+    @Test
+    void noBreakpointSitsOnOrAfterANeverTurn() {
+        MessageCreateParams params = build(true, conversation -> {
+            conversation.setCacheTurns(true);
+            addTurns(conversation, 6);
+            turn(conversation, 2).setCacheability(Cacheability.NEVER);
+            turn(conversation, 4).setCacheability(Cacheability.ALWAYS);
+        });
+        assertEquals(List.of(ASSISTANT_TURN, "CACHE-TURN-1;"), breakpointTurns(params),
+                "a prefix ending on or after the NEVER turn would contain it, so the end is the turn"
+                        + " before it and the ALWAYS turn after it goes unstored");
+    }
+
+    @Test
+    void anUnlikelyLastTurnLeavesTheEndOnTheTurnBeforeIt() {
+        MessageCreateParams params = build(true, conversation -> {
+            conversation.setCacheTurns(true);
+            addTurns(conversation, 4);
+            turn(conversation, 3).setCacheability(Cacheability.UNLIKELY);
+        });
+        assertEquals(List.of(ASSISTANT_TURN, "CACHE-TURN-2;"), breakpointTurns(params),
+                "an UNLIKELY turn rides inside a stored prefix and never ends one");
+    }
+
+    @Test
+    void theBreakpointSitsOnTheLastBlockOfItsTurn() {
+        MessageCreateParams params = build(true, conversation -> {
+            conversation.setCacheTurns(true);
+            OutgoingMessage<String> twoBlocks = message("user", "FIRST-BLOCK");
+            twoBlocks.addText("LAST-BLOCK");
+            conversation.getMessages().add(twoBlocks);
+        });
+        List<ContentBlockParam> blocks = params.messages().getLast().content().asBlockParams();
+        assertTrue(blocks.getFirst().toString().contains("FIRST-BLOCK") && blocks.getFirst().asText().cacheControl().isEmpty(),
+                "the first block carries no breakpoint: a prefix ending there would leave the rest of the turn outside it");
+        assertTrue(blocks.getLast().asText().cacheControl().isPresent(), "the last block carries it, so the stored prefix holds the whole turn");
+    }
+
+    @Test
+    void aTurnOfToolResultsOnlyCanEndAStoredPrefix() {
+        // A results turn with no text of its own: no response handler, so no instructions
+        // are appended to it. Such a turn has no text block for a breakpoint to sit on
+        MessageCreateParams params = build(true, conversation -> {
+            IncomingMessage<String> call = new IncomingMessage<>(StringResponseHandler.instance);
+            call.setContentBlocks(List.of(new ai.redouble.nucleo.harness.conversation.ContentBlocks.ToolUseBlock("toolu_1", TOOL_NAME, "{}")));
+            conversation.getMessages().add(call);
+            OutgoingMessage<String> results = new OutgoingMessage<>(null);
+            results.setRole("user");
+            results.addToolResult("toolu_1", "RESULT-MARKER", false);
+            results.setCacheability(Cacheability.ALWAYS);
+            conversation.getMessages().add(results);
+            conversation.getMessages().add(message("user", "CACHE-TURN-0;"));
+        });
+        List<MessageParam> turns = params.messages();
+        List<ContentBlockParam> blocks = turns.get(indexOfTurnContaining(turns, "RESULT-MARKER")).content().asBlockParams();
+        assertEquals(1, blocks.size(), "the turn is its tool result and nothing else");
+        assertTrue(blocks.getLast().isToolResult());
+        assertTrue(blocks.getLast().asToolResult().cacheControl().isPresent(), "and the tool result carries the breakpoint");
+    }
+
+    /** Adds {@code count} user turns, each stating nothing about the cache, marked CACHE-TURN-0; onwards. */
+    private static void addTurns(ConversationContext conversation, int count) {
+        for (int i = 0; i < count; i++) {
+            conversation.getMessages().add(message("user", "CACHE-TURN-" + i + ";"));
+        }
+    }
+
+    /** The i-th turn {@link #addTurns} added. */
+    private static ai.redouble.nucleo.harness.conversation.Message turn(ConversationContext conversation, int i) {
+        for (ai.redouble.nucleo.harness.conversation.Message message : conversation.getMessages()) {
+            if (message.getRawContent().contains("CACHE-TURN-" + i + ";")) {
+                return message;
             }
         }
+        throw new AssertionError("no added turn " + i);
+    }
+
+    /** The marker of every turn that carries a cache breakpoint, in wire order. */
+    private static List<String> breakpointTurns(MessageCreateParams params) {
+        List<String> found = new ArrayList<>();
+        for (MessageParam message : params.messages()) {
+            String rendered = message.content().toString();
+            if (!rendered.contains("CacheControlEphemeral")) {
+                continue;
+            }
+            if (rendered.contains(ASSISTANT_TURN)) {
+                found.add(ASSISTANT_TURN);
+            }
+            else if (rendered.contains(USER_TURN)) {
+                found.add(USER_TURN);
+            }
+            else {
+                int at = rendered.indexOf("CACHE-TURN-");
+                found.add(rendered.substring(at, rendered.indexOf(';', at) + 1));
+            }
+        }
+        return found;
     }
 
     /** Same canonical conversation as the other two shape tests. */
@@ -143,7 +282,39 @@ public class AnthropicRequestShapeTest {
 
     private MessageCreateParams build(boolean cacheObjective, java.util.function.Consumer<ConversationContext> extraTurns) {
         // The direct client's wire shape, on a direct entry from this artifact's own fragment
-        ModelSpec model = Models.spec("claude-haiku-4-5-direct");
+        return build(Models.spec("claude-haiku-4-5-direct"), cacheObjective, extraTurns);
+    }
+
+    /** An entry like the shipped ones in every respect a request reads, with its own count of cache breakpoints. */
+    private static ModelSpec entryWithCacheBreakpoints(int cacheBreakpoints) {
+        ModelSpec shipped = Models.spec("claude-haiku-4-5-direct");
+        AnthropicModelSpec spec = new AnthropicModelSpec();
+        spec.setId("claude-test-" + cacheBreakpoints + "-breakpoints");
+        spec.setIdentity(shipped.getIdentity());
+        spec.setProviderKey(shipped.getProviderKey());
+        spec.setWireModelId(shipped.getWireModelId());
+        spec.setMaxContextTokens(shipped.getMaxContextTokens());
+        spec.setMaxOutputTokens(shipped.getMaxOutputTokens());
+        spec.setGrade(shipped.getGrade());
+        spec.setCacheBreakpoints(cacheBreakpoints);
+        return spec;
+    }
+
+    @Test
+    void theNumberOfBreakpointsIsTheCatalogEntrys() {
+        java.util.function.Consumer<ConversationContext> growing = conversation -> {
+            conversation.setCacheTurns(true);
+            addTurns(conversation, 6);
+        };
+        MessageCreateParams two = build(entryWithCacheBreakpoints(2), true, growing);
+        assertTrue(two.system().orElseThrow().asTextBlockParams().getLast().cacheControl().isPresent(), "the system content takes the first");
+        assertEquals(List.of("CACHE-TURN-5;"), breakpointTurns(two), "and the end the second; nothing is left for the first turn");
+        MessageCreateParams none = build(entryWithCacheBreakpoints(0), true, growing);
+        assertTrue(none.system().orElseThrow().asTextBlockParams().getLast().cacheControl().isEmpty(), "an entry that takes none is sent none");
+        assertEquals(List.of(), breakpointTurns(none));
+    }
+
+    private MessageCreateParams build(ModelSpec model, boolean cacheObjective, java.util.function.Consumer<ConversationContext> extraTurns) {
         ConversationContext conversation = TestModels.conversation(model);
         conversation.setDepth(Depth.IMMEDIATE);
         conversation.setOutputDeclaration(OutputDeclaration.of(TEST_DEFAULT));

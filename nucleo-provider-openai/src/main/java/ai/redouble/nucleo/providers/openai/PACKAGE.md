@@ -57,6 +57,20 @@ deployment has no `models.json` of its own. OpenAI lists no rate limits; each re
 carries the account's limits in its `x-ratelimit-*` headers, and the discovery's one call per
 model writes them into the catalog.
 
+**Prompt caching.** A model whose catalog entry states `cache_breakpoints` is one that
+takes cache breakpoints, GPT-5.6 and later, on OpenAI and on Azure AI Foundry alike; the
+shipped entries of those models state four, and the price of a cache write, which these
+models bill at 1.25 times the input price. Such a model is told to store only what is marked
+(`prompt_cache_options.mode: explicit`), and the client marks the content parts the
+conversation's messages allow, on both APIs: the system content, the end of the
+conversation and the message before it, the messages stated `ALWAYS` or `PREFERRED`, and
+the first message. A message stated `NEVER`, and everything after it, is sent without being
+stored. A model whose entry states none is sent no cache field and caches the start of
+every request by itself. What a
+message can state is on the
+[Conversations](../../../../../../../../../nucleo-core/src/main/java/ai/redouble/nucleo/harness/conversation/PACKAGE.md)
+page.
+
 Whatever an endpoint answers is checked before your code sees it. An answer that is not an
 answer, a body that is not JSON, a reply with no message, a tool call with no name, fails
 by name and is never passed on as empty. A rate limit, an exhausted quota, a server error
@@ -76,8 +90,9 @@ side and 768 on its short side, cut into 512-pixel tiles, 85 tokens plus 170 per
 image whose size cannot be read from its header costs 85 or four tokens per KB of its bytes,
 whichever is more. A thinking block is never sent and costs nothing; a reasoning item the
 Responses API returned is replayed and counted as the JSON it carries. A response's usage takes the
-provider's prompt total as the input and its cached count as the cache reads, null when the
-response carries no cached detail; OpenAI bills no cache writes, so that facet is zero. How the
+provider's prompt total as the input, its cached count as the cache reads, null when the
+response carries no cached detail, and its cache-write count as the cache writes, zero when
+the response carries none, as on a model that caches by itself. How the
 runtime uses these numbers is in
 [Tokens](../../../../../../../../../nucleo-core/src/main/java/ai/redouble/nucleo/harness/tokens/PACKAGE.md).
 

@@ -58,9 +58,8 @@ contract whose instructions the runtime appends to the turn; the last one set is
 that parses, and a turn with none is refused before anything is sent.
 `setRequestedOutputTokens` caps this one call's answer. `addUtterance` adds a person's own
 words: a turn carrying them is kept verbatim through compaction, whatever else it carries.
-`setCacheTurns(true)` has every outgoing turn rendered with a cache breakpoint, a policy
-of the conversation rather than a flag on a message, since a breakpoint marks a position
-on the wire and not a property of what a turn says.
+`setCacheTurns(true)` has the conversation cache its turns: a message that states no
+`Cacheability` of its own is rendered `AUTO`, where it is `UNLIKELY` otherwise.
 
 You may still build messages by hand, `new OutgoingMessage<>(handler)` added through
 `getMessages()`, when you replay a history another system holds; the runtime does not
@@ -137,22 +136,51 @@ reads it from that cache. The cached part costs a fraction of the normal price a
 back faster. For an agent that calls its model a dozen times per question, caching is most
 of its input bill.
 
-On Anthropic (direct or on Bedrock) you mark what is cached, with up to four marks per
-request. Anthropic bills a cache write at 1.25 times the input price and a cache read at a
-tenth of it, so a prefix pays for itself from its second use.
+A provider's cache stores a prefix of a request: everything from its first byte through
+some point. You say what is stable, and the provider's client decides how to have it
+stored.
 
-- **The objective is cached by default.** One mark on the end of the instructions covers
-  the tool definitions, the skills and the objective together.
-  `setCacheMainObjective(false)` turns it off for a conversation whose instructions are
-  used only once.
-- **A message is cached when it is marked.** `message.setCache(true)` places a mark at
-  that message, and marks go to the marked messages in order, oldest first, until the four
-  are used. A thinker marks every message it sends when `setCacheAllMessages(true)` is set
-  on it.
+- **The objective is cached by default.** The tool definitions, the skills and the
+  objective are stored together. `setCacheMainObjective(false)` turns it off for a
+  conversation whose instructions are used only once.
+- **A message states how cacheable it is.** `message.setCacheability(...)` takes one of
+  five values:
 
-OpenAI caches the start of a request on its own, with nothing to mark and no charge for
-the write. Whatever the provider, the fixed objective is what keeps the cache valid from
-one call to the next.
+  | `Cacheability` | What it says |
+  |---|---|
+  | `ALWAYS` | a stored prefix must end on this message |
+  | `PREFERRED` | a stored prefix ending here is worth more than usual |
+  | `AUTO` | no opinion: it may sit inside a stored prefix and may end one |
+  | `UNLIKELY` | fine inside a stored prefix, a poor place to end one |
+  | `NEVER` | must not be stored: no stored prefix contains it |
+
+- **A message that states nothing takes the conversation's default.** That is `AUTO` when
+  the conversation caches its turns (`setCacheTurns(true)`, which a thinker sets from
+  `setCacheAllMessages(true)`) and `UNLIKELY` when it does not. The artifact registry the
+  runtime appends after the conversation is `UNLIKELY`, since it is rewritten as artifacts
+  arrive.
+
+On Anthropic (direct or on Bedrock) a stored prefix is asked for with a breakpoint, as many
+per request as the model's catalog entry states (`cache_breakpoints`, four today), and a
+cache write is billed at 1.25 times the input price and a read at a tenth of it, so a
+prefix pays for itself from its second use. The client spends them in this order: the
+objective, every `ALWAYS` message, the last message a prefix may end on, `PREFERRED`
+messages from the latest backwards, the first message of the conversation. It places none
+on or after a `NEVER` message. The breakpoint at the end moves forward with every call, so
+each call reads what the previous one sent and writes only what was added since.
+
+OpenAI has two kinds of model, and the catalog entry says which one a model is. An entry
+with `cache_breakpoints` is a model that takes breakpoints, GPT-5.6 and later. Its client
+tells OpenAI to store only what is marked and marks in the same order as on Anthropic, with
+one addition: the message that ended the previous request is marked again beside the end,
+because OpenAI looks an earlier entry up only where the request carries a breakpoint. Only
+a message of yours can carry one there, its text, pictures and tool results; a model's
+reply cannot. An entry without `cache_breakpoints` is a model that caches the start of
+every request on its own, with nothing to mark and no charge for the write: on such a
+model `NEVER` cannot be honoured, since the provider stores what it chooses.
+
+Whatever the provider, the fixed objective is what keeps the cache valid from one call to
+the next.
 
 Each `LLMResponse` reports what the cache did for that call on its usage ledger
 (`getUsage()`): `cacheWriteTokens()` for what was written, `cacheReadTokens()` for what was
@@ -220,7 +248,7 @@ shows it to the judge.
 
 ## How it works inside
 
-The channel contract, the objective map and its freeze, the cache breakpoint loop, token
+The channel contract, the objective map and its freeze, the cache breakpoint placement, token
 accounting, the output budget chain, persistence and ownership are in
 [Inside conversations](HARNESS_CONVERSATION_INTERNALS.md), for those working on the runtime
 itself.

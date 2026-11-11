@@ -73,6 +73,10 @@ limits, and the same identity. An entry from the Anthropic library's shipped cat
   per currency, and a spending cap in one currency refuses a call priced in another.
 - `supports_vision` and `supports_documents` say whether the model reads pictures and whole
   files such as PDFs.
+- `cache_breakpoints` is how many prompt-cache breakpoints one request to the model may
+  carry. An entry without it is a model that takes none: it caches by itself or not at all.
+  What a client does with them is on the
+  [Conversations](../conversation/PACKAGE.md) page.
 
 **Where the file comes from.** Every provider library ships a small catalog of its own: the
 current model of each family, with its public facts, list prices and the provider's

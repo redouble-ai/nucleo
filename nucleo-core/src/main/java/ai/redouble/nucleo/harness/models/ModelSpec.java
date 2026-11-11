@@ -252,6 +252,14 @@ public interface ModelSpec {
      */
     boolean toolsSuspendReasoning();
 
+    /**
+     * How many prompt-cache breakpoints one request to this endpoint may carry, declared in
+     * the catalog ({@code cache_breakpoints}). Zero is an endpoint that takes none: it caches
+     * by itself or not at all, and its client marks nothing. A client whose provider writes
+     * its cache by breakpoints places no more than this many on a request.
+     */
+    int getCacheBreakpoints();
+
     /** Tokens-per-minute limit for this endpoint/account. Seeded from the catalog, learned at runtime. */
     int getTpm();
 

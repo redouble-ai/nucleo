@@ -249,6 +249,22 @@ public class CompactionContractTest {
     }
 
     @Test
+    void theMessagesACompactionWritesStateNothingAboutTheCache() {
+        for (CompactionLevel level : List.of(CompactionLevel.MODERATE, CompactionLevel.AGGRESSIVE)) {
+            ConversationContext context = conversation();
+            List<Message> before = List.copyOf(context.getMessages());
+            new CannedCompactor().compact(context, level);
+            List<Message> written = context.getMessages().stream().filter(message -> !before.contains(message)).toList();
+            assertFalse(written.isEmpty(), level + " wrote summaries");
+            for (Message message : written) {
+                assertNull(message.getCacheability(),
+                        "a summary takes its conversation's default like any message; where a stored"
+                                + " prefix ends is the provider client's decision (" + level + ")");
+            }
+        }
+    }
+
+    @Test
     void aShrunkenMessageCarriesEverythingButItsBlocks() {
         OutgoingMessage<String> original = new OutgoingMessage<>(StringResponseHandler.instance);
         original.setRole("user");
@@ -256,7 +272,7 @@ public class CompactionContractTest {
         original.setTimestamp(java.time.Instant.parse("2026-10-10T10:00:00Z"));
         original.setCompactable(false);
         original.setAppAuthored(true);
-        original.setCache(true);
+        original.setCacheability(Cacheability.PREFERRED);
         original.setRequestedOutputTokens(1234);
         original.addToolResult("A", "payload", true);
         List<ContentBlock> shrunk = List.of(new ToolResultBlock("A", "summary", true));
@@ -265,7 +281,7 @@ public class CompactionContractTest {
         assertEquals("msg-7", copy.getMessageId(), "the same identity");
         assertEquals(original.getTimestamp(), copy.getTimestamp());
         assertEquals("user", copy.getRole());
-        assertTrue(copy.isEnableCache(), "the cache flag travels");
+        assertEquals(Cacheability.PREFERRED, copy.getCacheability(), "what it states about the cache travels");
         assertFalse(copy.isCompactable(), "compactability travels");
         assertTrue(copy.isAppAuthored(), "authorship travels");
         assertEquals(1234, copy.getRequestedOutputTokens(), "the per-call output override travels");

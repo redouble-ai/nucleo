@@ -55,13 +55,16 @@ class OpenAITokenAccountingTest {
 
     @Test
     void theLedgerTakesThePromptAsTheTotalAndTheCachedCountAsItsSubset() {
-        TokenLedger usage = new OpenAITokenLedger(gpt("openai"), 120, 100, 30);
+        TokenLedger usage = new OpenAITokenLedger(gpt("openai"), 120, 100, 0, 30);
         assertEquals(120, usage.inputTokens(), "prompt_tokens is the whole input");
         assertEquals(100, usage.cacheReadTokens());
-        assertEquals(0, usage.cacheWriteTokens(), "OpenAI bills no cache writes");
+        assertEquals(0, usage.cacheWriteTokens(), "a model that caches by itself bills no cache writes");
         assertEquals(20, usage.uncachedInputTokens());
         assertEquals(30, usage.outputTokens());
-        TokenLedger uncached = new OpenAITokenLedger(gpt("openai"), 120, null, 30);
+        TokenLedger written = new OpenAITokenLedger(gpt("openai"), 120, 100, 15, 30);
+        assertEquals(15, written.cacheWriteTokens(), "the part of the input a call stored at its breakpoints");
+        assertEquals(5, written.uncachedInputTokens(), "a subset of the input, like the cached count");
+        TokenLedger uncached = new OpenAITokenLedger(gpt("openai"), 120, null, 0, 30);
         assertNull(uncached.cacheReadTokens(), "a response without the cached detail leaves the facet null");
         assertNull(uncached.uncachedInputTokens());
     }

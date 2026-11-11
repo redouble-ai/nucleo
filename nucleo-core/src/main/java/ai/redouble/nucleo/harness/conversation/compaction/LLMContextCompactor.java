@@ -287,7 +287,6 @@ public class LLMContextCompactor implements ContextCompactor {
 
                     %s
                     === END SUMMARY ===""", toSummarize.size(), summary));
-            summaryMsg.setCache(true);
             compacted.add(summaryMsg);
         }
         if (anchor.compactable() && anchor.carriesToolResults()) {
@@ -296,7 +295,6 @@ public class LLMContextCompactor implements ContextCompactor {
             recentMsg.setRole("user");
             recentMsg.setTimestamp(anchor.followers.getLast().getTimestamp());
             recentMsg.addText("[Recent exchange]: " + recent);
-            recentMsg.setCache(true);
             compacted.add(recentMsg);
         }
         else {
@@ -309,7 +307,6 @@ public class LLMContextCompactor implements ContextCompactor {
         OutgoingMessage<String> msg = new OutgoingMessage<>(StringResponseHandler.instance);
         msg.setTimestamp(Instant.now());
         msg.addText(summary);
-        msg.setCache(true);
         return msg;
     }
 

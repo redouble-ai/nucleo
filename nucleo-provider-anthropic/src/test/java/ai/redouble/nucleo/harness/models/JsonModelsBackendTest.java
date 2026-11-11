@@ -148,7 +148,7 @@ class JsonModelsBackendTest {
                 assertEquals(0.10, spec.getCacheReadMultiplier(), 0.0001, spec.getId());
                 assertEquals(1.25, spec.getCacheWriteMultiplier(), 0.0001, spec.getId());
                 assertInstanceOf(AnthropicModelSpec.class, spec, spec.getId());
-                assertEquals(4, ((AnthropicModelSpec) spec).getCacheBreakpoints(), spec.getId());
+                assertEquals(4, spec.getCacheBreakpoints(), spec.getId());
             }
         }
         assertTrue(anthropicSeen, "the shipped catalog carries no anthropic-* entries at all");

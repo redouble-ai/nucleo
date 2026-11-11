@@ -23,8 +23,8 @@ import java.util.*;
  * <ul>
  *   <li>A facet the provider does not report is {@code null}: a usage record without cache
  *       counters leaves the cache facets null, and a provider that returns no usage record gives
- *       the response no ledger at all. A zero is a fact: OpenAI bills no cache writes, so its
- *       ledger says zero.</li>
+ *       the response no ledger at all. A zero is a fact: an OpenAI model that caches
+ *       by itself bills no cache writes, so its ledger says zero.</li>
  *   <li>A facet a ledger does not implement refuses with {@link UnsupportedOperationException}
  *       naming the provider and the facet. Every facet refuses by default, here, so a facet
  *       added to this interface later is a default method and no implementation breaks.</li>

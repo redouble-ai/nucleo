@@ -5,6 +5,30 @@ group `ai.redouble`; a published version is never changed in place.
 
 ## Unreleased
 
+- A conversation longer than three turns is cached to its end on Anthropic. The client gave
+  its cache breakpoints to the first three turns and never moved them, so from the fourth
+  call on nearly all of each request was billed at the full input price. A message now
+  states how cacheable it is, `Cacheability` (`ALWAYS`, `PREFERRED`, `AUTO`, `UNLIKELY`,
+  `NEVER`), and each provider's client decides what to do with that; the Anthropic client
+  puts a breakpoint on the system content, on the first turn and on the last turn, which
+  moves forward with every call. Breaking: `Message.setCache(boolean)` and
+  `isEnableCache()` are replaced by `setCacheability(Cacheability)` and
+  `getCacheability()`, where `setCache(true)` is `Cacheability.PREFERRED`;
+  `ProcessedMessageData.cacheEnabled` is replaced by `cacheability`. A stored conversation
+  is read as before.
+- OpenAI models that take cache breakpoints, GPT-5.6 and later, are cached by them, on the
+  Responses and the Chat Completions API. Such a model is told to store only what is marked,
+  and the client marks the system content, the end of the conversation and the messages
+  the conversation's `Cacheability` values allow, so a message stated `NEVER` is not
+  stored. The catalog says which models these are: `cache_breakpoints` is now a field of
+  every entry (`ModelSpec.getCacheBreakpoints()`), set on the shipped `gpt-5.6` and
+  `gpt-6-astra` and on their Azure AI Foundry deployments, and the Anthropic client takes
+  its count from it. A response's usage reports the tokens a call stored
+  (`cache_write_tokens`), which these models bill at 1.25 times the input price and which
+  was counted as plain input until now; the shipped entries state that price
+  (`cache_write_price_per_million`). Breaking:
+  `OpenAITokenLedger`'s constructor takes the cache-write count, and a `ModelSpec`
+  implemented outside `AbstractModelSpec` has `getCacheBreakpoints()` to implement.
 - A chat thinker no longer writes assistant turns of its own. After a final answer it added
   a second assistant message holding the answer's text, behind the reply the model had
   given, so every later call replayed each answer twice, the second copy ending in

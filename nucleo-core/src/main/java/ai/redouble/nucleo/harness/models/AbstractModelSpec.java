@@ -14,8 +14,7 @@ import java.util.*;
  * backend (no-arg constructor + setters), {@code equals}/{@code hashCode} pinned to
  * {@link #getId() id}, and the thinking-budget scaling shared by every provider.
  *
- * <p>Provider subtypes add endpoint-specific fields (e.g. the Anthropic artifact's
- * {@code AnthropicModelSpec.getCacheBreakpoints()}).
+ * <p>Provider subtypes add endpoint-specific fields.
  * The base carries everything cross-provider machinery reads.
  *
  * @author Andrey Santrosyan
@@ -40,6 +39,7 @@ public abstract class AbstractModelSpec implements ModelSpec {
     private boolean unverified;
     private boolean requiresLax;
     private boolean toolsSuspendReasoning;
+    private int cacheBreakpoints;
     private int tpm;
     private int rpm;
     private Integer maxConcurrent;
@@ -198,6 +198,11 @@ public abstract class AbstractModelSpec implements ModelSpec {
     public boolean toolsSuspendReasoning() {return toolsSuspendReasoning;}
 
     public void setToolsSuspendReasoning(boolean toolsSuspendReasoning) {this.toolsSuspendReasoning = toolsSuspendReasoning;}
+
+    @Override
+    public int getCacheBreakpoints() {return cacheBreakpoints;}
+
+    public void setCacheBreakpoints(int cacheBreakpoints) {this.cacheBreakpoints = cacheBreakpoints;}
 
     @Override
     public int getTpm() {return tpm;}

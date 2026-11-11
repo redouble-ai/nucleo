@@ -91,9 +91,10 @@ would send the reader text they have already seen, so the failure is reported in
 
 What caching saves and how a conversation marks what is cached are on the
 [Conversations](../conversation/PACKAGE.md) page. The providers differ in how it works:
-Anthropic, direct or on Bedrock, caches what is marked, with up to four marks per request;
-OpenAI caches the start of every request on its own; Bedrock Converse reports cache reads
-and writes in its usage. Each response carries the tokens its provider reported as one
+Anthropic, direct or on Bedrock, caches what is marked, with as many marks per request as
+the catalog entry states (`cache_breakpoints`); an OpenAI model whose entry states them is
+marked the same way and stores nothing else, and one whose entry does not caches the start
+of every request on its own; Bedrock Converse reports cache reads and writes in its usage. Each response carries the tokens its provider reported as one
 ledger, `getUsage()`, cache reads and writes among them, and the catalog entry prices them.
 
 ## Embeddings and decisions

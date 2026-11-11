@@ -128,18 +128,20 @@ public interface Thinker<I extends ThinkerInput, O extends ThinkerOutput<? exten
     // ================ Message Caching ================
 
     /**
-     * Returns whether all conversation messages should be cached.
-     * When enabled, every message added to the conversation context will have
-     * caching enabled automatically (if supported by the LLM provider).
+     * Returns whether this thinker's conversation caches its turns: the
+     * {@link ai.redouble.nucleo.harness.conversation.Cacheability} of every message that
+     * states none. When true such a message is {@code AUTO} and the provider's client decides
+     * where its stored prefixes end; when false it is {@code UNLIKELY} and only a message
+     * that states a value of its own ends one.
      *
-     * @return true to cache all messages, false for manual control
+     * @return true when the conversation caches its turns
      */
     boolean cacheAllMessages();
 
     /**
-     * Sets whether all conversation messages should be cached.
+     * Sets whether this thinker's conversation caches its turns.
      *
-     * @param cacheAllMessages true to enable caching for all messages
+     * @param cacheAllMessages true to cache the conversation's turns
      */
     void setCacheAllMessages(boolean cacheAllMessages);
 

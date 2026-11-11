@@ -201,6 +201,9 @@ public class OpenAISDKClient extends AbstractOpenAIChatClient {
         if (requestJson.has("text")) {
             params.text(JsonValue.from(requestJson.get("text")).convert(ResponseTextConfig.class));
         }
+        if (requestJson.has("prompt_cache_options")) {
+            params.putAdditionalBodyProperty("prompt_cache_options", JsonValue.from(requestJson.get("prompt_cache_options")));
+        }
         return params.build();
     }
 
@@ -282,7 +285,9 @@ public class OpenAISDKClient extends AbstractOpenAIChatClient {
             int completionTokens = (int) usage[0].completionTokens();
             Integer cachedTokens = usage[0].promptTokensDetails().flatMap(CompletionUsage.PromptTokensDetails::cachedTokens)
                     .map(Long::intValue).orElse(null);
-            response.setUsage(new OpenAITokenLedger(getModel(), promptTokens, cachedTokens, completionTokens));
+            // Read off the JSON form, where the count is found whether this SDK version models the field or not
+            int cacheWriteTokens = ObjectMappers.jsonMapper().valueToTree(usage[0]).path("prompt_tokens_details").path("cache_write_tokens").asInt(0);
+            response.setUsage(new OpenAITokenLedger(getModel(), promptTokens, cachedTokens, cacheWriteTokens, completionTokens));
         }
         response.setStopReason(LLMStopReason.from(finishReason[0]));
     }
@@ -337,6 +342,9 @@ public class OpenAISDKClient extends AbstractOpenAIChatClient {
         }
         if (requestJson.has("response_format")) {
             params.responseFormat(JsonValue.from(requestJson.get("response_format")).convert(ChatCompletionCreateParams.ResponseFormat.class));
+        }
+        if (requestJson.has("prompt_cache_options")) {
+            params.putAdditionalBodyProperty("prompt_cache_options", JsonValue.from(requestJson.get("prompt_cache_options")));
         }
         return params.build();
     }

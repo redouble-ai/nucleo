@@ -75,6 +75,26 @@ public class ConversationPreparationTest {
     }
 
     @Test
+    void everyTurnIsHandedToTheClientWithACacheability_theRegistryTurnUnlikely() {
+        ConversationContext conversation = conversation();
+        ai.redouble.nucleo.harness.artifacts.WebPageArtifact artifact = new ai.redouble.nucleo.harness.artifacts.WebPageArtifact();
+        artifact.setUrl("https://example.org/evidence");
+        artifact.setTitle("Evidence page");
+        conversation.getArtifactRegistry().register(artifact);
+        conversation.setCacheTurns(true);
+        PreparedConversation prepared = prepare(conversation);
+
+        assertNotNull(prepared.registrySection(), "the conversation holds an artifact, so the registry turn is appended");
+        assertEquals(3, prepared.turns().size(), "two messages and the registry turn");
+        assertEquals(Cacheability.AUTO, prepared.turns().get(0).cacheability(),
+                "a turn the model sent takes the conversation's default like any other");
+        assertEquals(Cacheability.AUTO, prepared.turns().get(1).cacheability());
+        assertEquals(Cacheability.UNLIKELY, prepared.turns().get(2).cacheability(),
+                "the registry is rewritten as artifacts arrive, so no stored prefix ends on it,"
+                        + " whatever the conversation's default");
+    }
+
+    @Test
     void theLegendFollowsTheContract_intoTheHead() {
         // A bare conversation built by a doer around a plain LLMCall - no thinker, no
         // composition - ships the @-notation legend the moment its ask carries a

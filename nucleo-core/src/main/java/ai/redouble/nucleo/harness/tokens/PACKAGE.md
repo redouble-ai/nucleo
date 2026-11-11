@@ -20,8 +20,8 @@ holds as its reservation (a binding priced from a prompt or a flat count holds a
 Two absences are kept apart. A facet the provider does not report is null: a response whose
 usage record carries no cache counters has null cache facets, a provider that returns no usage
 record at all gives the response no ledger, and a derived facet is null when an operand it
-needs is null. A zero is a fact, never an absence: OpenAI bills no cache writes, so its ledger
-says zero. A facet a ledger does not implement refuses with `UnsupportedOperationException`
+needs is null. A zero is a fact, never an absence: an OpenAI model that caches by itself bills
+no cache writes, so its ledger says zero. A facet a ledger does not implement refuses with `UnsupportedOperationException`
 naming the provider and the facet. Every facet refuses by default on the interface, so a facet
 added later is a default method and no provider's ledger breaks. `cacheHitRate()` is reads over
 reads plus writes, 0.0 while a cache is being built and nothing has been read yet.

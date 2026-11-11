@@ -27,7 +27,9 @@ import java.util.*;
  *
  * @param role The turn role
  * @param contentBlocks All content blocks in order (text, images, tools, etc.)
- * @param cacheEnabled Whether this turn should use cache control (Anthropic)
+ * @param cacheability What the turn states about the provider's prompt cache: its message's
+ *        own value, or the conversation's default when the message states none. Never null.
+ *        What to do with it is the provider client's decision
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2025-11-14)
@@ -35,21 +37,21 @@ import java.util.*;
 public record ProcessedMessageData(
     TurnRole role,
     List<ContentBlock> contentBlocks,
-    boolean cacheEnabled
+    Cacheability cacheability
 ) {
     /**
      * Creates a text-only turn with no multimodal content.
      *
      * @param role The turn role
      * @param textContent The processed text content
-     * @param cacheEnabled Whether to enable caching
+     * @param cacheability What the turn states about the provider's prompt cache
      * @return A new ProcessedMessageData instance
      */
-    public static ProcessedMessageData textOnly(TurnRole role, String textContent, boolean cacheEnabled) {
+    public static ProcessedMessageData textOnly(TurnRole role, String textContent, Cacheability cacheability) {
         List<ContentBlock> blocks = (textContent != null && !textContent.isEmpty())
             ? List.of(new TextBlock(textContent))
             : Collections.emptyList();
-        return new ProcessedMessageData(role, blocks, cacheEnabled);
+        return new ProcessedMessageData(role, blocks, cacheability);
     }
     /**
      * Checks if this turn has multimodal content (non-text blocks).

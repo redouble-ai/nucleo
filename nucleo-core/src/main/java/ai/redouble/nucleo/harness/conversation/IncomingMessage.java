@@ -24,7 +24,7 @@ public class IncomingMessage<T> implements Message, Serializable {
     private String messageId;
     private Instant timestamp;
     protected StringBuilder content;
-    protected boolean enableCache = false;
+    protected Cacheability cacheability;
     protected transient ResponseHandler<T> responseHandler;
     private Integer actualOutputTokens;
     private final String role = "assistant";
@@ -70,11 +70,11 @@ public class IncomingMessage<T> implements Message, Serializable {
         this.responseHandler = handler;
     }
     // Cache control
-    public boolean isEnableCache() {
-        return enableCache;
+    public Cacheability getCacheability() {
+        return cacheability;
     }
-    public void setCache(boolean enableCache) {
-        this.enableCache = enableCache;
+    public void setCacheability(Cacheability cacheability) {
+        this.cacheability = cacheability;
     }
     /**
      * Gets actual output tokens for this response.
