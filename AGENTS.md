@@ -331,7 +331,7 @@ curl -s localhost:8080/extract -H 'content-type: application/json' \
 
 The report has one row per file (`tier`, `chars`, the model and what its calls cost, a
 `note` when something needs a person), the spend per model, the caps and the total. On the
-shipped corpus of 30 files through Bedrock this is 37 model calls and a few cents. A
+shipped corpus of 30 files through Bedrock this costs a few cents. A
 `budgets` entry is a cap per currency: a run that would pass it has its remaining model
 calls refused at admission, each such file reporting `REFUSED` with the cap it hit, and code
 still reads what code can read. Then:
