@@ -65,8 +65,8 @@ public abstract class ChatThinker extends ReactiveThinker {
         // Chat conversations are not temporary
         conversation.setTemporary(false);
         // Chat conversations ARE compactable at conversation level.
-        // Individual user messages and final answers are marked non-compactable
-        // to preserve the conversation flow while allowing tool results to be compacted.
+        // Individual user messages are marked non-compactable, and each keeps the answer it
+        // replies to, to preserve the conversation flow while allowing tool results to be compacted.
     }
 
     @Override

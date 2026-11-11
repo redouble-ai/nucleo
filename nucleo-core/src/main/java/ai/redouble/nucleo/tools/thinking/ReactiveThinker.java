@@ -304,12 +304,9 @@ public abstract class ReactiveThinker extends AbstractThinker<VoidThinkerInput, 
             publishReasoning(response, context);
 
             if (response.isFinalAnswer() && response.getAnswer() != null) {
-                OutgoingMessage<String> assistantMessage = new OutgoingMessage<>(StringResponseHandler.instance);
-                assistantMessage.setRole("assistant");
-                assistantMessage.setTimestamp(java.time.Instant.now());
-                assistantMessage.addText(response.getAnswer());
-                assistantMessage.setCompactable(false);  // Preserve final answer verbatim during compaction
-                conversation.getMessages().add(assistantMessage);
+                // the model's reply is the exchange's record in the conversation, stored when it
+                // arrived; a second assistant turn holding the answer's text would be replayed
+                // after it on every later call, for the model to imitate
                 Map<String, Artifact> artifacts = conversation.getArtifactRegistry().getAllArtifacts();
                 streamResponse(response.getAnswer(), artifacts, context);
                 return;
@@ -417,10 +414,12 @@ public abstract class ReactiveThinker extends AbstractThinker<VoidThinkerInput, 
 
     /**
      * The abnormal-end save: rolls the conversation back to the last user utterance,
-     * records the marker as the exchange's outcome, and persists. The failed
-     * exchange's partial turns - possibly an assistant tool_use with no results yet -
-     * must reach neither the store nor the next LLM call: a history carrying an
-     * unpaired tool_use is rejected wholesale by the provider.
+     * adds the marker to that utterance's turn as a note on the user side, and persists.
+     * The failed exchange's partial turns - possibly an assistant tool_use with no
+     * results yet - must reach neither the store nor the next LLM call: a history
+     * carrying an unpaired tool_use is rejected wholesale by the provider. The marker is
+     * never an assistant turn: the model gave no reply, and words it did not write are
+     * not put in its mouth.
      * Package-private for same-package tests.
      */
     void saveAbnormalEnd(ConversationContext conversation, String marker) {
@@ -434,11 +433,9 @@ public abstract class ReactiveThinker extends AbstractThinker<VoidThinkerInput, 
             return;
         }
         messages.subList(anchor + 1, messages.size()).clear();
-        OutgoingMessage<String> outcome = new OutgoingMessage<>(StringResponseHandler.instance);
-        outcome.setRole("assistant");
-        outcome.setTimestamp(java.time.Instant.now());
-        outcome.addText(marker);
-        messages.add(outcome);
+        // the utterance's turn is the last message again, so the note joins it, and so will
+        // the next utterance: the model reads the unanswered message, why, and the new one
+        conversation.addText(marker);
         ai.redouble.nucleo.harness.conversation.ConversationService.getInstance().saveConversation(conversation, this);
     }
 
@@ -458,13 +455,14 @@ public abstract class ReactiveThinker extends AbstractThinker<VoidThinkerInput, 
     }
 
     /**
-     * Abnormal-end markers. They become part of the conversation, so a resumed model
-     * sees that the previous attempt ended without an answer instead of a user
-     * message hanging unanswered.
+     * Abnormal-end markers. They become part of the conversation, after the utterance
+     * that went unanswered and in its turn, so a resumed model sees that the previous
+     * attempt ended without an answer instead of a user message hanging unanswered.
+     * They are worded as the runtime speaking, since the model reads them on the user side.
      */
-    private static final String INCOMPLETE_PREFIX = "I could not complete a response to the previous message. ";
-    private static final String ERROR_MARKER = "I could not complete a response to the previous message due to an internal error.";
-    private static final String CANCELLED_MARKER = "I could not complete a response to the previous message: the operation was cancelled.";
+    private static final String INCOMPLETE_PREFIX = "System note: the message above got no answer. ";
+    private static final String ERROR_MARKER = "System note: the message above got no answer. An internal error ended the attempt.";
+    private static final String CANCELLED_MARKER = "System note: the message above got no answer. The attempt was cancelled.";
 
     /**
      * The turn's inbox: a tiny state machine guarded by its own monitor. A message is

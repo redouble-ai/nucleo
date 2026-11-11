@@ -180,7 +180,8 @@ it (`ModelSpec.estimate`, [Tokens](../tokens/PACKAGE.md)), and when it comes clo
 limit, older parts are summarized to make room:
 [Compaction](compaction/PACKAGE.md). You choose what must survive word for word. A message
 marked `setCompactable(false)` is never summarized; the chat thinkers mark the user's
-messages and the final answers that way. `ConversationContext.setCompactable(false)`
+messages that way, and the answer a message replies to stays with it.
+`ConversationContext.setCompactable(false)`
 keeps a whole conversation as it is; when such a conversation does not fit, the call fails
 with `NonCompactableContextException`. A conversation that cannot fit even after the
 strongest compaction fails with `ContextOverflowException`. The parent agent sees either

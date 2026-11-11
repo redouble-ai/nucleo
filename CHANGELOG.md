@@ -5,6 +5,15 @@ group `ai.redouble`; a published version is never changed in place.
 
 ## Unreleased
 
+- A chat thinker no longer writes assistant turns of its own. After a final answer it added
+  a second assistant message holding the answer's text, behind the reply the model had
+  given, so every later call replayed each answer twice, the second copy ending in
+  `Response must be a string`, and a model several turns into a chat wrote its replies the
+  same way: the reply object, the answer again as prose, and that line. The model's reply is
+  now the only record of an answer. When an exchange fails, the note saying why is added
+  after the person's message on the user side, worded as the runtime speaking; it was an
+  assistant message in the model's voice
+  ([#22](https://github.com/redouble-ai/nucleo/issues/22)).
 - A sub-agent started with `sub_thinker` works at most one level of depth below its caller,
   the step stopping at `STANDARD`, so a chain of sub-agents ends whatever depth the model
   asks for. A thinker that needs its sub-agents at its own depth overrides

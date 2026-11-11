@@ -8,6 +8,7 @@ package ai.redouble.nucleo.tools.thinking;
 
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.conversation.*;
+import ai.redouble.nucleo.harness.conversation.ContentBlocks.*;
 import ai.redouble.nucleo.harness.errors.*;
 import ai.redouble.nucleo.harness.models.*;
 import ai.redouble.nucleo.tools.*;
@@ -24,7 +25,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * live context nor in the store - and the exchange's outcome is recorded as a
  * marker: the LLM-readable message when the failure carries one, the generic
  * fallback otherwise, so a resumed model never sees a user message hanging
- * unanswered without explanation.
+ * unanswered without explanation. The marker is a note on the user side, added to
+ * the turn of the utterance that went unanswered, where the next utterance joins
+ * it; the thinker never writes an assistant turn the model did not give.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-08-25)
@@ -32,20 +35,37 @@ import static org.junit.jupiter.api.Assertions.*;
 public class ReactiveThinkerAbnormalEndTest {
 
     @Test
-    void rollsBackToTheTriggerAndRecordsTheMarker() {
+    void rollsBackToTheUtteranceAndAddsTheMarkerToItsTurn() {
         ProbeReactive thinker = new ProbeReactive(root());
         ConversationContext conversation = TestModels.conversation(TestModels.small());
         thinker.appendUserMessage(conversation, "first question");
-        conversation.getMessages().add(assistantText("first answer"));
+        conversation.getMessages().add(reply("first answer"));
         thinker.appendUserMessage(conversation, "second question");
-        conversation.getMessages().add(debris("partial tool_use turn"));
+        conversation.getMessages().add(reply("partial tool_use turn"));
         conversation.getMessages().add(debris("half-written results"));
         thinker.saveAbnormalEnd(conversation, "MARKER-TEXT");
         List<Message> messages = conversation.getMessages();
-        assertEquals(4, messages.size(), "everything after the second question is gone, the marker took its place");
-        assertEquals("second question", messages.get(2).getRawContent());
-        assertEquals("assistant", messages.get(3).getRole());
-        assertEquals("MARKER-TEXT", messages.get(3).getRawContent());
+        assertEquals(3, messages.size(), "everything after the second question is gone, and no message took its place");
+        OutgoingMessage<?> unanswered = (OutgoingMessage<?>) messages.get(2);
+        assertEquals("user", unanswered.getRole(), "the marker is a note on the user side, never an assistant turn the model did not give");
+        assertEquals(List.of(new TextBlock("second question"), new TextBlock("MARKER-TEXT")), unanswered.getContentBlocks(),
+                "the marker follows the utterance it is about, in that utterance's turn");
+    }
+
+    @Test
+    void theNextUtteranceJoinsTheTurnOfTheUnansweredOne() {
+        ProbeReactive thinker = new ProbeReactive(root());
+        ConversationContext conversation = TestModels.conversation(TestModels.small());
+        thinker.appendUserMessage(conversation, "the question");
+        conversation.getMessages().add(reply("partial tool_use turn"));
+        thinker.saveAbnormalEnd(conversation, "MARKER-TEXT");
+        thinker.appendUserMessage(conversation, "the next question");
+        List<Message> messages = conversation.getMessages();
+        assertEquals(1, messages.size(), "one user turn: what went unanswered, why, and what is asked now");
+        OutgoingMessage<?> turn = (OutgoingMessage<?>) messages.getFirst();
+        assertEquals(List.of(new TextBlock("the question"), new TextBlock("MARKER-TEXT"), new TextBlock("the next question")),
+                turn.getContentBlocks());
+        assertFalse(turn.isCompactable(), "a turn carrying a person's words stays verbatim through compaction");
     }
 
     @Test
@@ -54,14 +74,15 @@ public class ReactiveThinkerAbnormalEndTest {
         ConversationContext conversation = TestModels.conversation(TestModels.small());
         thinker.appendUserMessage(conversation, "trigger");
         // an injection lands at an iteration boundary, after the model's turn: it opens a user turn of its own
-        conversation.getMessages().add(assistantText("iteration one"));
+        conversation.getMessages().add(reply("iteration one"));
         thinker.appendUserMessage(conversation, "steering injection");
-        conversation.getMessages().add(debris("iteration two"));
+        conversation.getMessages().add(reply("iteration two"));
         thinker.saveAbnormalEnd(conversation, "MARKER-TEXT");
         List<Message> messages = conversation.getMessages();
-        assertEquals("steering injection", messages.get(messages.size() - 2).getRawContent(),
-                "the injected utterance is the anchor - it survives, only the debris after it goes");
-        assertEquals("MARKER-TEXT", messages.get(messages.size() - 1).getRawContent());
+        assertEquals(3, messages.size(), "only the debris after the injected utterance goes");
+        assertEquals(List.of(new TextBlock("steering injection"), new TextBlock("MARKER-TEXT")),
+                ((OutgoingMessage<?>) messages.getLast()).getContentBlocks(),
+                "the injected utterance is the anchor - it survives, and the marker joins its turn");
     }
 
     @Test
@@ -83,10 +104,10 @@ public class ReactiveThinkerAbnormalEndTest {
         return Job.workflow("abnormal-end-test-user", "abnormal-end-test");
     }
 
-    private static OutgoingMessage<String> assistantText(String text) {
-        OutgoingMessage<String> message = new OutgoingMessage<>(StringResponseHandler.instance);
-        message.setRole("assistant");
-        message.addText(text);
+    /** A reply of the model, stored the way the client stores one. */
+    private static IncomingMessage<String> reply(String text) {
+        IncomingMessage<String> message = new IncomingMessage<>(StringResponseHandler.instance);
+        message.overwriteRawContent(text);
         return message;
     }
 

@@ -79,10 +79,14 @@ What a chat does differently from an agent working toward one answer:
   answer.
 - **Its own depth.** With no input to carry one, a chat's effort is its own, `STANDARD` unless
   its constructor calls `setDepth`.
+- **The model's reply is the record of an answer.** An answered exchange leaves the person's
+  message and the reply the model gave, as it arrived. The thinker delivers the answer and
+  writes no assistant turn of its own, so a later call replays each answer once.
 - **A failed exchange fails the turn and loses nothing.** The conversation is rolled back to
-  the person's last message, a marker saying why the answer did not come is recorded in its
-  place, and the turn ends with the failure. The next message starts a new turn over the saved
-  conversation, and the model reads why the previous attempt produced nothing.
+  the person's last message, a note saying why the answer did not come is added after it on
+  the user side, and the turn ends with the failure. The next message starts a new turn over
+  the saved conversation and joins that same user turn, so the model reads what went
+  unanswered, why, and what is asked now.
 - **The strongest model, by declaration.** A chat that wants the best model the deployment
   serves declares `Grade.CEILING`; a chat with a narrower job declares its rung.
 

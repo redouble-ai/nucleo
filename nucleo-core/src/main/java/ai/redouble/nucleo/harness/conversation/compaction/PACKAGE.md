@@ -74,10 +74,10 @@ the artifact registry are never touched. Artifact references in summarized text 
 so every artifact stays reachable.
 
 - **A message marked `setCompactable(false)` is kept word for word** at every level. The
-  chat thinkers mark the user's messages and the model's final answers this way, so the
-  dialogue itself survives and the tool output around it is what shrinks. A marked message
-  keeps its exchange with it: a preserved answer keeps the results of the tools it called,
-  and preserved results keep the answer that called for them.
+  chat thinkers mark the user's messages this way, so the dialogue itself survives and the
+  tool output around it is what shrinks. A marked message keeps its exchange with it: a
+  preserved answer keeps the results of the tools it called, preserved results keep the
+  answer that called for them, and a person's message keeps the answer it replies to.
 - **A conversation marked `setCompactable(false)`** on its `ConversationContext` is never
   compacted, at any level and on any path. When such a conversation does not fit the model,
   the call fails with `NonCompactableContextException`, which says that compaction was not
