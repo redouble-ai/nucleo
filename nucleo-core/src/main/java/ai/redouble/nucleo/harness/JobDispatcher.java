@@ -1031,8 +1031,9 @@ public enum JobDispatcher {
             return true;
         }
 
-        // Check running jobs
-        for (JobHandle<?> handle : runningJobs) {
+        // Check running jobs. A copy, taken in one locked call: jobs start and end on other
+        // threads while this walks, and the signal is sent holding no lock
+        for (JobHandle<?> handle : new ArrayList<>(runningJobs)) {
             if (handle.getContext().getJobId().equals(jobId)) {
                 // Signal cancellation through context
                 JobContext<?> context = handle.getContext();

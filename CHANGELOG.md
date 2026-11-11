@@ -5,6 +5,9 @@ group `ai.redouble`; a published version is never changed in place.
 
 ## Unreleased
 
+- Cancelling a job no longer fails when another job starts or ends at the same moment.
+  `JobDispatcher.cancel` walked the running jobs without their lock, so under load it threw
+  `ConcurrentModificationException` and left the job it was asked to stop running.
 - A conversation longer than three turns is cached to its end on Anthropic. The client gave
   its cache breakpoints to the first three turns and never moved them, so from the fourth
   call on nearly all of each request was billed at the full input price. A message now

@@ -30,6 +30,8 @@ import static org.junit.jupiter.api.Assertions.*;
  *       {@link DependencyFailedException} and never executes; a tolerant one executes and
  *       sees the failed dependency as a null result; a dependent cancelled while it waited
  *       settles as cancelled when the dependency then fails, and its caller is released.</li>
+ *   <li><b>Cancelling under load</b> - a cancel walks the running jobs while other threads
+ *       start and end jobs, and never throws.</li>
  *   <li><b>Call-order ordinals</b> - a doer's sequential submits stamp 1, 2, ...; a fan-out
  *       shares one ordinal, so the trajectory tree is reconstructible.</li>
  *   <li><b>Limiter signaling</b> - a job failing with {@code ExternalServiceException}
@@ -175,6 +177,38 @@ class DispatchContractTest {
                 "the cancel came first, so the outcome is the cancellation and not the dependency's failure");
         assertFalse(consumer.executed.get(), "and the job never executed");
         assertEquals(JobState.CANCELLED, handle.getContext().getState());
+    }
+
+    @Test
+    void cancellingWhileJobsStartAndEnd_neverThrows() throws Exception {
+        AtomicBoolean stop = new AtomicBoolean(false);
+        List<Thread> churn = new ArrayList<>();
+        for (int i = 0; i < 4; i++) {
+            churn.add(Thread.ofVirtual().start(() -> {
+                while (!stop.get()) {
+                    try {
+                        JobDispatcher.getInstance().submit(new ProducerJob(root(), false)).get();
+                    }
+                    catch (InterruptedException | ExecutionException e) {
+                        throw new IllegalStateException(e);
+                    }
+                }
+            }));
+        }
+        try {
+            // an id no job has, so every call walks all the running jobs while the set changes under it
+            long deadline = System.currentTimeMillis() + 2_000;
+            while (System.currentTimeMillis() < deadline) {
+                assertFalse(JobDispatcher.getInstance().cancel("no-such-job", "probing"),
+                        "a cancel that finds no job answers false, whatever starts or ends meanwhile");
+            }
+        }
+        finally {
+            stop.set(true);
+            for (Thread thread : churn) {
+                thread.join();
+            }
+        }
     }
 
     @Test

@@ -273,7 +273,8 @@ or when it sees `context.isCancelled()`. Cancellation is cooperative: a job that
 runs to its end, and its caller still receives the cancellation, whether the job then
 returned a result or failed with an error of its own. A job cancelled while it waits for its
 dependencies ends cancelled too, whatever becomes of them. In every case the caller's
-`get()` throws an `ExecutionException` whose cause is a `JobCancelledException`.
+`get()` throws an `ExecutionException` whose cause is a `JobCancelledException`. A cancel
+may be called from any thread while other jobs start and end.
 
 ## When a provider fails
 
