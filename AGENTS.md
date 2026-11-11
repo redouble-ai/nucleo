@@ -91,7 +91,9 @@ cd nucleo-demo
 java -jar target/nucleo-demo.jar discover 2>&1 | tee discovery.txt
 ```
 
-Every command from here to step 6 runs in `nucleo-demo`. It lists every provider the credentials configure, pings every open entry once (a one-word
+Every command from here to step 6 runs in `nucleo-demo`.
+
+The discovery lists every provider the credentials configure, pings every open entry once (a one-word
 prompt, a one-word embed), merges what the account lists into the catalog, validates the
 result by loading it, and writes it. Expect a minute; every ping is one cheap call. The
 report begins at the line `Catalog discovery <timestamp>` and has these sections:
@@ -329,7 +331,7 @@ curl -s localhost:8080/extract -H 'content-type: application/json' \
 
 The report has one row per file (`tier`, `chars`, the model and what its calls cost, a
 `note` when something needs a person), the spend per model, the caps and the total. On the
-shipped corpus of 29 files through Bedrock this is 37 model calls and a few cents. A
+shipped corpus of 30 files through Bedrock this is 37 model calls and a few cents. A
 `budgets` entry is a cap per currency: a run that would pass it has its remaining model
 calls refused at admission, each such file reporting `REFUSED` with the cap it hit, and code
 still reads what code can read. Then:
@@ -439,4 +441,5 @@ The documentation reads in one order from `nucleo-docs/CONTENTS.md`; the publish
   for a dependency, and never add extra jars to force one to link. Use the dependency's existing
   Quarkus or Quarkiverse extension, or keep the dependency out of the native build (JVM-only
   behind a maven profile, the way `nucleo-demo-poi` keeps POI/PDFBox out of native). Check for an
-  extension first. This is absolute.
+  extension first. Hand-written native metadata goes stale without a sign at every version bump
+  of the dependency, and it grows without bound. This is absolute.
