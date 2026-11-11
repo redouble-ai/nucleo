@@ -26,5 +26,5 @@ package ...;
   `@deprecated`.
 - `@author` names humans only - never an AI co-author, in any spelling. The build
   workflow refuses a source file that names one, or that lacks the header.
-- `@since` is `<version> (<date>)`: the release the type first ships in (currently `0.1`)
+- `@since` is `<version> (<date>)`: the release the type first ships in (the version in the root `pom.xml`)
   and the date the file was created, which the version alone does not carry.
