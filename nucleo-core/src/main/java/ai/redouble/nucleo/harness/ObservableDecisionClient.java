@@ -48,9 +48,15 @@ class ObservableDecisionClient implements DecisionClient {
             failed.setSuccessful(false);
             failed.setReasonForFailure(e.getMessage());
             failed.setLastError(e);
+            failed.setProviderRequestId(delegate.providerRequestId(e));
             jobContext.addLlmResponse(failed);
             throw e;
         }
+    }
+
+    @Override
+    public String providerRequestId(Exception failure) {
+        return delegate.providerRequestId(failure);
     }
 
     @Override

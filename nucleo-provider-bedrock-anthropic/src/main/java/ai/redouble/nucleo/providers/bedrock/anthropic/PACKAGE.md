@@ -54,6 +54,15 @@ Both providers here are Anthropic providers, so a Claude entry on Bedrock or Man
 way it does on Anthropic's own API, and its responses report usage the same way: the rules are
 in the [Anthropic provider's guide](../../../../../../../../../../nucleo-provider-anthropic/src/main/java/ai/redouble/nucleo/providers/anthropic/PACKAGE.md).
 
+## When a call fails
+
+Both endpoints answer an error with the AWS request id in the `x-amzn-RequestId` header and
+a body that holds the message alone. The clients here are the Anthropic client over an AWS
+transport and read the id as it does, so a rate limit, an overload or a server error states
+it; the reading and its test are on the
+[Anthropic provider](../../../../../../../../../../nucleo-provider-anthropic/src/main/java/ai/redouble/nucleo/providers/anthropic/PACKAGE.md)
+page.
+
 ## How it works inside
 
 The classes, how entries link to a provider when a classpath lacks one, and the tests are

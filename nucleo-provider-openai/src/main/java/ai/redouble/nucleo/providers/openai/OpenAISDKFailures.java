@@ -8,6 +8,8 @@ package ai.redouble.nucleo.providers.openai;
 
 import com.openai.errors.*;
 
+import java.util.*;
+
 /**
  * The one reading of a failure from OpenAI's own client, shared by the SDK chat and the SDK
  * embeddings clients so the two cannot classify the same exception differently: the typed
@@ -29,6 +31,23 @@ final class OpenAISDKFailures {
             }
         }
         return null;
+    }
+
+    /**
+     * The request id of the error response a failure carries, the first value of OpenAI's
+     * {@code x-request-id} header; null when the failure never reached the service, when the
+     * response named no id, or when the header was blank.
+     */
+    static String requestId(Throwable e) {
+        OpenAIServiceException svc = serviceException(e);
+        if (svc == null) {
+            return null;
+        }
+        List<String> values = svc.headers().values("x-request-id");
+        if (values.isEmpty() || values.get(0).isBlank()) {
+            return null;
+        }
+        return values.get(0);
     }
 
     static boolean is429(Throwable e) {

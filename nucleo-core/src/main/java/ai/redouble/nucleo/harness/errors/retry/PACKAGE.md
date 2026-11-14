@@ -38,13 +38,22 @@ Choose it by who is waiting. The window grows with each attempt, so every re-run
 first is minutes a caller waits behind, and a fault still there after a few attempts is an
 outage or a request the endpoint cannot serve, which more waiting never fixes. A job whose
 caller waits interactively sets fewer; an unattended pipeline may set more. Past the number,
-the job fails with an `UncorrectableRuntimeLLMException` naming it, the last signal as its
-cause.
+the job fails with an `UncorrectableRuntimeLLMException` naming the job and the number, the
+last signal as its cause.
+
+That failure is a failure for every job above. A doer or a thinker that awaits the job
+receives it and fails once, without running its own body again, so the retries do not
+multiply with the depth of the job tree: a model call under a thinker under a doer is sent
+the model call's number of times plus one. A parent that wants to try a failed child again
+says so in its own retry policy.
 
 None of the signals is addressed to a model, and none should be caught. A tool that catches
-broadly around a model call passes what it caught through `LLMReadableCheckedException.unwrap`
-or `wrapWithContext`, which rethrow any of these signals found in the cause chain, so a wait
-the dispatcher knows how to do is never turned into a failure.
+broadly around its own model call passes what it caught through
+`LLMReadableCheckedException.unwrap` or `wrapWithContext`, which rethrow a signal found in
+the cause chain when nothing LLM-readable lies above it, so a wait the dispatcher knows how
+to do is never turned into a failure. An LLM-readable exception above a signal ends that
+signal: whoever built it has already ruled, and `unwrap` passes the exception up as it is.
+So code that wraps a signal in an LLM-readable exception of its own ends that call's retry.
 
 ## When the model's reply is unusable
 
@@ -67,6 +76,9 @@ a hole in it.
 A reply the provider cut off at its output limit is run again once with a larger output
 budget, asked for by `OutputTruncationRetryException`. A reply cut off again fails.
 
+Both of these re-runs are the call's own, like the waits above: once they are spent, the
+jobs above the call receive a failure and run once.
+
 ## What no retry fixes
 
 - `QuotaExhaustedException` - the provider account is out of money. It is never retried,
@@ -75,7 +87,8 @@ budget, asked for by `OutputTruncationRetryException`. A reply cut off again fai
   provider's own words when it gave any.
 - `TokenEstimateExceedsLimitException` - before sending, Nucleo estimated that the
   conversation does not fit the model's window. It carries the estimate, the limit, and the
-  overflow as an amount and a ratio. A thinker answers it by compacting the conversation and
+  overflow as an amount and a ratio. A provider that refuses a sent prompt as too long is
+  reported as the same exception, with the provider's failure as its cause. A thinker answers it by compacting the conversation and
   trying again, and fails with `ContextOverflowException` when even that does not fit, or
   with `NonCompactableContextException` when the conversation may not be compacted at all
   ([Compaction](../../conversation/compaction/PACKAGE.md)).

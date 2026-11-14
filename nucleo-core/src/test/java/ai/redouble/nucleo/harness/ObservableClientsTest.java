@@ -19,8 +19,9 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * {@link ObservableLLMClient} and {@link ObservableEmbeddingsClient} record every call on the
  * job's context: a delegate's response as it is, and a failure as a response marked
- * unsuccessful with the reason, the cause and the model, a truncation labelled with the
- * {@code MAX_TOKENS} stop reason so it is queryable as one.
+ * unsuccessful with the reason, the cause, the model and the provider's request id when the
+ * failure carries one, a truncation labelled with the {@code MAX_TOKENS} stop reason so it is
+ * queryable as one.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-09-16)
@@ -31,6 +32,8 @@ class ObservableClientsTest {
     static class ScriptedEmbeddingsClient implements EmbeddingsClient {
         private final RuntimeException failure;
         private ModelSpec model = TestModels.small();
+        /** The id this delegate gives for the failure it was handed, null until a test sets one. */
+        String requestId;
 
         ScriptedEmbeddingsClient(RuntimeException failure) {
             this.failure = failure;
@@ -56,6 +59,39 @@ class ObservableClientsTest {
         public void setModel(ModelSpec model) {
             this.model = model;
         }
+
+        @Override
+        public String providerRequestId(Exception failure) {
+            return failure == this.failure ? requestId : null;
+        }
+    }
+
+    @Test
+    void theProvidersRequestIdForAFailedCall_isRecordedOnTheFailedResponseAsItsOwnValue() {
+        JobContext<String> context = context();
+        IllegalStateException boom = new IllegalStateException("provider down");
+        ScriptedClient scripted = new ScriptedClient(boom);
+        scripted.requestId = "req_scripted_1";
+        ObservableLLMClient client = new ObservableLLMClient(scripted, context);
+        assertThrows(IllegalStateException.class, () -> client.singleResponse(request()));
+        assertEquals("req_scripted_1", context.getLlmResponses().get(0).getProviderRequestId(),
+                "the id the delegate reads off the failure, though the failure's text states none");
+        assertEquals("req_scripted_1", client.providerRequestId(boom), "the wrapper answers for the delegate");
+        JobContext<String> embeddingsContext = context();
+        ScriptedEmbeddingsClient scriptedEmbeddings = new ScriptedEmbeddingsClient(boom);
+        scriptedEmbeddings.requestId = "req_scripted_1";
+        ObservableEmbeddingsClient embeddings = new ObservableEmbeddingsClient(scriptedEmbeddings, embeddingsContext);
+        assertThrows(IllegalStateException.class, () -> embeddings.embed("text", EmbeddingPurpose.QUERY));
+        assertEquals("req_scripted_1", embeddingsContext.getLlmResponses().get(0).getProviderRequestId());
+        assertEquals("req_scripted_1", embeddings.providerRequestId(boom));
+    }
+
+    @Test
+    void aFailureThatCarriesNoRequestId_leavesTheFailedResponseWithoutOne() {
+        JobContext<String> context = context();
+        ObservableLLMClient client = new ObservableLLMClient(new ScriptedClient(new IllegalStateException("never sent")), context);
+        assertThrows(IllegalStateException.class, () -> client.singleResponse(request()));
+        assertNull(context.getLlmResponses().get(0).getProviderRequestId(), "no id is no value, never an empty one");
     }
 
     @Test
@@ -108,6 +144,8 @@ class ObservableClientsTest {
     /** A delegate that answers, or throws, what the test hands it. */
     static class ScriptedClient implements LLMClient {
         private final RuntimeException failure;
+        /** The id this delegate gives for the failure it was handed, null until a test sets one. */
+        String requestId;
 
         ScriptedClient(RuntimeException failure) {
             this.failure = failure;
@@ -159,6 +197,11 @@ class ObservableClientsTest {
 
         @Override
         public void setModel(ModelSpec model) {
+        }
+
+        @Override
+        public String providerRequestId(Exception failure) {
+            return failure == this.failure ? requestId : null;
         }
     }
 

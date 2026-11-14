@@ -87,6 +87,17 @@ The SDKs' own retries are switched off, and Nucleo decides what each failure mea
 A streamed answer is retried only before its first piece has arrived. After that, a retry
 would send the reader text they have already seen, so the failure is reported instead.
 
+A provider names each request with an id, and its support asks for that id before it looks
+at anything. When an error response carries one, the exception the client builds from it
+ends in `(request id <id>)`, so the id is in the log line and in the recorded error; a text
+that already states the id, as the AWS SDK's does, is left as it is. A failure that leaves
+the client as the provider SDK's own exception keeps the SDK's text, and for it the id is in
+two other places: the WARN line every failed chat call logs (the job, the model, the
+endpoint, the time it took, the failure and the id) and `LLMResponse.getProviderRequestId()`
+of the failed call's record, which `Client.providerRequestId(Exception)` fills. The id is
+read by the Anthropic client (direct and both Bedrock endpoints), the Bedrock Converse and
+Cohere embeddings clients, and the OpenAI SDK clients; every other client answers null.
+
 ## Prompt caching on each provider
 
 What caching saves and how a conversation marks what is cached are on the

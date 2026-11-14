@@ -53,7 +53,9 @@ public abstract class AbstractDecisionClient extends AbstractRateLimitedClient i
                     }
                     if (e instanceof IOException && is429Error(e)) {
                         RateLimitInfo info = extractRateLimitInfo(e);
-                        throw new RateLimitRetryException("Rate limit exceeded: " + e.getMessage(), info, 0, e.getMessage(),
+                        // the signals built here state the provider's request id, as the chat template's do
+                        String words = statingRequestId(e.getMessage(), e);
+                        throw new RateLimitRetryException("Rate limit exceeded: " + words, info, 0, words,
                                 info != null ? info.getRetryAfter() : null, e);
                     }
                     // Deployment configuration, not weather: the wrong host builds names DNS
@@ -66,7 +68,7 @@ public abstract class AbstractDecisionClient extends AbstractRateLimitedClient i
                     }
                     if (e instanceof IOException && isServerError(e)) {
                         String provider = model != null ? model.getId() : "unknown";
-                        String details = UpstreamRetryException.details(e);
+                        String details = statingRequestId(UpstreamRetryException.details(e), e);
                         throw new TransientErrorRetryException("Server error: " + details, provider, details, 0, 0, e);
                     }
                     throw new RuntimeException(e);

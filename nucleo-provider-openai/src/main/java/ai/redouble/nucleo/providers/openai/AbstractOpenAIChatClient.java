@@ -688,8 +688,10 @@ public abstract class AbstractOpenAIChatClient extends AbstractLLMClient<ObjectN
         }
         String status = responseJson.path("status").asText("completed");
         if ("failed".equals(status)) {
-            throw new UncorrectableRuntimeLLMException("OpenAI failed the response for " + getModel().getId() + ": "
-                    + responseJson.path("error").path("message").asText("no error message"));
+            // no exception of the SDK exists here to read an id from: the response arrived whole,
+            // and its envelope already gave this response the provider's request id
+            throw new UncorrectableRuntimeLLMException(statingRequestId("OpenAI failed the response for " + getModel().getId() + ": "
+                    + responseJson.path("error").path("message").asText("no error message"), response.getProviderRequestId()));
         }
         IncomingMessage<T> incoming = response.getResponseMessage();
         incoming.setMessageId(responseJson.path("id").asText(""));

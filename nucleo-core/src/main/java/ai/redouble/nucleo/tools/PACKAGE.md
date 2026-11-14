@@ -183,7 +183,9 @@ catch (Exception e) {
 `unwrap` passes typed failures through unchanged, reports anything else as a failure the
 caller can read, and lets the runtime's own retry signals through - upstream throttling, a
 correction of the model's answer, an escalation after a truncated answer - so the broad catch
-never turns something the dispatcher knows how to retry into a failure.
+never turns something the dispatcher knows how to retry into a failure. A signal is let
+through only for the job whose own body raised it. The failure of a job you awaited, its
+retries spent, comes through `unwrap` as that failure, and your job does not run again.
 
 A tool that calls an external service with a value the model supplied wraps that one call
 with the parameter it was made for:

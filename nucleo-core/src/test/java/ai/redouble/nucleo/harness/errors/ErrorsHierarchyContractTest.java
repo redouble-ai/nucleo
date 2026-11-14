@@ -246,6 +246,36 @@ public class ErrorsHierarchyContractTest {
     }
 
     @Test
+    void aRetrySignalBeneathAnLLMReadableExceptionIsNotRethrown() {
+        List<RuntimeException> signals = List.of(
+                new RateLimitRetryException("429", null, 1, "slow down", Duration.ofSeconds(3), null),
+                new OverloadRetryException("529", "anthropic", "overloaded", null),
+                new TransientErrorRetryException("500", "openai", "api_error", 500, 1, null),
+                new ResponseCorrectionRetryException("m", 1, new JsonParseException("no object", null)),
+                new OutputTruncationRetryException("m", 1000, 4000));
+        for (RuntimeException signal : signals) {
+            String name = signal.getClass().getSimpleName();
+            // a verdict of the runtime family, the way a job's spent budget arrives: unwrap throws it as itself
+            UncorrectableRuntimeLLMException spent = new UncorrectableRuntimeLLMException("Exceeded the transparent retry budget (3)", signal);
+            ExecutionException fromChild = new ExecutionException(spent);
+            RuntimeException thrown = assertThrows(RuntimeException.class, () -> LLMReadableCheckedException.unwrap(fromChild));
+            assertSame(spent, thrown, name + " beneath a verdict is spent: the verdict travels up, the signal stays its cause");
+            assertSame(signal, thrown.getCause(), "and is still readable there");
+            // verdicts of the checked family, the way a timed-out or cancelled job arrives: unwrap returns them
+            for (LLMReadableCheckedException verdict : List.of(new JobTimeoutException(Duration.ofMinutes(5), signal),
+                    new JobCancelledException(signal), new SystemException("component", "wrapped by hand", signal))) {
+                assertSame(verdict, LLMReadableCheckedException.unwrap(new ExecutionException(verdict)),
+                        name + " beneath " + verdict.getClass().getSimpleName() + " is not rethrown");
+                assertSame(signal, verdict.getCause());
+            }
+            // wrapWithContext follows the same walk: it readdresses the verdict and rethrows nothing
+            LLMReadableCheckedException readdressed = LLMReadableCheckedException.wrapWithContext(fromChild, "svc", "p", "v", "op");
+            ExternalServiceException external = assertInstanceOf(ExternalServiceException.class, readdressed, name + " beneath a verdict is not rethrown by wrapWithContext");
+            assertSame(fromChild, external.getCause(), "the whole chain, signal included, stays the cause");
+        }
+    }
+
+    @Test
     void wrapWithContextKeepsACorrectableFailureCorrectableAndNamesTheCallersParameter() {
         Http400Exception upstream = new Http400Exception("svc", "/compound", "bad cid");
         RuntimeException caught = new RuntimeException(upstream);

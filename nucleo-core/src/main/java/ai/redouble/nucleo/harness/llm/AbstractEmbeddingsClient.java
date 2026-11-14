@@ -58,11 +58,13 @@ public abstract class AbstractEmbeddingsClient extends AbstractRateLimitedClient
                     }
                     if (e instanceof IOException && is429Error(e)) {
                         RateLimitInfo info = extractRateLimitInfo(e);
+                        // the signals built here state the provider's request id, as the chat template's do
+                        String words = statingRequestId(e.getMessage(), e);
                         throw new RateLimitRetryException(
-                            "Rate limit exceeded: " + e.getMessage(),
+                            "Rate limit exceeded: " + words,
                             info,
                             0,
-                            e.getMessage(),
+                            words,
                             info != null ? info.getRetryAfter() : null,
                             e
                         );
@@ -81,7 +83,7 @@ public abstract class AbstractEmbeddingsClient extends AbstractRateLimitedClient
                         // backoff retry instead of failing the embedding, the same discipline as the
                         // LLM clients.
                         String provider = model != null ? model.getId() : "unknown";
-                        String details = UpstreamRetryException.details(e);
+                        String details = statingRequestId(UpstreamRetryException.details(e), e);
                         throw new TransientErrorRetryException("Server error: " + details, provider, details, 0, 0, e);
                     }
                     throw new RuntimeException(e);

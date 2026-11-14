@@ -76,6 +76,9 @@ class ObservableLLMClient implements LLMClient {
         failed.setSuccessful(false);
         failed.setReasonForFailure(e.getMessage());
         failed.setLastError(e);
+        // the provider's id for the failed request, as a value of its own: a failure whose
+        // exception is the provider SDK's states none in its text
+        failed.setProviderRequestId(delegate.providerRequestId(e));
         failed.setModel(delegate.getModelIdentifier());
         if (e instanceof OutputTruncationRetryException) {
             failed.setStopReason(LLMStopReason.MAX_TOKENS);
@@ -106,6 +109,11 @@ class ObservableLLMClient implements LLMClient {
     @Override
     public void setModel(final ModelSpec model) {
         delegate.setModel(model);
+    }
+
+    @Override
+    public String providerRequestId(Exception failure) {
+        return delegate.providerRequestId(failure);
     }
 
     @Override

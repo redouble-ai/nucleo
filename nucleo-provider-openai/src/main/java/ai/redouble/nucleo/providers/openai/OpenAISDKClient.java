@@ -212,14 +212,19 @@ public class OpenAISDKClient extends AbstractOpenAIChatClient {
      * walking the cause chain, so the typed failure stays the cause, and what is left after
      * that classification - a 4xx, a body the SDK could not read - reaches a thinker as an
      * uncorrectable LLM-readable failure rather than as the transport library's own type.
-     * The message is composed from what this process knows, the status and the model; the
-     * provider's own words ride in the cause.
+     * The message is composed from what this process knows, the status and the model, and
+     * the request id the provider gave the call; the provider's own words ride in the cause.
      */
     protected UncorrectableRuntimeLLMException failed(OpenAIException e) {
         String what = e instanceof OpenAIServiceException svc
                 ? serviceName() + " answered HTTP " + svc.statusCode() + " for " + getModel().getId()
                 : serviceName() + "'s response for " + getModel().getId() + " could not be read";
-        return new UncorrectableRuntimeLLMException(what, e);
+        return new UncorrectableRuntimeLLMException(statingRequestId(what, e), e);
+    }
+
+    @Override
+    public String providerRequestId(Exception failure) {
+        return OpenAISDKFailures.requestId(failure);
     }
 
     /**

@@ -40,6 +40,23 @@ public class TokenEstimateExceedsLimitException extends UncorrectableLLMExceptio
         this.modelName = modelName;
     }
 
+    /**
+     * The provider itself refused the request as too long, where the pre-flight estimate had
+     * let it through. The provider's failure stays the cause, so its own words and whatever
+     * else its client attached to it are not lost with the translation.
+     *
+     * @param estimatedTokens the estimate the call was sent on
+     * @param modelLimit the model's context window
+     * @param modelName the model's id
+     * @param cause the provider's refusal
+     */
+    public TokenEstimateExceedsLimitException(int estimatedTokens, int modelLimit, String modelName, Throwable cause) {
+        super(buildMessage(estimatedTokens, modelLimit, modelName), cause);
+        this.estimatedTokens = estimatedTokens;
+        this.modelLimit = modelLimit;
+        this.modelName = modelName;
+    }
+
     private static String buildMessage(int estimated, int limit, String model) {
         return String.format(
             "Pre-flight ESTIMATE: %,d tokens exceeds %s limit of %,d tokens. " +

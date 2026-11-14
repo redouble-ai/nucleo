@@ -85,12 +85,60 @@ public abstract class AbstractRateLimitedClient implements Client {
         return false;
     }
 
+    /**
+     * No id here: a client that reads none from its provider's error responses has none to
+     * give. A provider client overrides this with its provider's header.
+     */
+    @Override
+    public String providerRequestId(Exception failure) {
+        return null;
+    }
+
+    /**
+     * A failure's text, stating the provider's request id. Every exception a client builds
+     * from a provider's failure takes its message through here, so the id reads the same
+     * wherever it appears and lands in the log line and the recorded error, which hold the
+     * message and nothing else of the exception.
+     *
+     * <p>The text comes back unchanged when the failure carries no id, and when it already
+     * states the id: the AWS SDK prints the request id in its own exception message, and a
+     * text that says it once is not made to say it twice.</p>
+     *
+     * @param text the failure's text, null when the provider gave no words
+     * @param failure what the provider's client threw
+     * @return the text, ending in {@code (request id <id>)} when the id is known and absent from it
+     */
+    protected String statingRequestId(String text, Exception failure) {
+        return statingRequestId(text, providerRequestId(failure));
+    }
+
+    /**
+     * The same rendering for a caller that already holds the id, as a client does when the
+     * provider failed a request inside a response that arrived whole.
+     *
+     * @param text the failure's text, null when the provider gave no words
+     * @param requestId the provider's request id, null when there is none
+     * @return the text, ending in {@code (request id <id>)} when the id is known and absent from it
+     */
+    protected static String statingRequestId(String text, String requestId) {
+        if (requestId == null) {
+            return text;
+        }
+        if (text == null) {
+            return "request id " + requestId;
+        }
+        if (text.contains(requestId)) {
+            return text;
+        }
+        return text + " (request id " + requestId + ")";
+    }
+
     /** Builds the out-of-money exception from the provider's failure. */
     protected QuotaExhaustedException quotaExhausted(Exception cause) {
         String provider = model != null ? model.getProviderKey() : "unknown";
         String modelName = model != null ? model.getId() : null;
         return new QuotaExhaustedException(provider, accountIdentifier(), modelName,
-                cause != null ? cause.getMessage() : null, cause);
+                cause != null ? statingRequestId(cause.getMessage(), cause) : null, cause);
     }
 
     protected final <T> T executeWithRateLimit(RateLimitedOperation<T> operation) {

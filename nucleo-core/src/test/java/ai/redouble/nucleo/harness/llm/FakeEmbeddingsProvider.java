@@ -49,4 +49,7 @@ class FakeEmbeddingsClient implements EmbeddingsClient {
 
     @Override
     public void setModel(ModelSpec model) {this.model = model;}
+
+    @Override
+    public String providerRequestId(Exception failure) {return null;}
 }

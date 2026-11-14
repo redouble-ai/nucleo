@@ -201,8 +201,12 @@ whatever else the body throws ("Service tools" in [Tools, thinkers and
 doers](../../tools/PACKAGE.md)).
 
 Neither method swallows the signals Nucleo uses to retry a call on its own: `unwrap` and
-`wrapWithContext` rethrow any of them found in the cause chain, so a broad catch never turns
-a retry into a failure ([Retry signals](retry/PACKAGE.md)).
+`wrapWithContext` rethrow one found in the cause chain with nothing LLM-readable above it, so
+a broad catch never turns a retry into a failure ([Retry signals](retry/PACKAGE.md)). The
+reverse holds too. A signal beneath an LLM-readable exception is not rethrown, which is how
+the failure of a job you awaited reaches you once its own retries are spent: as a failure,
+with the signal in its cause chain, and your job does not run again for it. For the same
+reason, an LLM-readable exception you build over a retry signal ends that signal's retry.
 
 ## Checked and unchecked
 
@@ -239,8 +243,8 @@ throw LLMReadableRuntimeException.unwrapRuntime(e, "PubChem search failed");
 // none -> UncorrectableRuntimeLLMException with the fallback message
 ```
 
-`unwrapRuntime` does not rethrow the retry signals, because the code it serves is not on
-the dispatcher's retry path and never meets one.
+`unwrapRuntime` rethrows no retry signal, live or spent, because the code it serves is not
+on the dispatcher's retry path and never meets a live one.
 
 ## Failures the runtime raises
 

@@ -157,6 +157,11 @@ public class BedrockCohereEmbeddingsClient extends AbstractEmbeddingsClient {
     }
 
     @Override
+    public String providerRequestId(Exception failure) {
+        return BedrockClients.requestId(failure);
+    }
+
+    @Override
     protected boolean isServerError(Exception e) {
         return BedrockClients.isServerError(e);
     }

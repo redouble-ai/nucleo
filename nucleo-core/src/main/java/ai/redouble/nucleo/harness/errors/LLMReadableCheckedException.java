@@ -187,6 +187,9 @@ public sealed abstract class LLMReadableCheckedException extends Exception imple
      *   <li>Any other throwable becomes {@link ExternalServiceException}</li>
      * </ul>
      *
+     * <p>A live retry signal in the chain is rethrown instead, as {@link #unwrap(Throwable)}
+     * does and by the same rule.</p>
+     *
      * <p><strong>Example:</strong></p>
      * <pre>{@code
      * try {
@@ -208,10 +211,11 @@ public sealed abstract class LLMReadableCheckedException extends Exception imple
     public static LLMReadableCheckedException wrapWithContext(Throwable t, String serviceName,
                                                        String paramName, Object paramValue,
                                                        String operation) {
-        rethrowRetrySignals(t);
-        // Walk the cause chain to find any LLM-readable exception (checked or runtime).
-        LLMReadableException llm = findLLMReadable(t);
-        if (llm != null) {
+        Throwable decisive = firstDecisive(t);
+        if (isRetrySignal(decisive)) {
+            throw (RuntimeException) decisive;
+        }
+        if (decisive instanceof LLMReadableException llm) {
             if (llm.isCorrectable()) {
                 return new InvalidInputException(paramName, paramValue,
                     operation + ": " + llm.getLLMMessage(), t);
@@ -234,79 +238,84 @@ public sealed abstract class LLMReadableCheckedException extends Exception imple
      * that throw broader exceptions (e.g., {@link java.util.concurrent.ExecutionException}
      * from {@code JobHandle.get()}, or {@link InterruptedException}).</p>
      *
-     * <p>Walks the cause chain looking for an existing LLM-readable exception. If a checked
-     * {@link LLMReadableCheckedException} is found, returns it directly. If a runtime
-     * {@link LLMReadableRuntimeException} is found, throws it directly (preserving its
-     * correctable/uncorrectable classification). Otherwise wraps in a SystemException.</p>
+     * <p>Walks the cause chain to the first exception that decides the outcome: a dispatcher
+     * retry signal or an LLM-readable exception, whichever comes first. A checked
+     * {@link LLMReadableCheckedException} is returned. A runtime
+     * {@link LLMReadableRuntimeException} is thrown as itself, keeping its
+     * correctable/uncorrectable classification. A chain with neither becomes a
+     * {@link SystemException}.</p>
      *
-     * <p><strong>Note:</strong> This method may throw instead of returning: a
-     * {@link LLMReadableRuntimeException} found in the chain is rethrown as itself, and so is a
-     * dispatcher retry signal - every {@link UpstreamRetryException}, and the dispatcher's own
-     * {@link ResponseCorrectionRetryException} and {@link OutputTruncationRetryException} - so the
-     * dispatcher's backoff machinery sees it rather than a terminal wrapper. All call sites use
-     * {@code throw LLMReadableCheckedException.unwrap(e)}, so every path exits with the correct
-     * exception type.</p>
+     * <p><strong>Retry signals.</strong> A dispatcher retry signal - every
+     * {@link UpstreamRetryException}, and the dispatcher's own
+     * {@link ResponseCorrectionRetryException} and {@link OutputTruncationRetryException} - is
+     * rethrown as itself when nothing LLM-readable lies above it in the chain, so a broad catch
+     * around a job's own model exchange hands the signal to that job's dispatcher loop and
+     * never turns a wait the dispatcher knows how to do into a failure. A signal that lies
+     * beneath an LLM-readable exception is not rethrown: whoever built that exception held the
+     * signal and ruled on it. That is how a child job's failure arrives, its retries spent, its
+     * time budget or its cancellation reached, and it travels up as the failure it is, with
+     * the signal still readable in its cause chain. The job that awaits the child runs once.</p>
+     *
+     * <p>All call sites use {@code throw LLMReadableCheckedException.unwrap(e)}, so every path
+     * exits with the correct exception type.</p>
      *
      * @param t the throwable to unwrap
      * @return an LLMReadableException - either the original buried one, or a new SystemException
      * @throws LLMReadableRuntimeException if a runtime LLM-readable exception is found in the chain
      */
     public static LLMReadableCheckedException unwrap(Throwable t) {
-        rethrowRetrySignals(t);
-        LLMReadableException llm = findLLMReadable(t);
-        if (llm instanceof LLMReadableCheckedException checked) return checked;
-        if (llm instanceof LLMReadableRuntimeException runtime) throw runtime;
+        Throwable decisive = firstDecisive(t);
+        if (isRetrySignal(decisive)) {
+            throw (RuntimeException) decisive;
+        }
+        if (decisive instanceof LLMReadableCheckedException checked) {
+            return checked;
+        }
+        if (decisive instanceof LLMReadableRuntimeException runtime) {
+            throw runtime;
+        }
         String message = getMostMeaningfulMessage(t);
         return new SystemException("internal", message, t);
     }
 
     /**
-     * Rethrows a dispatcher retry signal buried anywhere in the cause chain. Every
-     * {@link UpstreamRetryException} (429 rate limit, 529 overload, plain 5xx fault)
-     * is an infrastructure signal, not an error: the dispatcher's backoff-and-retry
-     * machinery consumes them without charging the job's retry budget, but only if
-     * they reach it, and a broad catch that funnels them through {@link #unwrap} or
-     * {@link #wrapWithContext} would otherwise turn throttling the dispatcher knows how
-     * to wait out into a terminal failure. Keying on the sealed parent means a newly
-     * added signal can never miss this rescue. The dispatcher's two re-run signals of its
-     * own, a response correction and an output truncation escalation, are rescued the
-     * same way: a one-call tool that catches broadly around its exchange would otherwise
-     * turn the model's second chance into a terminal failure.
-     */
-    private static void rethrowRetrySignals(Throwable t) {
-        Throwable current = t;
-        while (current != null) {
-            if (current instanceof UpstreamRetryException retrySignal) {
-                throw retrySignal;
-            }
-            // the dispatcher's own re-run signals: a correction turn appended to the conversation,
-            // an output budget escalated to the ceiling. Wrapped, they would end the job instead
-            if (current instanceof ResponseCorrectionRetryException correction) {
-                throw correction;
-            }
-            if (current instanceof OutputTruncationRetryException truncation) {
-                throw truncation;
-            }
-            current = current.getCause();
-        }
-    }
-
-    /**
-     * Walks the cause chain looking for the first {@link LLMReadableException} exception
-     * (checked or runtime).
+     * The first exception of a cause chain that decides what a broad catch does with it: a
+     * dispatcher retry signal, or an LLM-readable exception. One walk serves {@link #unwrap}
+     * and {@link #wrapWithContext}, so the two can never disagree about where a chain's
+     * verdict lies.
      *
-     * @param t the throwable to inspect
-     * @return the first LLMReadable in the chain, or null if none found
+     * <p>The order of the chain is the rule. A signal met first is live: it was thrown in this
+     * job's own body, under nothing but raw wrappers ({@code ExecutionException},
+     * {@code IOException}), and the dispatcher loop of this job is the one that waits it out. An
+     * LLM-readable exception met first is a verdict, and the walk ends there: a signal beneath
+     * it was already consumed by the code that built the verdict, a dispatcher loop whose budget
+     * it spent or a client that refused to retry it, and rescuing it would run this job again
+     * for a failure that was already settled below.</p>
+     *
+     * @param t the throwable a broad catch caught
+     * @return the first retry signal or LLM-readable exception in the chain, null when it holds neither
      */
-    private static LLMReadableException findLLMReadable(Throwable t) {
+    private static Throwable firstDecisive(Throwable t) {
         Throwable current = t;
         while (current != null) {
-            if (current instanceof LLMReadableException lr) {
-                return lr;
+            if (current instanceof LLMReadableException || isRetrySignal(current)) {
+                return current;
             }
             current = current.getCause();
         }
         return null;
+    }
+
+    /**
+     * Whether a throwable is one of the signals the dispatcher answers by running the job
+     * again: any {@link UpstreamRetryException} (keyed on the sealed parent, so a signal added
+     * to it is covered), a response correction, an output truncation escalation. All three are
+     * runtime exceptions and none is LLM-readable.
+     */
+    private static boolean isRetrySignal(Throwable t) {
+        return t instanceof UpstreamRetryException
+                || t instanceof ResponseCorrectionRetryException
+                || t instanceof OutputTruncationRetryException;
     }
 
     /**

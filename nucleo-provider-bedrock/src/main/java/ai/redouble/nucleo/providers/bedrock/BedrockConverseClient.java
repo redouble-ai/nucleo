@@ -217,6 +217,11 @@ public class BedrockConverseClient extends AbstractLLMClient<ContentBlock> {
     }
 
     @Override
+    public String providerRequestId(Exception failure) {
+        return BedrockClients.requestId(failure);
+    }
+
+    @Override
     protected boolean isServerError(Exception e) {
         return BedrockClients.isServerError(e);
     }

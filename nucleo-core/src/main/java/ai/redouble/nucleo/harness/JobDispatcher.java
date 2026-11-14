@@ -1485,9 +1485,11 @@ public enum JobDispatcher {
                 // per-signal, so diagnostics keep saying what happened.
                 int budget = job.getUpstreamRetries();
                 if (rateLimitAttempt >= budget) {
-                    // The upstream never recovered within the budget: nothing the model can correct
+                    // The upstream never recovered within the budget: nothing the model can correct.
+                    // The failure names the job whose budget this was, because it travels up
+                    // through every job that awaits this one and is read at the root
                     lastError = new UncorrectableRuntimeLLMException("Exceeded the transparent retry budget ("
-                            + budget + ") on " + e.getClass().getSimpleName() + ": " + UpstreamRetryException.details(e), e);
+                            + budget + ") of " + context.getSnapshot().getDisplayName() + " on " + e.getClass().getSimpleName() + ": " + UpstreamRetryException.details(e), e);
                     failedAttempt = attempt;
                     break;
                 }
@@ -1505,7 +1507,7 @@ public enum JobDispatcher {
                 Duration estimatedDelay = Duration.ofMillis(jitterMs);
                 switch (e) {
                     case RateLimitRetryException rateLimit -> {
-                        log.info("Rate limit hit for {}, transparent-retry attempt {}", jobId, rateLimitAttempt);
+                        log.info("Rate limit hit for {}, transparent-retry attempt {}: {}", jobId, rateLimitAttempt, rateLimit.getMessage());
                         RateLimitInfo info = rateLimit.getRateLimitInfo();
                         String modelName = info != null ? info.getModel() : "unknown";
                         double throttle = 0.0;
@@ -1596,7 +1598,7 @@ public enum JobDispatcher {
                                 + ": the job rebuilt its conversation per attempt, so the escalation to "
                                 + escalated.getNewBudget() + " never reached the wire; its declared budget is its ceiling";
                     }
-                    lastError = new UncorrectableRuntimeLLMException(outcome, e);
+                    lastError = new UncorrectableRuntimeLLMException(outcome + " (job " + context.getSnapshot().getDisplayName() + ")", e);
                     failedAttempt = attempt;
                     break;
                 }
@@ -1617,7 +1619,7 @@ public enum JobDispatcher {
                 if (correctionRetryAttempt >= MAX_CORRECTION_RETRIES) {
                     // A job still asking for corrections past the backstop is looping, not converging
                     lastError = new UncorrectableRuntimeLLMException(
-                        "Exceeded max response correction retries (" + MAX_CORRECTION_RETRIES + ")", e);
+                        "Exceeded max response correction retries (" + MAX_CORRECTION_RETRIES + ") on " + context.getSnapshot().getDisplayName(), e);
                     failedAttempt = attempt;
                     break;
                 }

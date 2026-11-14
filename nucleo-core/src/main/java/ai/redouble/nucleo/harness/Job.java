@@ -118,9 +118,11 @@ public interface Job<T> extends Identifiable {
      * How many transparent re-runs the dispatcher may give this job when the upstream
      * fails with a retry signal (a 429, a 529, a plain 5xx or a connection failure), on
      * one shared counter per execution; past them the job fails with the last signal as
-     * cause. The pacing window scales by attempt, so every re-run is minutes a caller
-     * waits behind: a job whose caller waits interactively sets fewer, an unattended
-     * pipeline may set more.
+     * cause. The budget is this job's alone: a job that awaits this one receives that
+     * failure and fails once, without running its own body again, so budgets do not
+     * multiply with the depth of the job tree. The pacing window scales by attempt, so
+     * every re-run is minutes a caller waits behind: a job whose caller waits interactively
+     * sets fewer, an unattended pipeline may set more.
      *
      * @return the budget (default {@link #DEFAULT_UPSTREAM_RETRIES})
      */

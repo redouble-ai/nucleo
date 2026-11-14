@@ -593,6 +593,7 @@ class DispatchContractTest {
         assertEquals(1, job.attempts.get(), "no re-run was granted past the budget");
         assertInstanceOf(UncorrectableRuntimeLLMException.class, failure.getCause(), "past the budget the job fails as uncorrectable: " + failure.getCause());
         assertTrue(failure.getCause().getMessage().contains("transparent retry budget (0)"), "the failure names the budget: " + failure.getCause().getMessage());
+        assertTrue(failure.getCause().getMessage().contains("of " + FaultingJob.class.getSimpleName() + " on "), "the job whose budget it was: " + failure.getCause().getMessage());
         assertTrue(failure.getCause().getMessage().contains("fixture upstream fault"), "and the last signal's own words: " + failure.getCause().getMessage());
         assertInstanceOf(ai.redouble.nucleo.harness.errors.retry.TransientErrorRetryException.class, failure.getCause().getCause(), "with the last signal as cause");
     }

@@ -646,10 +646,7 @@ public class AnthropicSDKClient extends AbstractLLMClient<ContentBlockParam> {
         // response - that lives only in the Service Quotas console and
         // CloudWatch metrics.
         String awsErrorType = headerValue(serverHeaders, "x-amzn-errortype");
-        String awsRequestId = headerValue(serverHeaders, "x-amzn-requestid");
-        if (awsRequestId == null) {
-            awsRequestId = headerValue(serverHeaders, "x-amzn-RequestId");
-        }
+        String requestId = providerRequestId(e);
 
         // Surface whatever the server told us so mismatches between our local
         // bucket and the real upstream state are immediately visible.
@@ -672,7 +669,7 @@ public class AnthropicSDKClient extends AbstractLLMClient<ContentBlockParam> {
             if (requestsReset != null) diag.append(" (reset ").append(requestsReset).append(")");
         }
         if (awsErrorType != null) diag.append(" aws-error=").append(awsErrorType);
-        if (awsRequestId != null) diag.append(" aws-request-id=").append(awsRequestId);
+        if (requestId != null) diag.append(" request-id=").append(requestId);
         if (message != null) diag.append(" msg=").append(message);
         log.warn(diag.toString());
         // If none of the known Anthropic/AWS rate-limit headers were present,
@@ -705,6 +702,33 @@ public class AnthropicSDKClient extends AbstractLLMClient<ContentBlockParam> {
         Integer rr = RateLimitInfo.parseIntOrNull(requestsRemaining);
         Duration ra = parseRetryAfter(retryAfter);
         return new RateLimitInfo(model != null ? model.getId() : "unknown", tl, tr, null, rl, rr, ra, true, type);
+    }
+
+    /**
+     * The request id of the error response a failure carries: Anthropic's {@code request-id}
+     * header, and when the response has none, AWS's {@code x-amzn-requestid}, which is what a
+     * Bedrock endpoint answers with. One reading serves the direct API and both Bedrock
+     * endpoints, because it asks the response and assumes nothing about who sent it.
+     *
+     * <p>The SDK's exception message is the status and the body, and Bedrock's error body is
+     * its message alone, so on Bedrock this header is the only place the id exists.</p>
+     */
+    @Override
+    public String providerRequestId(Exception failure) {
+        for (Throwable current = failure; current != null; current = current.getCause()) {
+            if (current instanceof com.anthropic.errors.AnthropicServiceException svc) {
+                String anthropicId = headerValue(svc.headers(), "request-id");
+                if (anthropicId != null && !anthropicId.isBlank()) {
+                    return anthropicId;
+                }
+                String awsId = headerValue(svc.headers(), "x-amzn-requestid");
+                if (awsId != null && !awsId.isBlank()) {
+                    return awsId;
+                }
+                return null;
+            }
+        }
+        return null;
     }
 
     private static String headerValue(Headers headers, String name) {

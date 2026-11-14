@@ -840,6 +840,7 @@ class KernelExecutionContractTest {
             assertEquals(5, fiveTimes.executions.get(), "the backstop lets four corrections through and refuses the fifth");
             assertInstanceOf(UncorrectableRuntimeLLMException.class, failure.getCause(), "past the backstop the job is looping, not converging: " + failure);
             assertTrue(failure.getCause().getMessage().contains("Exceeded max response correction retries (4)"), failure.getCause().getMessage());
+            assertTrue(failure.getCause().getMessage().endsWith(" on " + CorrectingJob.class.getSimpleName()), "the failure names the job that was looping: " + failure.getCause().getMessage());
             assertInstanceOf(ResponseCorrectionRetryException.class, failure.getCause().getCause(), "with the last signal as cause");
         }
         finally {

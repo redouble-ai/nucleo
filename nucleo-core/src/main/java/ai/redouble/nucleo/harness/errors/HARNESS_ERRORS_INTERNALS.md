@@ -72,7 +72,8 @@ runtime exceptions. The transparent retry signals
 (`UpstreamRetryException` and its three subclasses) and the dispatcher's two re-run signals
 (`ResponseCorrectionRetryException`, `OutputTruncationRetryException`) are runtime exceptions
 the dispatcher consumes; the model never sees them, and `unwrap` and `wrapWithContext` rethrow
-any of them found in a cause chain.
+one found in a cause chain with no LLM-readable exception above it. Beneath an LLM-readable
+exception a signal is spent and stays where it is.
 
 ## Why the HTTP exceptions share a record and not a class
 

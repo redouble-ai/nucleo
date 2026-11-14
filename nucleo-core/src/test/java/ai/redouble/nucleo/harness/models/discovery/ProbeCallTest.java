@@ -164,6 +164,11 @@ class ProbeCallTest {
             @Override
             public void setModel(ModelSpec model) {
             }
+
+            @Override
+            public String providerRequestId(Exception failure) {
+                return null;
+            }
         };
         ProbeCall call = new ProbeCall(ROOT, new StubProvider(notAChatClient), spec, Depth.IMMEDIATE, 2048, "ping", Duration.ofMinutes(2));
         call.getRequirements().getModelBindings().getFirst().resolve(spec);

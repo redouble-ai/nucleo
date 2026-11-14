@@ -76,6 +76,9 @@ answer, a body that is not JSON, a reply with no message, a tool call with no na
 by name and is never passed on as empty. A rate limit, an exhausted quota, a server error
 and an unreachable endpoint each reach the runtime as what they are, so it waits, retries or
 stops accordingly. Neither the key nor the conversation appears in any failure's message.
+Through OpenAI's own client, a failure of a chat call states the request id OpenAI gave it
+(the `x-request-id` header of the error response), which is what OpenAI's support asks for;
+a failed embeddings call carries the id in its call record.
 
 ## How it counts tokens
 

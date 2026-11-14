@@ -10,8 +10,11 @@ use of the signals is documented in [harness/llm/PACKAGE.md](../../llm/PACKAGE.m
 
 `UpstreamRetryException` is sealed to three signals. None is LLM-readable: the model never sees
 them. The dispatcher has one backoff loop for all three and reads what varies from the signal
-itself. `LLMReadableCheckedException.unwrap` and `wrapWithContext` rethrow any of them found in a
-cause chain, so a broad catch never turns one into a terminal failure.
+itself. `LLMReadableCheckedException.unwrap` and `wrapWithContext` walk a cause chain to its
+first retry signal or LLM-readable exception, whichever comes first. A signal met first is
+rethrown, so a broad catch in the body that raised it never turns it into a terminal failure.
+An LLM-readable exception met first is the chain's verdict and the walk ends there: a signal
+beneath it was consumed by whoever built the verdict, and is evidence from then on.
 
 | Signal | Meaning | Jitter window | Throttle increments |
 |---|---|---|---|
@@ -33,7 +36,14 @@ thinker's `DecisionCall` alike. The pacing window scales by attempt, so
 every re-run past the first is minutes of wall time a caller waits behind, and a fault still
 there after a few attempts is an outage or a request the endpoint cannot serve, which more
 waiting never fixes. Past the budget the job fails with `UncorrectableRuntimeLLMException`
-naming the budget, the last signal as its cause.
+naming the job and the budget, the last signal as its cause.
+
+The dispatcher never hands a job's handle a bare signal. Every exit of its retry loop that
+holds one wraps it in a verdict: the spent budget, the second truncation and the correction
+backstop in an `UncorrectableRuntimeLLMException`, an attempt that ran out of time in a
+`JobTimeoutException`, a cancelled one in a `JobCancelledException`. That is what lets the
+walk above tell a spent signal from a live one by position alone, and why the job awaiting
+such a handle runs once.
 
 `UpstreamRetryException.details(Throwable)` renders a failure for a log line or a persisted
 row: the message, then the root cause in brackets when it is a distinct exception, the class
@@ -42,7 +52,8 @@ name alone when there is no message anywhere.
 ## The dispatcher's own re-run signals
 
 Two more runtime exceptions, neither LLM-readable, neither an `UpstreamRetryException`; both are
-rethrown by `unwrap` and `wrapWithContext` the same way.
+rethrown by `unwrap` and `wrapWithContext` by the same rule, live in the body that raised them
+and spent beneath the dispatcher's failure.
 
 - `ResponseCorrectionRetryException` - the model's reply failed to parse or validate, a correction
   has been appended to the conversation, and the job is re-run so the model can fix it. Carries

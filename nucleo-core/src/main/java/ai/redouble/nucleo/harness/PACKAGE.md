@@ -286,6 +286,13 @@ admitted again. It does this up to three times by default (`Job.getUpstreamRetri
 job or its caller can set another number. [Retry signals](errors/retry/PACKAGE.md) lists the signals and what
 each one does.
 
+The retries belong to the job whose call failed, and to no job above it. A job never fails
+as a bare retry signal: when its retries are spent, or its time budget runs out or it is
+cancelled with a signal in hand, what its caller's `get()` receives is a failure, with the
+signal as its cause. The job that awaits it does not run again because of that signal, so a
+provider outage costs each job its own retries once, at any depth of nesting, and the failure
+that reaches the top names the job whose retries were spent.
+
 ## Guardrails run on every call
 
 The checks you attach to a tool, [guardrails](../guardrails/PACKAGE.md), run in the

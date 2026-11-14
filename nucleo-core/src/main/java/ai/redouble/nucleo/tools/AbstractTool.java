@@ -42,7 +42,9 @@ import java.util.*;
  * <p>This enables self-correcting agentic workflows where the LLM can understand
  * what went wrong and retry with corrected parameters. The blanket shape at the bottom of
  * {@code execute} is {@code catch (Exception e) { throw LLMReadableCheckedException.unwrap(e); }},
- * which lets typed failures and the dispatcher's retry signals through unchanged.</p>
+ * which lets typed failures through unchanged, and with them a retry signal this job's own
+ * body raised. The failure of an awaited job whose retries are spent comes through as that
+ * failure, and this job does not run again for it.</p>
  *
  * @param <I> Input type - a POJO for structured input
  * @param <O> Output type - a POJO for structured output

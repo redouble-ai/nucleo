@@ -83,6 +83,11 @@ class CatalogPingProbeTest {
         public void setModel(ModelSpec model) {
             this.model = model;
         }
+
+        @Override
+        public String providerRequestId(Exception failure) {
+            return null;
+        }
     }
 
     /** A decision client that answers the ping's one question. */
@@ -111,6 +116,11 @@ class CatalogPingProbeTest {
         @Override
         public void setModel(ModelSpec model) {
             this.model = model;
+        }
+
+        @Override
+        public String providerRequestId(Exception failure) {
+            return null;
         }
     }
 

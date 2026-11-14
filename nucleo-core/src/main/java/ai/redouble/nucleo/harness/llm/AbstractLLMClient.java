@@ -97,8 +97,9 @@ public abstract class AbstractLLMClient<B> extends AbstractRateLimitedClient imp
             LLMResponse<T> response = executeWithRateLimit(new RateLimitedOperation<>() {
                 @Override
                 public LLMResponse<T> execute() {
+                    ConversationContext ctx = request.getContext();
+                    long attemptedAt = System.nanoTime();
                     try {
-                        ConversationContext ctx = request.getContext();
                         String callerInfo = getCallerInfo(ctx);
                         // Log the dialect id, not the providerKey: several dialects deliberately
                         // share a providerKey so billing multipliers and the recorded provider stay
@@ -136,7 +137,9 @@ public abstract class AbstractLLMClient<B> extends AbstractRateLimitedClient imp
                         return resp;
                     }
                     catch (RuntimeException e) {
-                        throw classifyUpstreamFailure(e);
+                        RuntimeException classified = classifyUpstreamFailure(e);
+                        logFailedCall(ctx, attemptedAt, classified, e);
+                        throw classified;
                     }
                 }
             });
@@ -153,10 +156,28 @@ public abstract class AbstractLLMClient<B> extends AbstractRateLimitedClient imp
             if (model != null && isPromptTooLongError(e)) {
                 log.warn("API rejected prompt as too long (estimate was {} for {})", Formats.compactNumber(estimatedTokens), model.getId());
                 throw new TokenEstimateExceedsLimitException(
-                    estimatedTokens, model.getMaxContextTokens(), model.getId());
+                    estimatedTokens, model.getMaxContextTokens(), model.getId(), e);
             }
             throw e;
         }
+    }
+
+    /**
+     * The failure twin of the one line a successful call logs: the job that asked, the model
+     * and the endpoint, how long the provider took to fail, the failure as it leaves this
+     * client, and the provider's request id. Written for every failed call, the refused and
+     * the retried alike, so the id of a failure whose exception is the provider SDK's own,
+     * and so states none, is still in the log.
+     *
+     * @param ctx the conversation of the call
+     * @param attemptedAt {@link System#nanoTime()} when the call began
+     * @param classified the failure as this client throws it
+     * @param thrown the failure as the provider's client threw it, which carries the response
+     */
+    private void logFailedCall(ConversationContext ctx, long attemptedAt, RuntimeException classified, RuntimeException thrown) {
+        long elapsedMs = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - attemptedAt);
+        log.warn("{} <- {} via {}: failed after {} ms, {}", callerJobId(ctx), getModelIdentifier(), getDialect().id(),
+                elapsedMs, statingRequestId(classified.toString(), thrown));
     }
 
     /**
@@ -193,20 +214,24 @@ public abstract class AbstractLLMClient<B> extends AbstractRateLimitedClient imp
         if (isQuotaError(e)) {
             return quotaExhausted(e);
         }
+        // Each signal built below states the provider's request id in its message and in the
+        // details the dispatcher logs: the recorded error of the call and the log line hold
+        // that text and nothing else, and the id is what the provider's support asks for
         if (is429Error(e)) {
             RateLimitInfo info = extractRateLimitInfo(e);
+            String words = statingRequestId(e.getMessage(), e);
             return new RateLimitRetryException(
-                    "Rate limit exceeded: " + e.getMessage(), info, 0, e.getMessage(), info != null ? info.getRetryAfter() : null, e);
+                    "Rate limit exceeded: " + words, info, 0, words, info != null ? info.getRetryAfter() : null, e);
         }
         if (isOverloadError(e)) {
             String provider = model != null ? model.getId() : "unknown";
-            String details = UpstreamRetryException.details(e);
+            String details = statingRequestId(UpstreamRetryException.details(e), e);
             return new OverloadRetryException(
                     "Upstream overloaded: " + details, provider, details, e);
         }
         if (isServerError(e)) {
             String provider = model != null ? model.getId() : "unknown";
-            String details = UpstreamRetryException.details(e);
+            String details = statingRequestId(UpstreamRetryException.details(e), e);
             return new TransientErrorRetryException(
                     "Server error: " + details, provider, details, 0, 0, e);
         }
@@ -232,9 +257,9 @@ public abstract class AbstractLLMClient<B> extends AbstractRateLimitedClient imp
             if (limiter != null && increments > 0) {
                 limiter.recordBackpressure(increments);
             }
-            return new UncorrectableRuntimeLLMException("Upstream failed mid-stream on "
+            return new UncorrectableRuntimeLLMException(statingRequestId("Upstream failed mid-stream on "
                     + (model != null ? model.getId() : "an unresolved model")
-                    + " after chunks were delivered; not retried because the consumer already rendered them", e);
+                    + " after chunks were delivered; not retried because the consumer already rendered them", e), e);
         }
         return classified;
     }
@@ -636,14 +661,14 @@ public abstract class AbstractLLMClient<B> extends AbstractRateLimitedClient imp
             executeWithRateLimit(new RateLimitedOperation<Void>() {
                 @Override
                 public Void execute() {
+                    long attemptedAt = System.nanoTime();
                     try {
                         doStreamResponse(request, response, prepared, trackedHandler);
                     }
                     catch (RuntimeException e) {
-                        if (!chunkDelivered.get()) {
-                            throw classifyUpstreamFailure(e);
-                        }
-                        throw midStreamFailure(e);
+                        RuntimeException classified = chunkDelivered.get() ? midStreamFailure(e) : classifyUpstreamFailure(e);
+                        logFailedCall(request.getContext(), attemptedAt, classified, e);
+                        throw classified;
                     }
                     return null;
                 }
@@ -654,7 +679,7 @@ public abstract class AbstractLLMClient<B> extends AbstractRateLimitedClient imp
                 log.warn("API rejected streamed prompt as too long (estimate was {} for {})",
                         Formats.compactNumber(estimatedTokens), model.getId());
                 throw new TokenEstimateExceedsLimitException(
-                        estimatedTokens, model.getMaxContextTokens(), model.getId());
+                        estimatedTokens, model.getMaxContextTokens(), model.getId(), e);
             }
             throw e;
         }

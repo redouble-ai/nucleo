@@ -51,4 +51,7 @@ public class FakeDecisionClient implements DecisionClient {
 
     @Override
     public void setModel(ModelSpec model) {this.model = model;}
+
+    @Override
+    public String providerRequestId(Exception failure) {return null;}
 }

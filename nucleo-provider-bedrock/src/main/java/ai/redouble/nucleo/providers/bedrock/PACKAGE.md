@@ -67,6 +67,13 @@ with the cache counters kept as facets of their own; a counter Converse leaves o
 and without an input count there is no total. How the runtime uses these numbers is in
 [Tokens](../../../../../../../../../nucleo-core/src/main/java/ai/redouble/nucleo/harness/tokens/PACKAGE.md).
 
+## When a call fails
+
+A throttled or failing call through `BedrockConverseClient` or `BedrockCohereEmbeddingsClient`
+states the AWS request id of the error response, which is what AWS support asks for. The AWS
+SDK prints that id in its own message whenever the response gave error details, and the
+client adds it only where the text lacks it. `BedrockRequestIdTest` pins both cases.
+
 ## How it works inside
 
 The encoders, the transport's timeouts and the detail of the account listings are in

@@ -47,6 +47,14 @@ counters kept as facets of their own; a cache counter the response does not carr
 to the total and stays null as a facet. How the runtime uses these numbers is in
 [Tokens](../../../../../../../../../nucleo-core/src/main/java/ai/redouble/nucleo/harness/tokens/PACKAGE.md).
 
+## When a call fails
+
+An error response names its request: Anthropic's API in the `request-id` header, a Bedrock
+endpoint in `x-amzn-RequestId`. The client reads whichever the response carries, Anthropic's
+first, and a rate limit, an overload or a server error it reports states that id, since the
+provider's support asks for it. A refusal no retry can help keeps the SDK's own text; its id
+is in the failed call's log line and call record. `AnthropicRequestIdTest` pins both shapes.
+
 ## How it works inside
 
 How each part of a message becomes Anthropic's native content blocks is in

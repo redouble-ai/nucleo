@@ -199,6 +199,23 @@ public final class BedrockClients {
      * The cause-chain walk matters: some callers hand the classifier the raw SDK
      * exception, others an IOException wrapping it.
      */
+    /**
+     * The AWS request id of the error response a failure carries, from the first
+     * {@link AwsServiceException} in its cause chain; null when the chain holds none (a
+     * transport failure that never got a response) or the response named no id. The SDK also
+     * prints this id in the exception's own message, so a text built from that message already
+     * states it.
+     */
+    static String requestId(Exception e) {
+        for (Throwable c = e; c != null; c = c.getCause()) {
+            if (c instanceof AwsServiceException aws) {
+                String requestId = aws.requestId();
+                return requestId == null || requestId.isBlank() ? null : requestId;
+            }
+        }
+        return null;
+    }
+
     static boolean isThrottling(Exception e) {
         for (Throwable c = e; c != null; c = c.getCause()) {
             if (c instanceof AwsServiceException aws && aws.statusCode() == 429) {

@@ -330,6 +330,27 @@ public class AbstractLLMClientTemplateContractsTest {
     }
 
     @Test
+    void aStreamThatFailsAfterAChunkWithATypedSignal_staysUnretriedThroughABroadCatch() {
+        ModelSpec model = TestModels.small();
+        ConversationContext conversation = declared(model, "question");
+        ai.redouble.nucleo.harness.errors.retry.OverloadRetryException typed =
+                new ai.redouble.nucleo.harness.errors.retry.OverloadRetryException("Upstream overloaded", "fixture", "overloaded", null);
+        MidStreamFaultClient client = new MidStreamFaultClient(typed);
+        client.setModel(model);
+
+        UncorrectableRuntimeLLMException raised = assertThrows(UncorrectableRuntimeLLMException.class,
+                () -> client.streamResponse(new LLMRequest<>(conversation), chunk -> {}),
+                "a signal the provider client already typed is refused mid-stream like any other");
+        assertSame(typed, raised.getCause(), "the signal rides beneath the refusal");
+
+        // the calling tool's catch (Exception e) { throw unwrap(e); }: the refusal comes out, never
+        // the signal beneath it, which would re-run the call and re-deliver the rendered chunks
+        RuntimeException throughTheToolsCatch = assertThrows(RuntimeException.class,
+                () -> ai.redouble.nucleo.harness.errors.LLMReadableCheckedException.unwrap(raised));
+        assertSame(raised, throughTheToolsCatch, "the mid-stream refusal survives the broad catch as itself");
+    }
+
+    @Test
     void aClientWithoutAStreamingPath_refusesInTheFrameworksLanguage() {
         ModelSpec model = TestModels.small();
         ConversationContext conversation = declared(model, "question");
@@ -403,6 +424,193 @@ public class AbstractLLMClientTemplateContractsTest {
     }
 
     /** A client whose provider always reports the given stop reason and no content. */
+    /** The request id {@link FailingClient} gives for its fault. */
+    private static final String REQUEST_ID = "req_011CTemplateFixture";
+
+    @Test
+    void everySignalTheTemplateBuilds_statesTheProvidersRequestId() {
+        ModelSpec model = TestModels.small();
+        RateLimitRetryException rateLimited = assertThrows(RateLimitRetryException.class,
+                () -> failing(model, "simulated 429", REQUEST_ID).singleResponse(new LLMRequest<>(declared(model, "question"))));
+        assertEquals("Rate limit exceeded: simulated 429 (request id " + REQUEST_ID + ")", rateLimited.getMessage());
+        assertEquals("simulated 429 (request id " + REQUEST_ID + ")", rateLimited.getProviderMessage(),
+                "the provider's words the dispatcher quotes when the retries end carry the id too");
+        OverloadRetryException overloaded = assertThrows(OverloadRetryException.class,
+                () -> failing(model, "simulated 529", REQUEST_ID).singleResponse(new LLMRequest<>(declared(model, "question"))));
+        assertTrue(overloaded.getMessage().endsWith("(request id " + REQUEST_ID + ")"), overloaded.getMessage());
+        assertTrue(UpstreamRetryException.details(overloaded).contains("(request id " + REQUEST_ID + ")"),
+                "the details the exhausted failure is built from: " + UpstreamRetryException.details(overloaded));
+        TransientErrorRetryException transientError = assertThrows(TransientErrorRetryException.class,
+                () -> failing(model, "simulated 500", REQUEST_ID).singleResponse(new LLMRequest<>(declared(model, "question"))));
+        assertTrue(transientError.getMessage().endsWith("(request id " + REQUEST_ID + ")"), transientError.getMessage());
+        QuotaExhaustedException outOfMoney = assertThrows(QuotaExhaustedException.class,
+                () -> failing(model, "simulated quota", REQUEST_ID).singleResponse(new LLMRequest<>(declared(model, "question"))));
+        assertTrue(outOfMoney.getMessage().contains("(request id " + REQUEST_ID + ")"), outOfMoney.getMessage());
+        RateLimitRetryException streamed = assertThrows(RateLimitRetryException.class,
+                () -> failing(model, "simulated 429", REQUEST_ID).streamResponse(new LLMRequest<>(declared(model, "question")), chunk -> {}));
+        assertEquals(rateLimited.getMessage(), streamed.getMessage(), "a stream refused before its first chunk reads the same");
+    }
+
+    @Test
+    void aFailureWithoutARequestId_hasNothingAppended() {
+        ModelSpec model = TestModels.small();
+        RateLimitRetryException rateLimited = assertThrows(RateLimitRetryException.class,
+                () -> failing(model, "simulated 429", null).singleResponse(new LLMRequest<>(declared(model, "question"))));
+        assertEquals("Rate limit exceeded: simulated 429", rateLimited.getMessage(), "nothing is appended where there is no id");
+        assertEquals("simulated 429", rateLimited.getProviderMessage());
+        assertNull(AbstractRateLimitedClient.statingRequestId(null, (String) null), "no words and no id stay no text");
+        assertEquals("request id " + REQUEST_ID, AbstractRateLimitedClient.statingRequestId(null, REQUEST_ID),
+                "a failure the provider gave no words for still states its id");
+    }
+
+    @Test
+    void aFailureWhoseTextAlreadyStatesTheRequestId_statesItOnce() {
+        ModelSpec model = TestModels.small();
+        // the shape of an AWS SDK message, which prints the id itself
+        String awsWords = "simulated 500 (Service: BedrockRuntime, Status Code: 500, Request ID: " + REQUEST_ID + ")";
+        TransientErrorRetryException transientError = assertThrows(TransientErrorRetryException.class,
+                () -> failing(model, awsWords, REQUEST_ID).singleResponse(new LLMRequest<>(declared(model, "question"))));
+        String message = transientError.getMessage();
+        assertEquals(message.indexOf(REQUEST_ID), message.lastIndexOf(REQUEST_ID), "the id appears once: " + message);
+        assertFalse(message.contains("(request id "), "and the text that stated it is left as the SDK wrote it: " + message);
+    }
+
+    @Test
+    void aStreamThatFailsAfterAChunk_statesTheRequestIdInItsRefusal() {
+        ModelSpec model = TestModels.small();
+        FailingClient client = failing(model, "simulated 529", REQUEST_ID);
+        client.chunkFirst = true;
+        UncorrectableRuntimeLLMException raised = assertThrows(UncorrectableRuntimeLLMException.class,
+                () -> client.streamResponse(new LLMRequest<>(declared(model, "question")), chunk -> {}));
+        assertTrue(raised.getMessage().endsWith("(request id " + REQUEST_ID + ")"), raised.getMessage());
+    }
+
+    @Test
+    void aFailedCall_logsOneWarnLineWithTheJobTheModelTheFailureAndTheRequestId() {
+        ModelSpec model = TestModels.small();
+        // a failure the template classifies into nothing: it leaves as the provider's client threw
+        // it, its text states no id, and the log line is where the id is written down
+        List<ch.qos.logback.classic.spi.ILoggingEvent> refused = failedCallLines(
+                () -> failing(model, "simulated 400 refused", REQUEST_ID).singleResponse(new LLMRequest<>(declared(model, "question"))));
+        assertEquals(1, refused.size(), "one line for the one failed call: " + refused);
+        assertEquals(ch.qos.logback.classic.Level.WARN, refused.get(0).getLevel());
+        String line = refused.get(0).getFormattedMessage();
+        assertTrue(line.contains(" <- " + model.getId() + " via " + APIDialect.BEDROCK_CONVERSE.id() + ": failed after "), line);
+        assertTrue(line.contains("java.lang.RuntimeException: simulated 400 refused"), "the failure as it leaves the client: " + line);
+        assertTrue(line.endsWith("(request id " + REQUEST_ID + ")"), line);
+        List<ch.qos.logback.classic.spi.ILoggingEvent> streamed = failedCallLines(
+                () -> failing(model, "simulated 400 refused", REQUEST_ID).streamResponse(new LLMRequest<>(declared(model, "question")), chunk -> {}));
+        assertEquals(1, streamed.size(), "the streaming template logs the same line: " + streamed);
+        assertTrue(streamed.get(0).getFormattedMessage().endsWith("(request id " + REQUEST_ID + ")"), streamed.get(0).getFormattedMessage());
+        List<ch.qos.logback.classic.spi.ILoggingEvent> retried = failedCallLines(
+                () -> failing(model, "simulated 429", REQUEST_ID).singleResponse(new LLMRequest<>(declared(model, "question"))));
+        String retriedLine = retried.get(0).getFormattedMessage();
+        assertEquals(retriedLine.indexOf(REQUEST_ID), retriedLine.lastIndexOf(REQUEST_ID),
+                "a signal that states the id is not given it a second time: " + retriedLine);
+        List<ch.qos.logback.classic.spi.ILoggingEvent> noId = failedCallLines(
+                () -> failing(model, "simulated 400 refused", null).singleResponse(new LLMRequest<>(declared(model, "question"))));
+        assertTrue(noId.get(0).getFormattedMessage().endsWith("java.lang.RuntimeException: simulated 400 refused"),
+                "a failure that carries no id logs none: " + noId.get(0).getFormattedMessage());
+    }
+
+    @Test
+    void aPromptTheProviderRefusedAsTooLong_keepsTheProvidersRefusalAsItsCause() {
+        ModelSpec model = TestModels.small();
+        FailingClient client = failing(model, "simulated too long", REQUEST_ID);
+        TokenEstimateExceedsLimitException single = assertThrows(TokenEstimateExceedsLimitException.class,
+                () -> client.singleResponse(new LLMRequest<>(declared(model, "question"))));
+        assertSame(client.fault, single.getCause(), "the provider's own failure, with whatever its client attached to it");
+        TokenEstimateExceedsLimitException streamed = assertThrows(TokenEstimateExceedsLimitException.class,
+                () -> client.streamResponse(new LLMRequest<>(declared(model, "question")), chunk -> {}));
+        assertSame(client.fault, streamed.getCause(), "on the streaming template too");
+    }
+
+    private static FailingClient failing(ModelSpec model, String words, String requestId) {
+        FailingClient client = new FailingClient(new RuntimeException(words), requestId);
+        client.setModel(model);
+        return client;
+    }
+
+    /** The failed-call lines {@link AbstractLLMClient} logs while the call runs and fails. */
+    private static List<ch.qos.logback.classic.spi.ILoggingEvent> failedCallLines(org.junit.jupiter.api.function.Executable call) {
+        ch.qos.logback.classic.Logger logger = (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(AbstractLLMClient.class);
+        ch.qos.logback.core.read.ListAppender<ch.qos.logback.classic.spi.ILoggingEvent> appender = new ch.qos.logback.core.read.ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            assertThrows(Exception.class, call);
+        }
+        finally {
+            logger.detachAppender(appender);
+        }
+        return appender.list.stream().filter(event -> event.getFormattedMessage().contains(": failed after ")).toList();
+    }
+
+    /**
+     * A client whose provider fails every call with one fault, classified by the words
+     * "simulated 429", "simulated 529", "simulated 500", "simulated quota" and "simulated too
+     * long", and which reads the given request id off that fault and off no other.
+     */
+    private static class FailingClient extends TemplateStubClient {
+        final RuntimeException fault;
+        private final String requestId;
+        boolean chunkFirst;
+
+        private FailingClient(RuntimeException fault, String requestId) {
+            super(LLMStopReason.END_TURN);
+            this.fault = fault;
+            this.requestId = requestId;
+        }
+
+        @Override
+        protected <T> LLMResponse<T> doSingleResponse(LLMRequest<T> request, PreparedConversation prepared) {
+            throw fault;
+        }
+
+        @Override
+        protected <T> void doStreamResponse(LLMRequest<T> request, LLMResponse<T> response,
+                PreparedConversation prepared, java.util.function.Consumer<StreamChunk> chunkHandler) {
+            if (chunkFirst) {
+                chunkHandler.accept(StreamChunk.of("partial"));
+            }
+            throw fault;
+        }
+
+        @Override
+        public String providerRequestId(Exception failure) {
+            return failure == fault ? requestId : null;
+        }
+
+        private boolean says(Exception e, String words) {
+            return e == fault && e.getMessage().contains(words);
+        }
+
+        @Override
+        protected boolean is429Error(Exception e) {
+            return says(e, "simulated 429");
+        }
+
+        @Override
+        protected boolean isOverloadError(Exception e) {
+            return says(e, "simulated 529");
+        }
+
+        @Override
+        protected boolean isServerError(Exception e) {
+            return says(e, "simulated 500");
+        }
+
+        @Override
+        protected boolean isQuotaError(Exception e) {
+            return says(e, "simulated quota");
+        }
+
+        @Override
+        protected boolean isPromptTooLongError(Exception e) {
+            return says(e, "simulated too long");
+        }
+    }
+
     private static class TemplateStubClient extends AbstractLLMClient<String> {
 
         final AtomicInteger providerCalls = new AtomicInteger();

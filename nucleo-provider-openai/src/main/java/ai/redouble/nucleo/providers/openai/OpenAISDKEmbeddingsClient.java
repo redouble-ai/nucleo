@@ -75,6 +75,11 @@ public class OpenAISDKEmbeddingsClient extends AbstractEmbeddingsClient {
     }
 
     @Override
+    public String providerRequestId(Exception failure) {
+        return OpenAISDKFailures.requestId(failure);
+    }
+
+    @Override
     protected boolean isQuotaError(Exception e) {
         return OpenAISDKFailures.isQuota(e);
     }
