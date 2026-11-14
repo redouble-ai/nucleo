@@ -41,9 +41,9 @@ class ThinkerPinTest {
         }
     }
 
-    static final class Reactive extends ReactiveThinker {
+    static final class Reactive extends ReactiveThinker<ChatAnswer> {
         Reactive() {
-            super(Job.workflow("test-user", "pin-reactive"), DECLARATION);
+            super(Job.workflow("test-user", "pin-reactive"), DECLARATION, ChatAnswer.class);
         }
 
         @Override
@@ -52,7 +52,7 @@ class ThinkerPinTest {
         @Override
         protected void initializeConversation(ConversationContext conversation, JobContext<VoidThinkerOutput> context) {}
 
-        LLMCall<ThinkingResponse<String>> call() {
+        LLMCall<ThinkingResponse<ChatAnswer>> call() {
             return newLLMCall(this, new ConversationContext());
         }
     }

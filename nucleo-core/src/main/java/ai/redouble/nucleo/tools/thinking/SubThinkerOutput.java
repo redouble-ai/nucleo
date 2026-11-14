@@ -13,7 +13,7 @@ import ai.redouble.nucleo.harness.schema.*;
  *
  * <p>Contains the sub-agent's text summary plus inherited artifact references
  * and structured reasoning. Typed artifacts from tool calls are resolved
- * automatically by {@code SingleObjectiveThinker.resolveArtifacts()}.
+ * automatically by {@link ThinkerOutput#resolveArtifacts}.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-03-29)

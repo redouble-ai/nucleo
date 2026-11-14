@@ -9,6 +9,7 @@ package ai.redouble.nucleo.tools.thinking;
 import ai.redouble.nucleo.harness.artifacts.*;
 import ai.redouble.nucleo.harness.schema.*;
 import com.fasterxml.jackson.annotation.*;
+import org.slf4j.*;
 
 import java.util.*;
 
@@ -28,6 +29,7 @@ import java.util.*;
  * @since 0.1 (2025-11-21)
  */
 public abstract class ThinkerOutput<R extends Reasoning> extends ArtifactResponse<R> {
+    private static final Logger log = LoggerFactory.getLogger(ThinkerOutput.class);
     @JsonIgnore  // Artifacts are resolved from registry, not deserialized from LLM JSON
     private Set<Artifact> artifacts;
 
@@ -56,6 +58,47 @@ public abstract class ThinkerOutput<R extends Reasoning> extends ArtifactRespons
         if (artifactsToAdd != null) {
             this.artifacts.addAll(artifactsToAdd);
         }
+    }
+
+    /**
+     * Takes from the registry the artifacts this answer selects: the references it declares
+     * in {@code artifact_refs} and those written in its text, which is what {@link #toString()}
+     * returns. A reference the registry does not hold is logged and skipped. Declared
+     * references are canonical after the parse gate; they are normalized again here because
+     * an output can also be built programmatically, off the thinking path.
+     *
+     * @param registry the registry of the conversation the answer was given in
+     */
+    public void resolveArtifacts(ArtifactRegistry registry) {
+        Set<String> refsToResolve = new LinkedHashSet<>();
+        if (hasArtifactRefs()) {
+            for (String ref : getArtifactRefs()) {
+                refsToResolve.add(ArtifactRegistry.normalizeToKey(ref));
+            }
+        }
+        refsToResolve.addAll(ArtifactRegistry.refsMentionedIn(toString()));
+        for (String ref : refsToResolve) {
+            Artifact artifact = registry.get(ref);
+            if (artifact != null) {
+                addArtifact(artifact);
+            }
+            else {
+                log.warn("Could not resolve artifact reference: {}", ref);
+            }
+        }
+    }
+
+    /**
+     * The resolved artifacts keyed by their canonical reference, in the order they were
+     * resolved: the form in which a selection is handed to a reader that looks an artifact
+     * up by the reference the answer names.
+     */
+    public Map<String, Artifact> artifactsByRef() {
+        Map<String, Artifact> byRef = new LinkedHashMap<>();
+        for (Artifact artifact : artifacts) {
+            byRef.put(ArtifactRegistry.normalizeToKey(artifact.getArtifactRef()), artifact);
+        }
+        return byRef;
     }
 
     public boolean hasArtifacts() {

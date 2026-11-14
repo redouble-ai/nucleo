@@ -320,13 +320,13 @@ conversion, a JSON object into a composite (POJO) answer type; an answer the dec
 cannot hold is refused as a correctable `InvalidInputException` naming the `answer`
 parameter and the type the schema declared, never the value the model sent. So a composite
 answer type refuses anything that is not an object - a flattened string being the common
-case - and a leaf answer type such as the `String` a `ReactiveThinker` declares refuses an
-object, an array, and a scalar of another kind. The refusal is correctable because the only
+case, and the one a chat sees when a model writes its `ChatAnswer` as bare text - and a leaf
+answer type such as `String` refuses an object, an array, and a scalar of another kind. The refusal is correctable because the only
 useful reaction is to re-ask: a wrong shape passed on instead reaches the loop's erased
 cast, where it becomes a `ClassCastException` inside a `SystemException` that ends the run
-and tells the model nothing. Whether the correction is actually put to the model depends on
-the seat: the single-objective loop appends it and re-asks, while a reactive exchange ends
-on it. A null or absent answer is no answer yet, not a wrong shape.
+and tells the model nothing. Both loops put the correction to the model: the
+single-objective loop and a reactive exchange each append it and ask again. A null or absent
+answer is no answer yet, not a wrong shape.
 
 A right-shaped answer whose declared field is mistyped fails inside the decoder instead,
 and that refusal too is composed from the schema rather than from the decoder's complaint:

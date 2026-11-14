@@ -26,13 +26,16 @@ import java.util.*;
  * <p><b>JSON Structure:</b> the progress event's fields plus a {@code chunk} object
  * containing content text, token count, and completion flag, and {@code artifacts} on any
  * chunk given some; the artifacts are copied at construction and read as null when none
- * were given.
+ * were given. An event that carries an answer also has {@code answer}, the object the model
+ * filled, and its {@code artifacts} are then the ones that answer selected, keyed by
+ * reference.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2025-10-11)
  */
 public class ContentStreamEvent extends JobProgressEvent<StreamChunk> {
     private final Map<String, Artifact> artifacts;
+    private final ArtifactResponse<?> answer;
 
     /**
      * Creates a content stream event from a snapshot.
@@ -52,7 +55,21 @@ public class ContentStreamEvent extends JobProgressEvent<StreamChunk> {
      * @param artifacts artifacts to include, on any chunk; null or empty for none
      */
     public ContentStreamEvent(JobSnapshot snapshot, StreamChunk chunk, Map<String, Artifact> artifacts) {
+        this(snapshot, chunk, null, artifacts);
+    }
+
+    /**
+     * Creates the event that carries an answer: the object the model filled, beside the chunk
+     * holding its text, and the artifacts the answer selected.
+     *
+     * @param snapshot the job snapshot
+     * @param chunk the stream chunk
+     * @param answer the answer object; null on a chunk that carries none
+     * @param artifacts the artifacts the answer selected, keyed by reference; null or empty for none
+     */
+    public ContentStreamEvent(JobSnapshot snapshot, StreamChunk chunk, ArtifactResponse<?> answer, Map<String, Artifact> artifacts) {
         super(snapshot, chunk);
+        this.answer = answer;
         this.artifacts = artifacts != null && !artifacts.isEmpty() ? new HashMap<>(artifacts) : null;
         setMessage(generateMessage(chunk));
         if (chunk.isLast()) {
@@ -79,6 +96,16 @@ public class ContentStreamEvent extends JobProgressEvent<StreamChunk> {
     @JsonProperty("artifacts")
     public Map<String, Artifact> getArtifacts() {
         return artifacts;
+    }
+
+    /**
+     * Gets the answer object this event carries.
+     *
+     * @return the answer, or null on a chunk that carries none
+     */
+    @JsonProperty("answer")
+    public ArtifactResponse<?> getAnswer() {
+        return answer;
     }
 
     @Override

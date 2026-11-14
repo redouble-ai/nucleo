@@ -27,9 +27,9 @@ import java.util.regex.*;
  *   <li>Answer field from Map to expected answer type. That is the only conversion performed,
  *       so an answer the declared type cannot hold - anything but an object for a composite
  *       type, anything the declared leaf type is not an instance of - is refused as a
- *       correctable LLM error. Whether the refusal reaches the model depends on the seat:
- *       {@link SingleObjectiveThinker} re-asks with the correction, while a
- *       {@link ReactiveThinker} exchange ends on it</li>
+ *       correctable LLM error, which {@link SingleObjectiveThinker} and a
+ *       {@link ReactiveThinker} exchange both put to the model as a correction before
+ *       asking again</li>
  * </ul>
  *
  * @param <O> the expected answer type

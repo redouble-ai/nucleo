@@ -203,8 +203,8 @@ public abstract class SingleObjectiveThinker<I extends ThinkerInput, O extends T
 
                 finalAnswer = response.getAnswer();
                 if (finalAnswer != null) {
-                    // Resolve artifact refs to actual objects and populate the artifacts field
-                    resolveArtifacts(finalAnswer, conversation);
+                    // The answer's selection becomes the objects the caller receives
+                    finalAnswer.resolveArtifacts(conversation.getArtifactRegistry());
                     if (!acceptAnswer(finalAnswer, conversation, context)) {
                         finalAnswer = null;
                         continue;
@@ -260,8 +260,8 @@ public abstract class SingleObjectiveThinker<I extends ThinkerInput, O extends T
      * dropped, so the model answers again with everything it knows; the iteration budget bounds
      * the retries. Anything else a guard fails with propagates as itself and fails this thinker
      * closed. It stays here rather than beside the shared correction policy because the guards
-     * are declared against this seat's typed answer, and a reactive seat's answer is prose it
-     * streams rather than the output type it declares.
+     * are declared against this seat's typed answer, which is also the output type it
+     * declares; a reactive seat's answer is streamed and its declared output is void.
      */
     private boolean acceptAnswer(O candidate, ConversationContext conversation, JobContext<O> context) throws Exception {
         try {
@@ -312,42 +312,6 @@ public abstract class SingleObjectiveThinker<I extends ThinkerInput, O extends T
 
             // Publish the reasoning (clean format, no iteration prefix)
             context.publishUserNotification(UserNotificationEvent.Severity.INFO, "Reasoning", reasoningText);
-        }
-    }
-
-    /**
-     * Resolves artifact references to actual objects from the conversation's registry
-     * and populates the artifacts field of the ThinkerOutput.
-     */
-    protected void resolveArtifacts(O finalAnswer, ConversationContext conversation) {
-        if (finalAnswer == null) {
-            return;
-        }
-        // ThinkerOutput has both artifact_refs (from ArtifactResponse) and artifacts field
-        Set<String> refsToResolve = new HashSet<>();
-        // Declared refs are canonical after the parse gate; normalized again here because
-        // an output can also be built programmatically, off the thinking path
-        if (finalAnswer.hasArtifactRefs()) {
-            for (String ref : finalAnswer.getArtifactRefs()) {
-                refsToResolve.add(ArtifactRegistry.normalizeToKey(ref));
-            }
-        }
-        // Refs mentioned in the text ride along, through the one authority for the wire shape
-        refsToResolve.addAll(ArtifactRegistry.refsMentionedIn(finalAnswer.toString()));
-        // Resolve refs to actual artifacts from the registry
-        ArtifactRegistry registry = conversation.getArtifactRegistry();
-        for (String ref : refsToResolve) {
-            Artifact artifact = registry.get(ref);
-            if (artifact != null) {
-                finalAnswer.addArtifact(artifact);
-                log.debug("Resolved artifact: {}", ref);
-            }
-            else {
-                log.warn("Could not resolve artifact reference: {}", ref);
-            }
-        }
-        if (!finalAnswer.getArtifacts().isEmpty()) {
-            log.info("Resolved {} artifacts for propagation to parent", finalAnswer.getArtifacts().size());
         }
     }
 

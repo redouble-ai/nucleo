@@ -40,12 +40,23 @@ import java.util.concurrent.*;
  * <p><b>Note:</b> Reactive thinkers don't use structured input.
  * They process messages added via {@link #addMessage(String)}.
  *
+ * <p><b>The answer.</b> Each exchange ends with an object of the answer class the thinker
+ * was constructed with, a {@link ChatAnswer} or a subclass of it. The model selects the
+ * artifacts that leave with the answer, by naming them in {@code artifact_refs} or writing
+ * their references in a field; those are taken from the conversation's registry and no
+ * other artifact is handed to {@link #streamResponse}.
+ *
+ * @param <A> the class of the answer each exchange ends with
+ *
  * @author Andrey Santrosyan
  * @since 0.1 (2025-10-14)
  */
-public abstract class ReactiveThinker extends AbstractThinker<VoidThinkerInput, VoidThinkerOutput> {
+public abstract class ReactiveThinker<A extends ChatAnswer> extends AbstractThinker<VoidThinkerInput, VoidThinkerOutput> {
     private static final Logger log = LoggerFactory.getLogger(ReactiveThinker.class);
     private final Inbox inbox = new Inbox();
+    // The class of the answer every exchange is asked for: its fields are the schema the
+    // model is shown, and the object the model fills is what streamResponse receives
+    private final Class<A> answerClass;
     // The rollback anchor: the most recent real user utterance appended to the
     // conversation. An abnormal exchange end truncates everything after it - the
     // failed exchange's partial turns must reach neither the store nor the next
@@ -74,9 +85,11 @@ public abstract class ReactiveThinker extends AbstractThinker<VoidThinkerInput, 
      * job states its own rung.
      *
      * @param parent the parent identity for lineage tracking
+     * @param answerClass the class of the answer each exchange ends with: {@link ChatAnswer},
+     *        or a subclass of it when the application's answer has fields of its own
      */
-    public ReactiveThinker(Identifiable parent, ThinkerDeclaration declaration) {
-        this(parent, declaration, false);
+    public ReactiveThinker(Identifiable parent, ThinkerDeclaration declaration, Class<A> answerClass) {
+        this(parent, declaration, answerClass, false);
     }
 
     /**
@@ -86,10 +99,12 @@ public abstract class ReactiveThinker extends AbstractThinker<VoidThinkerInput, 
      * guarantees and how it travels to whatever this thinker delegates to.
      *
      * @param parent the parent identity for lineage tracking
+     * @param answerClass the class of the answer each exchange ends with
      * @param forceReadOnly true to bind this thinker to tools that change nothing
      */
-    protected ReactiveThinker(Identifiable parent, ThinkerDeclaration declaration, boolean forceReadOnly) {
+    protected ReactiveThinker(Identifiable parent, ThinkerDeclaration declaration, Class<A> answerClass, boolean forceReadOnly) {
         super(parent, declaration, forceReadOnly);
+        this.answerClass = answerClass;
         // Interactive seat: a human is waiting. The old CHAT tier is this flag plus the grade.
         this.interactive = true;
         // Safety timeout: if thinker dies without cleanup, evict after 2 hours
@@ -263,8 +278,8 @@ public abstract class ReactiveThinker extends AbstractThinker<VoidThinkerInput, 
 
             // Use ThinkingResponseHandler which handles tool input conversion
             @SuppressWarnings("unchecked")
-            ThinkingResponseHandler<String> responseHandler =
-                    new ThinkingResponseHandler<>(toolRegistry, new PojoResponseHandler<ThinkingResponse<String>>((Class)ThinkingResponse.class), StringResponseHandler.instance);
+            ThinkingResponseHandler<A> responseHandler =
+                    new ThinkingResponseHandler<>(toolRegistry, new PojoResponseHandler<ThinkingResponse<A>>((Class)ThinkingResponse.class), new PojoResponseHandler<>(answerClass));
 
             // The ask: the turn about to be sent, whatever it already carries (the utterance,
             // the previous turn's tool results, the nudge), is answered through the thinking
@@ -273,16 +288,16 @@ public abstract class ReactiveThinker extends AbstractThinker<VoidThinkerInput, 
             conversation.setResponseHandler(responseHandler);
 
             // Submit LLM call with token overflow handling
-            LLMCall<ThinkingResponse<String>> llmCall = newLLMCall(context, conversation);
-            JobHandle<ThinkingResponse<String>> handle = submitInIteration((long) iteration, llmCall);
-            ThinkingResponse<String> response;
+            LLMCall<ThinkingResponse<A>> llmCall = newLLMCall(context, conversation);
+            JobHandle<ThinkingResponse<A>> handle = submitInIteration((long) iteration, llmCall);
+            ThinkingResponse<A> response;
             try {
                 response = handle.get();
             } catch (ExecutionException e) {
                 if (e.getCause() instanceof TokenEstimateExceedsLimitException overflow) {
                     final long attempt = iteration;
-                    CompactedReply<ThinkingResponse<String>> reply = compactAndRetry(overflow, conversation, context,
-                            compacted -> submitInIteration(attempt, this.<ThinkingResponse<String>>newLLMCall(context, compacted)).get());
+                    CompactedReply<ThinkingResponse<A>> reply = compactAndRetry(overflow, conversation, context,
+                            compacted -> submitInIteration(attempt, this.<ThinkingResponse<A>>newLLMCall(context, compacted)).get());
                     conversation = reply.conversation();
                     response = reply.response();
                 } else if (correctableFailureAppended(e, conversation, iteration)) {
@@ -306,9 +321,12 @@ public abstract class ReactiveThinker extends AbstractThinker<VoidThinkerInput, 
             if (response.isFinalAnswer() && response.getAnswer() != null) {
                 // the model's reply is the exchange's record in the conversation, stored when it
                 // arrived; a second assistant turn holding the answer's text would be replayed
-                // after it on every later call, for the model to imitate
-                Map<String, Artifact> artifacts = conversation.getArtifactRegistry().getAllArtifacts();
-                streamResponse(response.getAnswer(), artifacts, context);
+                // after it on every later call, for the model to imitate.
+                // The answer's selection is all that leaves with it: the artifacts it names,
+                // never the registry
+                A answer = response.getAnswer();
+                answer.resolveArtifacts(conversation.getArtifactRegistry());
+                streamResponse(answer, context);
                 return;
             }
 
@@ -380,7 +398,7 @@ public abstract class ReactiveThinker extends AbstractThinker<VoidThinkerInput, 
     /**
      * Publishes LLM reasoning to the user if available.
      */
-    private void publishReasoning(ThinkingResponse<String> response, JobContext<VoidThinkerOutput> context) {
+    private void publishReasoning(ThinkingResponse<A> response, JobContext<VoidThinkerOutput> context) {
         if (response.getReasoning() != null) {
             String reasoning = response.getReasoning().getUserFriendlyDescription();
             if (reasoning != null && !reasoning.isEmpty() && !reasoning.equals("No reasoning provided")) {
@@ -390,15 +408,17 @@ public abstract class ReactiveThinker extends AbstractThinker<VoidThinkerInput, 
     }
 
     /**
-     * Streams a response to the user.
-     * Default implementation logs response. Subclasses can override to publish events.
+     * Hands an exchange's answer to whoever is waiting for it. The answer arrives with the
+     * artifacts it selected already taken from the conversation's registry
+     * ({@link ThinkerOutput#getArtifacts()}). The default implementation logs the start of
+     * the text; a subclass overrides to publish the answer.
      *
-     * @param response  the response text to stream
-     * @param artifacts artifacts collected during conversation
-     * @param context   the job context
+     * @param answer  the answer, its selected artifacts resolved
+     * @param context the job context
      */
-    protected void streamResponse(String response, Map<String, Artifact> artifacts, JobContext<VoidThinkerOutput> context) {
-        log.info("Response: {}", (response.length() > 100 ? response.substring(0, 100) + "..." : response));
+    protected void streamResponse(A answer, JobContext<VoidThinkerOutput> context) {
+        String text = answer.getMessageText();
+        log.info("Response: {}", (text.length() > 100 ? text.substring(0, 100) + "..." : text));
     }
 
     /**

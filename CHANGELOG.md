@@ -5,6 +5,51 @@ group `ai.redouble`; a published version is never changed in place.
 
 ## Unreleased
 
+- A chat's answer is an object, and only the artifacts it selects leave the chat. A chat
+  answered with a string, which had no place for a selection, and `ChatThinker` published
+  every artifact any tool had registered in the conversation with each answer. The answer
+  is now a `ChatAnswer`: `message_text`, the markdown for the person, beside `artifact_refs`.
+  The model selects artifacts as it does in every other thinker, by naming them in
+  `artifact_refs` or writing a reference in a field, and the answer's `ContentStreamEvent`
+  carries the answer object and those artifacts keyed by reference. An application extends
+  `ChatAnswer` for fields of its own. `ChatAnswer.stored` reads an answer and its selection
+  back from a stored assistant message; an answer stored as a string reads as its text with
+  no artifacts. Breaking: `ReactiveThinker` and `ChatThinker` take the answer class as a type
+  parameter and a constructor argument; `streamResponse` takes the answer object in place of
+  a string and a map; the model writes `{"answer": {"message_text": "..."}}` where it wrote
+  `{"answer": "..."}`; a reader of `ContentStreamEvent.getArtifacts()` receives the selection
+  where it received the registry. `SingleObjectiveThinker.resolveArtifacts` moved to
+  `ThinkerOutput.resolveArtifacts(registry)`.
+
+- A provider fault that outlasts a job's retries is no longer retried again by every job
+  above it. When a model call spent its upstream retries, the doer or thinker awaiting it
+  found the spent signal in the failure's cause chain and ran its own whole body again, and
+  so did the job above that: with the default of three retries, a call under a thinker under
+  a doer was sent 64 times where 4 were meant, and every step of the doer ran four times,
+  the ones that write included. `LLMReadableCheckedException.unwrap` and `wrapWithContext`
+  now rethrow a retry signal only when nothing LLM-readable lies above it in the chain, so a
+  job's exhausted failure travels up as a failure and each job above runs once. The same
+  holds for a second output truncation, for the correction backstop, and for a job that
+  timed out or was cancelled with a signal in hand; a chat turn reported to its user as
+  failed is no longer run again by the job above it; and a stream that failed after
+  delivering text stays unretried through a tool's broad catch. The three failures now name
+  the job whose retries were spent. Behaviour change: code that wraps a retry signal in an
+  LLM-readable exception of its own ends that call's retry, and a parent that wants to retry
+  a failed child says so in its own retry policy.
+
+- A failed model call states the request id the provider gave it, the id the provider's
+  support asks for. When an error response carries one, the exception a client builds from
+  it ends in `(request id <id>)`, in its message and in the details quoted when a job's
+  retries end; every failed chat call logs one WARN line with the job, the model, the
+  endpoint, the failure and the id; and the failed call's record carries the id in
+  `LLMResponse.getProviderRequestId()`. Read by the Anthropic client (direct and on
+  Bedrock, where the id was in a response header and nowhere in the failure), the Bedrock
+  Converse and Cohere embeddings clients, and the OpenAI SDK clients. A prompt the provider
+  refused as too long now keeps the provider's failure as the cause of
+  `TokenEstimateExceedsLimitException`. **Breaking** for a class that implements `Client`,
+  `LLMClient`, `EmbeddingsClient` or `DecisionClient` directly: it implements
+  `providerRequestId(Exception)`, returning null when it reads no id. A client that extends
+  one of the abstract clients needs no change.
 - Cancelling a job no longer fails when another job starts or ends at the same moment.
   `JobDispatcher.cancel` walked the running jobs without their lock, so under load it threw
   `ConcurrentModificationException` and left the job it was asked to stop running.

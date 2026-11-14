@@ -60,7 +60,7 @@ public class ThinkingResponseHandlerAnswerShapeTest {
                 new PojoResponseHandler<>(Answer.class));
     }
 
-    /** A leaf answer type, the shape {@code ReactiveThinker} declares: the schema asks for a string. */
+    /** A leaf answer type: the schema asks for a string. */
     @SuppressWarnings({"unchecked", "rawtypes"})
     private ThinkingResponseHandler<String> leafHandler() {
         return new ThinkingResponseHandler<>(new ToolRegistry(),
@@ -91,9 +91,9 @@ public class ThinkingResponseHandlerAnswerShapeTest {
 
     /**
      * Answers a leaf schema must refuse: every shape a {@code String} cannot hold, structural
-     * and scalar alike. The scalar kinds matter as much as the objects: the one production seat
-     * that declares a leaf answer type, {@code ReactiveThinker}, assigns the answer straight
-     * into a {@code String} slot, so an integer or a boolean lands in a cast there.
+     * and scalar alike. The scalar kinds matter as much as the objects: a seat that declares a
+     * leaf answer type assigns the answer straight into a {@code String} slot, so an integer
+     * or a boolean lands in a cast there.
      */
     private static List<Shape> refusedByLeafSchema() {
         return List.of(

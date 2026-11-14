@@ -10,9 +10,10 @@ artifacts is [Artifacts: data the model cannot alter](PACKAGE.md).
 ## Resolution for the parent
 
 The parent doesn't parse the DOI from text. It gets the `CitationArtifact` object with exact
-data from the registry - the thinker (`SingleObjectiveThinker.resolveArtifacts` in
-`tools/thinking`) resolves the refs through `normalizeToKey()` and populates the artifact set
-for the parent.
+data from the registry - the answer (`ThinkerOutput.resolveArtifacts` in `tools/thinking`,
+called by the thinker on its final answer) resolves the refs through `normalizeToKey()` and
+populates the artifact set for the parent. A chat's answer is resolved the same way, and the
+artifacts it selected are what is published to the person.
 
 ## The one gate against a model-written artifact
 

@@ -118,9 +118,9 @@ public class ReactiveThinkerAbnormalEndTest {
         return message;
     }
 
-    private static final class ProbeReactive extends ReactiveThinker {
+    private static final class ProbeReactive extends ReactiveThinker<ChatAnswer> {
         ProbeReactive(Identifiable parent) {
-            super(parent, new ThinkerDeclaration(Grade.SMALL, OutputSize.COMPACT));
+            super(parent, new ThinkerDeclaration(Grade.SMALL, OutputSize.COMPACT), ChatAnswer.class);
         }
 
         @Override

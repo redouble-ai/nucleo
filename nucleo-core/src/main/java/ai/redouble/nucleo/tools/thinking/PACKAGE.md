@@ -64,12 +64,42 @@ through `addMessage(String)`, and one run of the job, a turn, answers every mess
 for it and then completes. A message sent while the model is working is added at the next
 step, so a person can steer an answer in progress. A message that arrives after the turn has
 closed is refused (`addMessage` returns false), and the caller starts a new turn, which
-resumes the saved conversation. Its answer is text, streamed to the person.
+resumes the saved conversation.
 
-`ChatThinker` is the ready-made chat: it keeps the conversation beyond the turn and streams
-each final answer as a `ContentStreamEvent` with the artifacts of the conversation. Extend
+A chat's answer is an object, like every other thinker's. The class is `ChatAnswer`, and a
+chat names its answer class to the constructor: `ChatAnswer` itself, or a subclass when the
+application's answer has fields of its own.
+
+```java
+public class SupportChat extends ChatThinker<ChatAnswer> {
+    public SupportChat(Identifiable parent) {
+        super(parent, new ThinkerDeclaration(Grade.CEILING, OutputSize.STANDARD), ChatAnswer.class);
+    }
+    ...
+}
+```
+
+Every chat answer has two fields a front end can rely on: `message_text`, the markdown shown
+to the person, and `artifact_refs`, the references of the artifacts that support it. The
+model selects the artifacts that leave the chat with an answer, by naming them in
+`artifact_refs` or by writing a reference in a field of the answer. Those are taken from the
+conversation's registry; an artifact the answer did not select stays in the conversation. A
+reference the registry does not hold is logged and skipped. A subclass adds fields the way
+any answer class does, typed artifact fields included, and a front end that knows only the
+two fields above ignores the rest.
+
+`ChatThinker` is the ready-made chat: it keeps the conversation beyond the turn and
+publishes each answer as one `ContentStreamEvent` that carries the text as its chunk, the
+answer object as `answer`, and the selected artifacts keyed by reference. Extend
 `ReactiveThinker` directly only for a conversation of another kind, implementing
-`initializeConversation`.
+`initializeConversation` and `streamResponse(answer, context)`.
+
+The model's reply is the exchange's record in the stored conversation, and nothing else is
+stored for an answer. `ChatAnswer.stored(rawContent, answerClass, registry)` reads the answer
+back out of a stored assistant message with its selected artifacts taken from the stored
+conversation's registry, so a replay shows what the live exchange showed. It returns null for
+a message that is not an answer, and an answer stored as a plain string reads as its text
+with no artifacts.
 
 What a chat does differently from an agent working toward one answer:
 

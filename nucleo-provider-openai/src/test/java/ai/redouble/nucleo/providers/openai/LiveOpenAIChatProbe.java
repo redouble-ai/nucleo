@@ -69,11 +69,11 @@ public final class LiveOpenAIChatProbe {
     @ToolName("openai_probe_chat")
     @ToolDescription(value = "Answers time questions with the current-time tool", readOnly = true)
     @ToolWeight(type = ToolType.THINKER, level = 0, min = 1, max = 4)
-    public static class ProbeChat extends ChatThinker {
+    public static class ProbeChat extends ChatThinker<ChatAnswer> {
         final StringBuilder answer = new StringBuilder();
 
         public ProbeChat(Identifiable parent) {
-            super(parent, new ThinkerDeclaration(Grade.SMALL, OutputSize.COMPACT));
+            super(parent, new ThinkerDeclaration(Grade.SMALL, OutputSize.COMPACT), ChatAnswer.class);
             setMaxIterationsPerMessage(4);
         }
 
@@ -91,9 +91,9 @@ public final class LiveOpenAIChatProbe {
         }
 
         @Override
-        protected void streamResponse(String response, Map<String, Artifact> artifacts, JobContext<VoidThinkerOutput> context) {
-            answer.append(response);
-            super.streamResponse(response, artifacts, context);
+        protected void streamResponse(ChatAnswer response, JobContext<VoidThinkerOutput> context) {
+            answer.append(response.getMessageText());
+            super.streamResponse(response, context);
         }
     }
 

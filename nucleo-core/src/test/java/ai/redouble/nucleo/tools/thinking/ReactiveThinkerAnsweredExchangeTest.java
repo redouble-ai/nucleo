@@ -53,14 +53,14 @@ public class ReactiveThinkerAnsweredExchangeTest {
         assertEquals(AnsweringThinker.REPLY, messages.get(1).getRawContent(), "kept as it arrived");
     }
 
-    private static final class AnsweringThinker extends ReactiveThinker {
-        static final String REPLY = "{\"final_answer\": true, \"answer\": \"THE-ANSWER\"}";
+    private static final class AnsweringThinker extends ReactiveThinker<ChatAnswer> {
+        static final String REPLY = "{\"final_answer\": true, \"answer\": {\"message_text\": \"THE-ANSWER\"}}";
         private final StandardModelSpec spec = new StandardModelSpec();
         ConversationContext conversation;
         String delivered;
 
         AnsweringThinker(Identifiable parent) {
-            super(parent, new ThinkerDeclaration(Grade.SMALL, OutputSize.COMPACT));
+            super(parent, new ThinkerDeclaration(Grade.SMALL, OutputSize.COMPACT), ChatAnswer.class);
             spec.setId("answered-exchange-fake");
             spec.setIdentity("answered-exchange-fake");
             spec.setProviderKey("openai");
@@ -98,8 +98,8 @@ public class ReactiveThinkerAnsweredExchangeTest {
         }
 
         @Override
-        protected void streamResponse(String response, Map<String, ai.redouble.nucleo.harness.artifacts.Artifact> artifacts, JobContext<VoidThinkerOutput> context) {
-            delivered = response;
+        protected void streamResponse(ChatAnswer answer, JobContext<VoidThinkerOutput> context) {
+            delivered = answer.getMessageText();
         }
     }
 }
