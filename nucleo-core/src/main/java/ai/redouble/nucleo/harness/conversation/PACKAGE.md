@@ -237,7 +237,9 @@ every call names the user acting, and a conversation belongs to its user. The se
 at each boundary of the exchange: a user message in, an answer out, or an exchange that
 ended abnormally. A restored conversation brings back its messages, objective, tools,
 artifacts and declarations; the thinker that resumes it supplies the rest, and the next
-call picks its model again.
+call picks its model again. A restored turn that was answered before the save carries no
+response handler, so it renders as its content alone, with no reply instructions after it;
+only a last turn still waiting for its answer takes the handler the restore is given.
 
 ## Reading a conversation as text
 

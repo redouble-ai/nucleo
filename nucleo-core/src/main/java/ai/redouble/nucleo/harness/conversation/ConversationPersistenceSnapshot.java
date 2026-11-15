@@ -139,8 +139,15 @@ public class ConversationPersistenceSnapshot  {
                     }
                 }
             }
-            for (MessageSnapshot msgSnapshot : messages) {
-                context.addMessage(msgSnapshot.toMessage(responseHandler, requestedToolUseIds));
+            // A response handler belongs to a turn a model answers: it says how the answer is
+            // parsed, and its reply instructions are rendered after the turn's content. A
+            // restored turn that was answered long ago carries none, so it renders as its
+            // content alone. Only a last turn still waiting for its answer takes the handler;
+            // an answer keeps it, since it is what the answer is read with.
+            for (int i = 0; i < messages.size(); i++) {
+                MessageSnapshot msgSnapshot = messages.get(i);
+                boolean answeredTurn = "outgoing".equals(msgSnapshot.getMessageType()) && i < messages.size() - 1;
+                context.addMessage(msgSnapshot.toMessage(answeredTurn ? null : responseHandler, requestedToolUseIds));
             }
         }
         // Restore the objective. The persisted state is the truth for this conversation's

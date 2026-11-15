@@ -205,6 +205,14 @@ public class CompactionContractTest {
         assertEquals("user", summary.getRole(), "the summary's role IS user, not merely outgoing");
         assertTrue(after.get(4).getRawContent().startsWith("[Recent exchange]"),
                 "an anchor that carries tool results is summarized together with the call that asked for them");
+        assertNull(((OutgoingMessage<?>) summary).getResponseHandler(),
+                "a summary is history no model answers: it carries no handler, so no reply instructions are rendered after it");
+        OutgoingMessage<?> replaced = (OutgoingMessage<?>) before.get(8);
+        OutgoingMessage<?> recent = (OutgoingMessage<?>) after.get(4);
+        assertSame(replaced.getResponseHandler(), recent.getResponseHandler(),
+                "the message that replaces the turn about to be answered asks for the same answer");
+        assertEquals(replaced.getRequestedOutputTokens(), recent.getRequestedOutputTokens(),
+                "and for the same output budget");
         LLMContextCompactor.requirePaired(after);
     }
 

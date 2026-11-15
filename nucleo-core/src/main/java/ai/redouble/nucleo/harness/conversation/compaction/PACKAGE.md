@@ -54,7 +54,9 @@ reach.
 
 The newest exchange is left as it is below `AGGRESSIVE`; at `AGGRESSIVE`, when it may be
 compacted and the turns answering the model carry tool results, the call and its results get
-one summary of their own, so the model keeps what it just learned. What the summary model
+one summary of their own, so the model keeps what it just learned. That summary stands in
+for the turn about to be answered, so it carries that turn's response handler and output
+budget; every other summary carries no handler and renders as its text alone. What the summary model
 reads is what your model read: a call with its input, a result with its payload. Below
 `MAXIMUM`, a summary that fails keeps the original messages and the ladder moves to the next
 level, so compaction never leaves a conversation worse than it found it. A failure at

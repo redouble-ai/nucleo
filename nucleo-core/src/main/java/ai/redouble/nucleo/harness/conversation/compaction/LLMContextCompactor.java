@@ -279,7 +279,9 @@ public class LLMContextCompactor implements ContextCompactor {
         List<Message> compacted = new ArrayList<>(verbatim);
         if (!toSummarize.isEmpty()) {
             String summary = summarize(buildAggressiveSummaryPrompt(toSummarize), CompactionType.AGGRESSIVE_SUMMARY);
-            OutgoingMessage<String> summaryMsg = new OutgoingMessage<>(StringResponseHandler.instance);
+            // a summary is history no model answers: it carries no response handler, so it
+            // renders as its text alone
+            OutgoingMessage<String> summaryMsg = new OutgoingMessage<>();
             summaryMsg.setTimestamp(Instant.now());
             summaryMsg.addText(String.format("""
                     === CONVERSATION SUMMARY ===
@@ -291,7 +293,9 @@ public class LLMContextCompactor implements ContextCompactor {
         }
         if (anchor.compactable() && anchor.carriesToolResults()) {
             String recent = summarize(buildRecentExchangePrompt(anchor), CompactionType.RECENT_EXCHANGE);
-            OutgoingMessage<String> recentMsg = new OutgoingMessage<>(StringResponseHandler.instance);
+            // this message replaces the turn about to be answered, so it asks for the same
+            // answer: the handler and the output budget of the turn it stands in for
+            OutgoingMessage<?> recentMsg = anchor.followers.getLast() instanceof OutgoingMessage<?> replaced ? askingLike(replaced) : new OutgoingMessage<String>();
             recentMsg.setRole("user");
             recentMsg.setTimestamp(anchor.followers.getLast().getTimestamp());
             recentMsg.addText("[Recent exchange]: " + recent);
@@ -303,8 +307,15 @@ public class LLMContextCompactor implements ContextCompactor {
         return compacted;
     }
 
+    /** An empty turn that asks for what the given turn asked for: its response handler and its output budget. */
+    private static <T> OutgoingMessage<T> askingLike(OutgoingMessage<T> turn) {
+        OutgoingMessage<T> asking = new OutgoingMessage<>(turn.getResponseHandler());
+        asking.setRequestedOutputTokens(turn.getRequestedOutputTokens());
+        return asking;
+    }
+
     private static OutgoingMessage<String> summaryMessage(String summary) {
-        OutgoingMessage<String> msg = new OutgoingMessage<>(StringResponseHandler.instance);
+        OutgoingMessage<String> msg = new OutgoingMessage<>();
         msg.setTimestamp(Instant.now());
         msg.addText(summary);
         return msg;

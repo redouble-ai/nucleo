@@ -80,6 +80,27 @@ class ConversationRestoreContractTest {
                         + " unanswerable at the provider, so incomplete beats unanswerable");
     }
 
+    /**
+     * A response handler's reply instructions are rendered after its turn's content. A
+     * restored turn that was answered before the save carries no handler, so it renders as
+     * its content alone; the last turn, still waiting for its answer, takes the handler the
+     * restore was given.
+     */
+    @Test
+    void aRestoredTurnThatWasAnsweredCarriesNoResponseHandler_onlyTheLastTurnTakesIt() {
+        ConversationContext restored = conversationWithToolExchange().toSnapshot()
+                .toConversation(StringResponseHandler.instance);
+        List<Message> messages = restored.getMessages();
+        assertNull(((OutgoingMessage<?>) messages.get(0)).getResponseHandler(),
+                "the question was answered before the save: no reply instructions are rendered after it again");
+        assertNull(((OutgoingMessage<?>) messages.get(2)).getResponseHandler(),
+                "a turn followed by another turn is history as well");
+        assertSame(StringResponseHandler.instance, ((OutgoingMessage<?>) messages.getLast()).getResponseHandler(),
+                "the last turn still waits for its answer and takes the handler it is parsed with");
+        assertSame(StringResponseHandler.instance, ((IncomingMessage<?>) messages.get(1)).getResponseHandler(),
+                "an answer keeps the handler it is read with");
+    }
+
     @Test
     void whatAMessageStatesAboutTheCacheSurvivesTheSnapshotRoundTrip() {
         ConversationContext conversation = conversationWithToolExchange();
