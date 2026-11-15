@@ -107,11 +107,15 @@ public class BedrockConverseClient extends AbstractLLMClient<ContentBlock> {
         // Extract response text
         StringBuilder responseText = new StringBuilder();
         if (converseResponse.output() != null && converseResponse.output().message() != null) {
+            boolean reasoned = false;
             for (ContentBlock block : converseResponse.output().message().content()) {
                 if (block.text() != null) {
                     responseText.append(block.text());
                 }
+                // a model that reasons returns its reasoning as a content part of its own, which is not kept
+                reasoned = reasoned || block.reasoningContent() != null;
             }
+            response.setReasoned(reasoned);
         }
         // Set response content
         IncomingMessage<T> incomingMessage = response.getResponseMessage();

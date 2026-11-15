@@ -57,6 +57,7 @@ public class LLMResponse<T> {
     protected Instant endTime;
     protected final LLMRequest<T> request;
     protected LLMStopReason stopReason = LLMStopReason.UNKNOWN;
+    private Boolean reasoned;
     /** The provider's category for a {@link LLMStopReason#CONTENT_FILTERED} stop, when it named one. */
     protected String refusalCategory;
     /** The provider's own explanation of a {@link LLMStopReason#CONTENT_FILTERED} stop, when it gave one. */
@@ -251,6 +252,21 @@ public class LLMResponse<T> {
      */
     public LLMStopReason getStopReason() {
         return stopReason;
+    }
+
+    /**
+     * Whether the provider's answer says the model reasoned before it answered, where the
+     * client reads that from something other than a thinking block of the message: reasoning
+     * tokens in the usage record, or a reasoning part of the content the client does not keep.
+     * Null when the answer states nothing of the kind. A thinking block in
+     * {@link #getResponseMessage()} is the same fact stated in the message itself.
+     */
+    public Boolean getReasoned() {
+        return reasoned;
+    }
+
+    public void setReasoned(Boolean reasoned) {
+        this.reasoned = reasoned;
     }
 
     public void setStopReason(LLMStopReason stopReason) {

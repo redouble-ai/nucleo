@@ -47,6 +47,16 @@ public class ProbeOutcome {
     private Long observedTokensLimit;
     private Long observedRequestsLimit;
     private Map<String, String> headers;
+    /** Whether the answer carried the model's reasoning: a thinking block, or the provider's word that it reasoned. */
+    private boolean reasoned;
+
+    public boolean isReasoned() {
+        return reasoned;
+    }
+
+    public void setReasoned(boolean reasoned) {
+        this.reasoned = reasoned;
+    }
 
     public String getSpecId() {
         return specId;

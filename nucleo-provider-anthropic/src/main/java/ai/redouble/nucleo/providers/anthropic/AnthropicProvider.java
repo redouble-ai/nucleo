@@ -24,6 +24,14 @@ import java.util.*;
  * @since 0.1 (2026-06-21)
  */
 public abstract class AnthropicProvider<E extends AnthropicSDKClient> extends AbstractClientProvider<E> {
+    /** Claude is asked to think adaptively, as the current models think, or with a budget, as the earlier ones do. */
+    @Override
+    public List<ThinkingMode> thinkingModes() {return List.of(ThinkingMode.ADAPTIVE, ThinkingMode.EXTENDED);}
+
+    /** The Messages API answers 400 to a thinking type the model does not take, on Anthropic's endpoint and on Bedrock alike. */
+    @Override
+    public boolean refusesUnsupportedThinking() {return true;}
+
     @Override
     public E createClient(ModelSpec spec) {
         E client = super.createClient(spec);

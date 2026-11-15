@@ -46,6 +46,10 @@ public class AzureFoundryOpenAIProvider extends AbstractClientProvider<AzureFoun
     @Override
     public String key() {return "azure-foundry-openai";}
 
+    /** The dialect asks a model to think one way: a reasoning effort. */
+    @Override
+    public List<ThinkingMode> thinkingModes() {return List.of(ThinkingMode.REASONING_EFFORT);}
+
     @Override
     public String platform() {return "azure";}
     @Override

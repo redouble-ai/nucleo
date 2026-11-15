@@ -23,6 +23,10 @@ public class BedrockConverseProvider extends AbstractClientProvider<BedrockConve
     @Override
     public String key() {return "bedrock-converse";}
 
+    /** The Converse client asks a model to think one way: a reasoning effort. */
+    @Override
+    public List<ThinkingMode> thinkingModes() {return List.of(ThinkingMode.REASONING_EFFORT);}
+
     /** Converse serves every vendor; its Claude entries are named the Anthropic way on the converse channel. */
     @Override
     public String identityOf(String wireModelId) {

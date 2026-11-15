@@ -29,6 +29,10 @@ public class OpenAIChatCompletionsProvider extends AbstractClientProvider<OpenAI
     @Override
     public String key() {return "openai-chat-completions";}
 
+    /** The dialect asks a model to think one way: a reasoning effort. */
+    @Override
+    public List<ThinkingMode> thinkingModes() {return List.of(ThinkingMode.REASONING_EFFORT);}
+
     @Override
     public String platform() {return "openai";}
     @Override

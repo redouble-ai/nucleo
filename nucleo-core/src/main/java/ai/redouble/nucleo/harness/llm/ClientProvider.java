@@ -115,6 +115,29 @@ public interface ClientProvider<E extends Client> {
     }
 
     /**
+     * The ways this provider's client can ask a model to think, in the order worth trying:
+     * the {@link ThinkingMode}s it turns into request parameters, {@code NONE} left out. The
+     * catalog discovery asks each entry to think in these ways and writes the one the model
+     * answers with reasoning, so an entry's mode is learned from the model and not from an
+     * older one. Empty for a provider whose client sends no thinking parameter.
+     */
+    default List<ThinkingMode> thinkingModes() {
+        return List.of();
+    }
+
+    /**
+     * Whether this provider's API refuses a thinking parameter the model does not support,
+     * so that an accepted request to think is itself proof the model thinks that way. False
+     * by default: an API or a compatible host may ignore a parameter it does not know, and
+     * then only reasoning in the answer proves anything. Anthropic's API refuses, and its
+     * newer models may accept a request to think and answer an easy question without
+     * thinking, so there the acceptance is the proof.
+     */
+    default boolean refusesUnsupportedThinking() {
+        return false;
+    }
+
+    /**
      * The platform the credential belongs to: {@code bedrock} for every Bedrock surface,
      * {@code openai}, {@code azure}, {@code anthropic}. The scope of a deployment's
      * {@link ModelStatus#DISABLED}: a model disabled on one key of a platform is disabled on

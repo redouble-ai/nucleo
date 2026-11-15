@@ -51,6 +51,12 @@ import java.util.concurrent.*;
 public final class CatalogPing {
     static final String PING_PROMPT = "Reply with the single word: pong";
     static final int PING_OUTPUT_BUDGET = 2048;
+    /**
+     * A question of a few steps: a model that can reason has something to reason about, and
+     * answers well inside the cap. A harder puzzle was tried and ran a reasoning model past it.
+     */
+    static final String THINKING_PROMPT = "A train leaves at 9:40 and arrives at 13:05. On the way it stands for 7 minutes at one"
+            + " station and 12 minutes at another. For how many minutes was it moving? Reply with the number alone.";
     static final Duration PING_CAP = Duration.ofMinutes(2);
 
     private CatalogPing() {}
@@ -61,10 +67,12 @@ public final class CatalogPing {
     }
 
     /**
-     * The ping asked to think: the same one-word call at {@code Depth.QUICK}, where a chat
-     * entry's thinking mode is sent as an application's call would send it. The plain ping
-     * runs with thinking off, so it answers alike whatever mode the entry states; this one is
-     * refused by a model that does not think the way the entry says. Never throws.
+     * The ping asked to think: one call at {@code Depth.STANDARD}, where a chat entry's
+     * thinking mode is sent as an application's call would send it, with a question that
+     * takes a few steps to answer, so that a model that can reason does. The plain ping runs
+     * with thinking off, so it answers alike whatever mode the entry states; this one is
+     * refused by a model that does not think the way the entry says, and its outcome says
+     * whether the answer carried reasoning ({@link ProbeOutcome#isReasoned()}). Never throws.
      */
     public static ProbeOutcome thinkingPing(ClientProvider<?> provider, ModelSpec spec) {
         ProbeOutcome outcome = new ProbeOutcome();
@@ -72,7 +80,7 @@ public final class CatalogPing {
         outcome.setProvider(spec.getProviderKey());
         outcome.setProbedAt(Instant.now());
         long start = System.currentTimeMillis();
-        pingModel(provider, spec, outcome, PING_CAP, Depth.QUICK);
+        pingModel(provider, spec, outcome, PING_CAP, Depth.STANDARD);
         outcome.setLatencyMs(System.currentTimeMillis() - start);
         return outcome;
     }
@@ -97,7 +105,7 @@ public final class CatalogPing {
     /** A chat entry's ping: one {@link ProbeCall}, its answer harvested or its failure classified. */
     private static void pingModel(ClientProvider<?> provider, ModelSpec spec, ProbeOutcome outcome, Duration cap, Depth depth) {
         ProbeCall call = new ProbeCall(Job.workflow("catalog-discovery", "catalog-ping"), provider, spec,
-                depth, PING_OUTPUT_BUDGET, PING_PROMPT, cap);
+                depth, PING_OUTPUT_BUDGET, depth == Depth.IMMEDIATE ? PING_PROMPT : THINKING_PROMPT, cap);
         JobHandle<String> handle = JobDispatcher.getInstance().submit(call);
         try {
             handle.get();
@@ -231,6 +239,11 @@ public final class CatalogPing {
         outcome.setServedModelId(response.getServedModelId());
         outcome.setProviderRequestId(response.getProviderRequestId());
         outcome.setHeaders(response.getProviderHeaders());
+        // the model reasoned when its message carries a thinking block or its provider says so
+        boolean thinkingBlock = response.getResponseMessage() != null && response.getResponseMessage().hasContentBlocks()
+                && response.getResponseMessage().getContentBlocks().stream()
+                        .anyMatch(b -> b instanceof ContentBlocks.ThinkingBlock || b instanceof ContentBlocks.RedactedThinkingBlock);
+        outcome.setReasoned(thinkingBlock || Boolean.TRUE.equals(response.getReasoned()));
         TokenLedger usage = response.getUsage();
         if (usage != null && usage.inputTokens() != null) {
             outcome.setInputTokens(usage.inputTokens().longValue());

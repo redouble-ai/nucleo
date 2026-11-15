@@ -68,6 +68,22 @@ class CatalogDiscoveryTest {
         private final Map<String, List<DiscoveredModel.PriceOption>> priceOptions = new HashMap<>();
         private final Map<String, ThinkingMode> statedThinking = new HashMap<>();
 
+        private List<ThinkingMode> thinkingModes = List.of();
+
+        /** The ways this provider's client can ask a model to think. */
+        void thinksAs(ThinkingMode... modes) {thinkingModes = List.of(modes);}
+
+        @Override
+        public List<ThinkingMode> thinkingModes() {return thinkingModes;}
+
+        private boolean refusesUnsupportedThinking;
+
+        /** This provider's API refuses a thinking parameter the model does not support. */
+        void strictAboutThinking() {refusesUnsupportedThinking = true;}
+
+        @Override
+        public boolean refusesUnsupportedThinking() {return refusesUnsupportedThinking;}
+
         /** The listing states how the id's model thinks. */
         void stateThinking(String wireId, ThinkingMode mode) {statedThinking.put(wireId, mode);}
 
@@ -1303,14 +1319,78 @@ class CatalogDiscoveryTest {
         return outcome;
     }
 
-    /** A discovery whose thinking ping is scripted: the modes the model accepts, every other refused in the provider's words, each call recorded. */
+    /** An answer that carried the model's reasoning. */
+    private static ProbeOutcome thought(ModelSpec spec) {
+        ProbeOutcome outcome = ok(spec, 55000);
+        outcome.setReasoned(true);
+        return outcome;
+    }
+
+    /**
+     * A discovery over a provider whose client asks Claude's two ways, with a scripted
+     * thinking ping: the modes the model answers with reasoning, every other refused in the
+     * provider's words, each call recorded.
+     */
     private static CatalogDiscovery thinkingDiscovery(JsonModelsBackend seed, Scripted alpha, Set<ThinkingMode> accepted, List<ThinkingMode> asked) {
+        alpha.thinksAs(ThinkingMode.ADAPTIVE, ThinkingMode.EXTENDED);
         CatalogDiscovery discovery = new CatalogDiscovery(seed, null, Map.of("alpha", alpha), (p, s) -> ok(s, 55000));
         discovery.thinkingPing = (p, s) -> {
             asked.add(s.getThinkingMode());
-            return accepted.contains(s.getThinkingMode()) ? ok(s, 55000) : refused(s, "400: \"thinking.type\" is not supported for this model");
+            return accepted.contains(s.getThinkingMode()) ? thought(s) : refused(s, "400: \"thinking.type\" is not supported for this model");
         };
         return discovery;
+    }
+
+    /**
+     * Every chat entry is asked, an entry written {@code NONE} included, and a way of asking
+     * counts only when the answer carries reasoning. A model written {@code NONE} that reasons
+     * when asked is given the mode it reasoned in. A model that accepts the request and shows
+     * no reasoning has proved nothing: written {@code NONE} it stays {@code NONE} without a
+     * word, written with that mode it keeps it and is reported as not confirmed, and written
+     * with a mode it refused it becomes {@code NONE}. A provider whose client asks in no way
+     * has none of its entries asked.
+     */
+    @Test
+    void aWayOfThinkingCountsOnlyWhenTheAnswerCarriesReasoning() {
+        JsonModelsBackend seed = pricedCatalog(true, thinking("a-silent", "wire-silent", "NONE"), thinking("a-plain", "wire-plain", "NONE"),
+                thinking("a-effort", "wire-effort", "REASONING_EFFORT"), thinking("a-old", "wire-old", "EXTENDED"));
+        Scripted alpha = Scripted.listing("alpha", "wire-silent", "wire-plain", "wire-effort", "wire-old");
+        alpha.thinksAs(ThinkingMode.REASONING_EFFORT, ThinkingMode.ADAPTIVE);
+        List<String> asked = new ArrayList<>();
+        CatalogDiscovery discovery = new CatalogDiscovery(seed, null, Map.of("alpha", alpha), (p, s) -> ok(s, 55000));
+        discovery.thinkingPing = (p, s) -> {
+            asked.add(s.getId() + " " + s.getThinkingMode());
+            // a-silent reasons under an effort; a-old refuses its budget; everything else is accepted and shows no reasoning
+            if (s.getId().equals("a-silent") && s.getThinkingMode() == ThinkingMode.REASONING_EFFORT) {
+                return thought(s);
+            }
+            return s.getThinkingMode() == ThinkingMode.EXTENDED ? refused(s, "400: thinking budgets are not supported for this model") : ok(s, 55000);
+        };
+        CatalogDiscovery.Result result = discovery.discover();
+        assertEquals("REASONING_EFFORT", written(result, "a-silent").get("thinking_mode").asText(), "a model written NONE that reasons when asked");
+        assertEquals("NONE", written(result, "a-plain").get("thinking_mode").asText(), "accepting a request to think is not thinking");
+        assertTrue(asked.containsAll(List.of("a-plain REASONING_EFFORT", "a-plain ADAPTIVE")), "an entry written NONE is asked every way the client can ask: " + asked);
+        assertEquals("REASONING_EFFORT", written(result, "a-effort").get("thinking_mode").asText(), "a written mode accepted without reasoning is kept");
+        assertEquals("NONE", written(result, "a-old").get("thinking_mode").asText(), "a written mode this client has no parameters for, and no way it can ask that the model reasoned in");
+        String report = String.join("\n", result.thinkingModes());
+        assertTrue(report.contains("NONE -> REASONING_EFFORT (the model reasoned when asked as REASONING_EFFORT)"), report);
+        assertTrue(report.contains("REASONING_EFFORT NOT CONFIRMED: the model accepted the request and its answer showed no reasoning"), report);
+        assertTrue(report.contains("EXTENDED -> NONE (this provider's client cannot ask for EXTENDED, and accepted REASONING_EFFORT with no reasoning in its answer)"), report);
+        assertFalse(report.contains("a-plain"), "an entry written NONE that showed no reasoning is right as it stands and is not news: " + report);
+        assertEquals(3, result.thinkingModes().size());
+        // the same answers from a provider whose API refuses what a model does not support: accepting is the proof
+        alpha.strictAboutThinking();
+        CatalogDiscovery strict = new CatalogDiscovery(seed, null, Map.of("alpha", alpha), (p, s) -> ok(s, 55000));
+        strict.thinkingPing = discovery.thinkingPing;
+        CatalogDiscovery.Result strictly = strict.discover();
+        assertEquals("REASONING_EFFORT", written(strictly, "a-plain").get("thinking_mode").asText(), "accepted by an API that refuses what a model cannot do");
+        assertFalse(String.join("\n", strictly.thinkingModes()).contains("NOT CONFIRMED"), strictly.thinkingModes().toString());
+        alpha.thinksAs();
+        asked.clear();
+        CatalogDiscovery silent = new CatalogDiscovery(seed, null, Map.of("alpha", alpha), (p, s) -> ok(s, 55000));
+        silent.thinkingPing = discovery.thinkingPing;
+        assertTrue(silent.discover().thinkingModes().isEmpty());
+        assertTrue(asked.isEmpty(), "a provider whose client asks in no way has no entry asked");
     }
 
     /**
@@ -1327,7 +1407,7 @@ class CatalogDiscoveryTest {
         assertEquals("ADAPTIVE", written(swapped, "a-new").get("thinking_mode").asText(), "the model refused the inherited mode and accepted the other");
         assertEquals(List.of(ThinkingMode.EXTENDED, ThinkingMode.ADAPTIVE), asked, "the written mode first, then the other");
         assertEquals(1, swapped.thinkingModes().size());
-        assertTrue(swapped.thinkingModes().get(0).endsWith("EXTENDED -> ADAPTIVE (the model refused EXTENDED and accepted ADAPTIVE)"), swapped.thinkingModes().get(0));
+        assertTrue(swapped.thinkingModes().get(0).endsWith("EXTENDED -> ADAPTIVE (the model reasoned when asked as ADAPTIVE)"), swapped.thinkingModes().get(0));
         assertTrue(swapped.report().contains("THINKING MODES"), swapped.report());
         asked.clear();
         CatalogDiscovery.Result confirmed = thinkingDiscovery(seed, Scripted.listing("alpha", "wire-new"), Set.of(ThinkingMode.EXTENDED), asked).discover();
@@ -1349,16 +1429,17 @@ class CatalogDiscoveryTest {
      */
     @Test
     void aThinkingCallThatFailsForAnotherReasonLeavesTheModeAndSaysItWasNotChecked() {
-        JsonModelsBackend seed = pricedCatalog(true, thinking("a-new", "wire-new", "ADAPTIVE"), thinking("a-plain", "wire-plain", "NONE"),
-                thinking("a-effort", "wire-effort", "REASONING_EFFORT"));
+        JsonModelsBackend seed = pricedCatalog(true, thinking("a-new", "wire-new", "ADAPTIVE"));
         List<String> asked = new ArrayList<>();
-        CatalogDiscovery discovery = new CatalogDiscovery(seed, null, Map.of("alpha", Scripted.listing("alpha", "wire-new", "wire-plain", "wire-effort")), (p, s) -> ok(s, 55000));
+        Scripted alpha = Scripted.listing("alpha", "wire-new");
+        alpha.thinksAs(ThinkingMode.ADAPTIVE, ThinkingMode.EXTENDED);
+        CatalogDiscovery discovery = new CatalogDiscovery(seed, null, Map.of("alpha", alpha), (p, s) -> ok(s, 55000));
         discovery.thinkingPing = (p, s) -> {
             asked.add(s.getId());
             return refused(s, "400: max_tokens: 9 is below the minimum");
         };
         CatalogDiscovery.Result result = discovery.discover();
-        assertEquals(List.of("a-new"), asked, "only the entry written ADAPTIVE or EXTENDED is asked to think");
+        assertEquals(List.of("a-new"), asked, "the run stops asking at a failure it cannot read");
         assertEquals("ADAPTIVE", written(result, "a-new").get("thinking_mode").asText(), "a failure that does not name thinking changes nothing");
         assertEquals(1, result.thinkingModes().size());
         assertTrue(result.thinkingModes().get(0).contains("ADAPTIVE NOT CHECKED"), result.thinkingModes().get(0));
@@ -1395,13 +1476,15 @@ class CatalogDiscoveryTest {
         JsonModelsBackend previous = pricedCatalog(false, open, closed);
         List<String> pinged = new ArrayList<>();
         List<String> asked = new ArrayList<>();
-        CatalogDiscovery discovery = new CatalogDiscovery(seed, previous, Map.of("alpha", Scripted.listing("alpha", "wire-kept", "wire-closed")), (p, s) -> {
+        Scripted alpha = Scripted.listing("alpha", "wire-kept", "wire-closed");
+        alpha.thinksAs(ThinkingMode.ADAPTIVE, ThinkingMode.EXTENDED);
+        CatalogDiscovery discovery = new CatalogDiscovery(seed, previous, Map.of("alpha", alpha), (p, s) -> {
             pinged.add(s.getId());
             return ok(s, 55000);
         });
         discovery.thinkingPing = (p, s) -> {
             asked.add(s.getId() + " " + s.getThinkingMode());
-            return s.getThinkingMode() == ThinkingMode.ADAPTIVE ? ok(s, 55000) : refused(s, "400: \"thinking.type.enabled\" is not supported for this model");
+            return s.getThinkingMode() == ThinkingMode.ADAPTIVE ? thought(s) : refused(s, "400: \"thinking.type.enabled\" is not supported for this model");
         };
         CatalogDiscovery.Result result = discovery.discover();
         assertTrue(pinged.isEmpty(), "an entry already in the file is not pinged: " + pinged);

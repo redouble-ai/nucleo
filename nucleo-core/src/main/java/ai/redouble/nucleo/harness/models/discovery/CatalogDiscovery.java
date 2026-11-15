@@ -1011,15 +1011,21 @@ public final class CatalogDiscovery {
      * Sets a pinged entry's thinking mode to what its provider says or shows, because the mode
      * it arrived with is an older model's or the classifier's guess, and the ping, which runs
      * with thinking off, answers alike whatever the mode. Where the listing states the mode,
-     * that is the entry's. Otherwise an entry written {@code ADAPTIVE} or {@code EXTENDED},
-     * the two modes that send nothing at the ping's depth, is asked to think as written
-     * ({@link CatalogPing#thinkingPing}): an answer confirms the mode; a refusal that names
-     * thinking moves on to the other of the two, and to {@code NONE} when the model refuses
-     * both. A failure that is transient, or that does not name thinking, teaches nothing and
-     * the entry keeps its mode, the report saying it was not checked. A
-     * {@code REASONING_EFFORT} entry needs no second call: it reasons at the ping's depth
-     * too, so the ping has already sent its mode. An entry written {@code NONE} is not asked,
-     * since a model that ignores a request to think would read as accepting it.
+     * that is the entry's. Otherwise every chat entry, whatever mode it is written with,
+     * {@code NONE} included, is asked to think ({@link CatalogPing#thinkingPing}) in each way
+     * its provider's client can ask ({@link ClientProvider#thinkingModes}), the written way
+     * first. A way counts only when the answer carries the model's reasoning, a thinking
+     * block or the provider's word that it reasoned: an accepted request proves nothing by
+     * itself, because a model or a host that ignores the thinking parameters answers all the
+     * same; only a provider whose API refuses what a model does not support
+     * ({@link ClientProvider#refusesUnsupportedThinking}) makes the acceptance the proof. The
+     * first way that is answered with reasoning is the entry's mode. A refusal that
+     * names thinking or reasoning moves on to the next way. When no way is answered with
+     * reasoning, an entry written {@code NONE} is right as it stands, an entry whose written
+     * way was accepted without reasoning keeps it and is reported as not confirmed, and an
+     * entry whose written way was refused becomes {@code NONE}. A failure that is transient,
+     * or that does not name thinking, teaches nothing: the entry keeps its mode and the
+     * report says it was not checked.
      *
      * <p>An open entry the deployment's file already holds is checked the same way on every
      * run, without a ping: its mode was inherited when it was added, and nothing else in the
@@ -1037,32 +1043,61 @@ public final class CatalogDiscovery {
             }
             return;
         }
-        if (thinkingPing == null || (written != ThinkingMode.ADAPTIVE && written != ThinkingMode.EXTENDED)) {
+        if (thinkingPing == null || provider.thinkingModes().isEmpty()) {
             return;
         }
-        ThinkingMode other = written == ThinkingMode.ADAPTIVE ? ThinkingMode.EXTENDED : ThinkingMode.ADAPTIVE;
-        for (ThinkingMode candidate : List.of(written, other)) {
+        // the mode as written first, where the client can send it, then the client's other ways of asking
+        List<ThinkingMode> candidates = new ArrayList<>();
+        if (provider.thinkingModes().contains(written)) {
+            candidates.add(written);
+        }
+        for (ThinkingMode mode : provider.thinkingModes()) {
+            if (mode != written) {
+                candidates.add(mode);
+            }
+        }
+        // a way of asking the model accepted while its answer showed no reasoning: the request may have been ignored
+        ThinkingMode unproven = null;
+        for (ThinkingMode candidate : candidates) {
             ObjectNode trial = entry.deepCopy();
             trial.put("thinking_mode", candidate.name());
             // read under the defaults of the file the entry came from, as its own spec was
             JsonModelsBackend backend = previous != null && previous.rawEntries().containsKey(spec.getId()) ? previous : seed;
             ProbeOutcome outcome = thinkingPing.apply(provider, backend.specOf(trial));
             if (outcome.getStatus() == ProbeOutcome.Status.OK) {
+                // where the API refuses what a model does not support, its acceptance is the proof
+                if (!outcome.isReasoned() && !provider.refusesUnsupportedThinking()) {
+                    unproven = unproven == null ? candidate : unproven;
+                    continue;
+                }
                 if (candidate != written) {
                     entry.put("thinking_mode", candidate.name());
-                    thinkingModes.put(spec.getId(), String.format("%-28s", spec.getId()) + "  " + written + " -> " + candidate + " (the model refused " + written + " and accepted " + candidate + ")");
+                    thinkingModes.put(spec.getId(), String.format("%-28s", spec.getId()) + "  " + written + " -> " + candidate + " (the model reasoned when asked as " + candidate + ")");
                 }
                 return;
             }
             String why = outcome.getErrorMessage();
-            if (transientFailure(outcome) || why == null || !why.toLowerCase(Locale.ROOT).contains("thinking")) {
+            String lower = why != null ? why.toLowerCase(Locale.ROOT) : "";
+            if (transientFailure(outcome) || !(lower.contains("thinking") || lower.contains("reasoning"))) {
                 thinkingModes.put(spec.getId(), String.format("%-28s", spec.getId()) + "  " + written + " NOT CHECKED: the call asking it to think as " + candidate
                         + " failed for another reason: " + oneLine(why));
                 return;
             }
         }
+        if (written == ThinkingMode.NONE) {
+            // asked every way the client can ask, and no answer showed reasoning: NONE is what the model is
+            return;
+        }
+        if (unproven == written) {
+            thinkingModes.put(spec.getId(), String.format("%-28s", spec.getId()) + "  " + written + " NOT CONFIRMED: the model accepted the request and its answer showed no reasoning");
+            return;
+        }
         entry.put("thinking_mode", ThinkingMode.NONE.name());
-        thinkingModes.put(spec.getId(), String.format("%-28s", spec.getId()) + "  " + written + " -> NONE (the model refused every request to think)");
+        // a mode the client has no parameters for was never sent, whatever the entry said
+        String ofWritten = candidates.contains(written) ? "the model refused " + written : "this provider's client cannot ask for " + written;
+        thinkingModes.put(spec.getId(), String.format("%-28s", spec.getId()) + "  " + written + " -> NONE (" + (unproven != null
+                ? ofWritten + ", and accepted " + unproven + " with no reasoning in its answer"
+                : candidates.contains(written) ? "the model refused every request to think" : ofWritten + ", and the model refused every way it can ask") + ")");
     }
 
     private ProbeOutcome pingWithRetry(ClientProvider<?> provider, ModelSpec spec) {

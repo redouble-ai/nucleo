@@ -139,9 +139,11 @@ report begins at the line `Catalog discovery <timestamp>` and has these sections
   nothing prices a call from them and they need no checking.
 - `THINKING MODES` names the new entries whose thinking mode the run corrected, from the
   provider's listing or from the model's own answer to a request to think, with the mode
-  before and after; nothing to do for those. A line reading `NOT CHECKED` is an entry whose
-  thinking call failed for another reason: tell the person, its mode is still the one
-  inherited from an older model.
+  before and after; nothing to do for those. Every chat entry is asked to think on every
+  run, so an entry absent from the block was confirmed as written. A line reading
+  `NOT CHECKED` is an entry whose thinking call failed for an unrelated reason, and
+  `NOT CONFIRMED` one whose written mode was accepted with no reasoning in the answer: tell
+  the person, such an entry's mode is still the one it was written with.
 - `PRICES THAT ARE NONE OF THE LISTED ONES` names Azure AI Foundry entries whose typed price
   is the standard price of no deployment type. The run changed none of them. Show the person
   each line: the type of the deployment (Global or Data Zone, on the deployment's page in

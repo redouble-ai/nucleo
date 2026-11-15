@@ -32,6 +32,10 @@ public class OpenAICompatibleProvider extends AbstractClientProvider<OpenAICompa
     @Override
     public String key() {return "openai-compatible";}
 
+    /** The dialect asks a model to think one way: a reasoning effort. */
+    @Override
+    public List<ThinkingMode> thinkingModes() {return List.of(ThinkingMode.REASONING_EFFORT);}
+
     @Override
     public String platform() {return "openai-compatible";}
     @Override

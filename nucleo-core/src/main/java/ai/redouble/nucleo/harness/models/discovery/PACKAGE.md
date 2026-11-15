@@ -87,21 +87,24 @@ The deployment's file is the deployment's, and the discovery treats it that way:
   price list prices it, the prices are the list's and the note names the rest to verify. A
   new version of a family you disabled arrives disabled. A newer version of a pinned model is
   added and announced at the top of the report, and the pin stays where you put it.
-- **A new entry's thinking mode is learned from the provider.** A new model arrives with
+- **Every entry's thinking mode is learned from the provider.** A new model arrives with
   the thinking mode of its older relative, and providers change how their models think from
-  one generation to the next, so the discovery checks it. Where the provider's listing
-  states how a model thinks, as Anthropic's does, that is the entry's mode. Otherwise an
-  entry that arrived as `ADAPTIVE` or `EXTENDED` gets one more call after its ping, asking
-  it to think as written: the model's answer confirms the mode, a refusal of the thinking
-  parameters moves the entry to the other of the two, and to `NONE` when it refuses both.
-  The report lists each corrected entry under `THINKING MODES` with the mode before and
-  after, and each entry whose thinking call failed for another reason as `NOT CHECKED`. A
-  `REASONING_EFFORT` entry needs no second call, because its ping already reasons. An entry
-  that arrived as `NONE` is not asked, since a model that ignores a request to think would
-  look as if it had accepted it; where the listing does not state the mode, check such an
-  entry yourself. An open entry already in your file is checked the same way on every run,
-  without a ping and with nothing else of it touched: its mode was inherited when it was
-  added, and a model that refuses it fails every call that asks it to think.
+  one generation to the next, so the discovery checks it, for every chat entry and whatever
+  mode the entry carries, `NONE` included. Where the provider's listing states how a model
+  thinks, as Anthropic's does, that is the entry's mode. Otherwise the entry is asked to
+  think, with a question of a few steps, in each way its provider's client can ask: with an
+  adaptive or a budgeted thinking request for Claude, with a reasoning effort for the
+  OpenAI dialect and Bedrock's Converse API. A way counts when the answer carries the
+  model's reasoning, a thinking block or the provider's count of reasoning tokens. An
+  accepted request proves nothing by itself, because a model or a host that ignores the
+  parameter answers all the same; the one exception is Anthropic's API, which refuses a
+  thinking type the model does not take, so there the acceptance is the proof. The first
+  way the model reasons in is the entry's mode, and an entry no way makes reason is `NONE`.
+  The report's `THINKING MODES` block lists each corrected entry with the mode before and
+  after, each entry whose written mode was accepted without any reasoning in the answer as
+  `NOT CONFIRMED`, and each entry whose thinking call failed for an unrelated reason as
+  `NOT CHECKED`. An open entry already in your file is checked the same way on every run,
+  without a ping and with nothing else of it touched.
 - **A run pays only for what is new**: the listings it has not seen, the classification of
   those that need one (below), and one call per new entry.
 
