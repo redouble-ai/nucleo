@@ -70,6 +70,15 @@ public class ChatAnswerSelectionTest {
     }
 
     @Test
+    void aReferenceWrittenInASubclassField_isSelected_liveAndOnReplay() throws Exception {
+        SelectingChat<VerdictAnswer> chat = answered(VerdictAnswer.class,
+                refs -> "{\"final_answer\": true, \"answer\": {\"message_text\": \"Settled.\", \"verdict\": \"yes, per " + refs.get(1) + "\"}}");
+        assertEquals(Set.of(chat.refs.get(1)), chat.published.getArtifacts().keySet(), "a reference in a field the subclass added selects its artifact");
+        VerdictAnswer replayed = ChatAnswer.stored(chat.conversation.getMessages().get(1).getRawContent(), VerdictAnswer.class, chat.conversation.getArtifactRegistry());
+        assertEquals(chat.published.getArtifacts(), replayed.artifactsByRef(), "and the replay of the stored reply selects the same");
+    }
+
+    @Test
     void aReferenceTheRegistryDoesNotHold_isSkipped() throws Exception {
         SelectingChat<ChatAnswer> chat = answered(ChatAnswer.class,
                 refs -> "{\"final_answer\": true, \"answer\": {\"message_text\": \"Two named.\", \"artifact_refs\": [\"" + refs.get(0) + "\", \"«artifact:link~nowhere»\"]}}");

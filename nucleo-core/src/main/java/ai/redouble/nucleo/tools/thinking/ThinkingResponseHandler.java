@@ -275,7 +275,8 @@ public class ThinkingResponseHandler<O> implements ResponseHandler<ThinkingRespo
 
     /**
      * Converts answer from Map to expected POJO type if applicable.
-     * Also ensures artifact references mentioned in text are included in artifact_refs.
+     * The artifact references written in the answer's values, read from the Map before the
+     * conversion, join the declared ones in artifact_refs.
      *
      * <p>A Jackson type-mismatch (e.g. an enum field receiving a JSON object) is wrapped as a
      * correctable {@link ai.redouble.nucleo.harness.errors.InvalidInputException} so the agent loop can feed the
@@ -286,6 +287,10 @@ public class ThinkingResponseHandler<O> implements ResponseHandler<ThinkingRespo
     private void convertAnswer(ThinkingResponse<O> response) throws IOException, ai.redouble.nucleo.harness.errors.LLMReadableCheckedException {
         Object rawAnswer = response.getAnswer();
         Class<?> answerType = answerHandler.getResponseClass();
+        // The references the model wrote in the answer's values are read here, from the answer
+        // as it was parsed and before it becomes an object of its class, so they are found for
+        // every answer class alike and nothing is written back to text to be searched
+        List<String> writtenRefs = rawAnswer instanceof Map ? ArtifactRegistry.refsWrittenIn(rawAnswer) : List.of();
         if (rawAnswer instanceof Map && NucleoJsonSerializer.isComposite(answerType)) {
             O convertedAnswer;
             try {
@@ -320,11 +325,11 @@ public class ThinkingResponseHandler<O> implements ResponseHandler<ThinkingRespo
             throw new ai.redouble.nucleo.harness.errors.InvalidInputException("answer", "",
                     accepted + ", not a " + rawAnswer.getClass().getSimpleName());
         }
-        // The canonicalization gate: the declared refs and the text-mentioned ones become one
-        // canonical, deduplicated list, so a response leaving the loop never carries a variant
-        // spelling and a text-mentioned artifact cannot hide behind a declared duplicate
+        // The canonicalization gate: the declared refs and the ones written in the answer's
+        // values become one canonical, deduplicated list, so a response leaving the loop never
+        // carries a variant spelling and a written artifact cannot hide behind a declared duplicate
         if (response.getAnswer() instanceof ArtifactResponse<?> artifactResponse) {
-            artifactResponse.canonicalizeArtifactRefs(response.getAnswer().toString());
+            artifactResponse.canonicalizeArtifactRefs(writtenRefs);
         }
     }
 

@@ -85,14 +85,18 @@ public abstract class ArtifactResponse<R extends Reasoning> extends ReasonablePo
 
     /**
      * The single canonicalization gate for a parsed response: normalizes every declared
-     * reference, unions the {@code «artifact:...»} mentions found in the answer's text
-     * ({@link ArtifactRegistry#refsMentionedIn}), deduplicates across spellings, and
-     * replaces the list - declared order first, then first-mention order. The response
-     * handler runs it after every parse, so a response leaving the thinking loop carries
-     * canonical refs by construction and a text-mentioned artifact can never hide behind
-     * a declared duplicate.
+     * reference, unions the references the reply's values were found to hold
+     * ({@link ArtifactRegistry#refsWrittenIn}, read from the reply before it became this
+     * object), deduplicates across spellings, and replaces the list - declared order first,
+     * then the order the written ones were met. The response handler runs it after every
+     * parse, so a response leaving the thinking loop carries canonical refs by construction,
+     * an artifact referred to in any text field is selected whatever the answer class, and
+     * one written in the text can never hide behind a declared duplicate.
+     *
+     * @param writtenRefs the references found in the string values of the reply this
+     *                    response was parsed from
      */
-    public void canonicalizeArtifactRefs(String answerText) {
+    public void canonicalizeArtifactRefs(List<String> writtenRefs) {
         Set<String> canonical = new LinkedHashSet<>();
         if (artifactRefs != null) {
             for (String ref : artifactRefs) {
@@ -101,7 +105,9 @@ public abstract class ArtifactResponse<R extends Reasoning> extends ReasonablePo
                 }
             }
         }
-        canonical.addAll(ArtifactRegistry.refsMentionedIn(answerText));
+        for (String ref : writtenRefs) {
+            canonical.add(ArtifactRegistry.normalizeToKey(ref));
+        }
         this.artifactRefs = new ArrayList<>(canonical);
     }
 

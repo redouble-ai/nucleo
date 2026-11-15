@@ -92,7 +92,10 @@ reasons over the real content:
 
 **4. The model selects.** Every agent's answer class extends `ThinkerOutput`, which gives the
 answer an `artifact_refs` list. The model fills it with the references of the artifacts the
-caller should receive, and references it mentions in its text count as selected too:
+caller should receive, and a reference it writes in any text field of its answer, at any
+depth, counts as selected too, whatever the answer class. The references are read from the
+reply as the model wrote it, before it becomes an object, so a field's value counts and a
+field's name does not:
 
 ```json
 {
@@ -157,8 +160,9 @@ model, what it points at without looking it up. The same form is used everywhere
 registry section, in the `{"@ref": ...}` placeholders, in `artifact_refs` lists and in tool
 inputs that take a reference. A model that writes a reference without the guillemets or the
 `artifact:` prefix is still understood: `ArtifactRegistry.normalizeToKey()` turns every
-variant into the canonical form, and `ArtifactRegistry.refsMentionedIn()` finds the references
-in a text.
+variant into the canonical form, `ArtifactRegistry.refsMentionedIn()` finds the references
+in a text, and `ArtifactRegistry.refsWrittenIn()` finds them in every string value of a parsed
+reply.
 
 ## Defining an artifact
 

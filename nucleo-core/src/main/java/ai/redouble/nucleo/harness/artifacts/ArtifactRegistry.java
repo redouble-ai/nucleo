@@ -392,11 +392,61 @@ public class ArtifactRegistry {
     }
 
     /**
+     * Every artifact reference written in the string values of a parsed JSON value, at any
+     * depth, normalized to the canonical key, deduplicated, in the order the values are met.
+     * The value is a reply as it was parsed and before it became an object of its class: a
+     * map, a list, a string, or a JSON tree. A field's name is not a value and is not read.
+     *
+     * <p>This is how the references in an answer's text are found for every answer class
+     * alike: the reply is read as the model wrote it, so no class has to render itself as
+     * text for its references to count.
+     *
+     * @param parsed the parsed reply, or a part of it
+     * @return the references found; empty when the values hold none
+     */
+    public static List<String> refsWrittenIn(Object parsed) {
+        List<String> refs = new ArrayList<>();
+        collectRefsWrittenIn(parsed, refs);
+        return refs;
+    }
+
+    private static void collectRefsWrittenIn(Object value, List<String> refs) {
+        if (value instanceof String text) {
+            for (String ref : refsMentionedIn(text)) {
+                if (!refs.contains(ref)) {
+                    refs.add(ref);
+                }
+            }
+        }
+        else if (value instanceof com.fasterxml.jackson.databind.JsonNode node) {
+            if (node.isTextual()) {
+                collectRefsWrittenIn(node.asText(), refs);
+            }
+            else if (node.isContainerNode()) {
+                // an object node iterates its values, never its field names
+                for (com.fasterxml.jackson.databind.JsonNode child : node) {
+                    collectRefsWrittenIn(child, refs);
+                }
+            }
+        }
+        else if (value instanceof Map<?, ?> map) {
+            for (Object member : map.values()) {
+                collectRefsWrittenIn(member, refs);
+            }
+        }
+        else if (value instanceof Iterable<?> elements) {
+            for (Object element : elements) {
+                collectRefsWrittenIn(element, refs);
+            }
+        }
+    }
+
+    /**
      * Every artifact reference mentioned in a text, normalized to the canonical key,
      * deduplicated, in first-mention order. The single authority for recognizing a ref in
-     * prose: the response gate ({@code ArtifactResponse.canonicalizeArtifactRefs}) and the
-     * thinker's resolution both read mentions through here, so the wire shape lives once.
-     * A text with no mentions yields an empty list - that is an answer, not an error.
+     * prose: {@link #refsWrittenIn} reads each string value of a reply through here, so the
+     * wire shape lives once. A text with no mentions yields an empty list - that is an
+     * answer, not an error.
      */
     public static List<String> refsMentionedIn(String text) {
         List<String> refs = new ArrayList<>();

@@ -5,6 +5,16 @@ group `ai.redouble`; a published version is never changed in place.
 
 ## Unreleased
 
+- An artifact a thinker's answer refers to in a text field is selected for every answer
+  class. The references in the text were looked for in the answer's `toString()`, which for
+  an answer class that does not override it holds no reference, so an artifact named in a
+  text field and not repeated in `artifact_refs` was dropped without a word. They are now
+  read from the reply as the model wrote it, before it becomes an object: every string
+  value, at any depth, and no field name. `ArtifactRegistry.refsWrittenIn` does the
+  reading. Breaking: `ArtifactResponse.canonicalizeArtifactRefs` takes the references found
+  in the reply in place of an answer text; `ThinkerOutput.resolveArtifacts` resolves
+  `artifact_refs` and reads no text, so an answer object built in code selects what its list
+  names; `ChatAnswer.toString()` is no longer its JSON.
 - The discovery learns a new entry's thinking mode from the provider. A new model was
   written with the mode of its older relative and pinged with thinking off, so
   `claude-haiku-5-5` inherited `EXTENDED`, was reported reachable, and refused the first

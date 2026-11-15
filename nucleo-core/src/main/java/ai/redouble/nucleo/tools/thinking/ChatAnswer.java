@@ -49,15 +49,6 @@ public class ChatAnswer extends ThinkerOutput<SimpleReasoning> {
     }
 
     /**
-     * The answer as JSON, every field of a subclass included: the text in which a written
-     * artifact reference is looked for, so a reference counts in whichever field it stands.
-     */
-    @Override
-    public String toString() {
-        return NucleoJsonSerializer.write(this);
-    }
-
-    /**
      * Reads the answer a chat gave out of the assistant message a conversation stored for it,
      * with the artifacts it selected taken from the conversation's registry, so that a replay
      * of the conversation shows what the live exchange showed.
@@ -90,14 +81,15 @@ public class ChatAnswer extends ThinkerOutput<SimpleReasoning> {
         }
         else {
             // The same two gates the live reply passed: an artifact written in a typed field is
-            // replaced by the registry's object, and the declared and written references become
-            // one canonical list
+            // replaced by the registry's object, and the declared references and those written
+            // in the reply's values, read from the reply as it was stored, become one
+            // canonical list
             List<String> violations = new ArrayList<>();
             answer = registry.held(NucleoJsonSerializer.convert(written, answerClass), violations);
             if (!violations.isEmpty()) {
                 throw new IOException("The stored answer refers to an artifact its conversation does not hold: " + String.join("; ", violations));
             }
-            answer.canonicalizeArtifactRefs(answer.toString());
+            answer.canonicalizeArtifactRefs(ArtifactRegistry.refsWrittenIn(written));
             answer.resolveArtifacts(registry);
         }
         return answer;

@@ -45,9 +45,9 @@ strips the keywords. `ArtifactAuthorshipTest` pins both sides and the walk.
 
 The canonical format for all artifact references is `«artifact:type~uuid»` (with guillemet delimiters). This single format is used everywhere - HashMap keys, registry display, `@ref` placeholders, `artifactRefs` lists, and tool inputs.
 
-`ArtifactRegistry.normalizeToKey()` is the single normalization function that maps any variant to canonical format. All entry points (registry operations, response handling, tool inputs) normalize through this function, and `ArtifactRegistry.refsMentionedIn()` is the one authority for recognizing a ref inside prose.
+`ArtifactRegistry.normalizeToKey()` is the single normalization function that maps any variant to canonical format. All entry points (registry operations, response handling, tool inputs) normalize through this function, and `ArtifactRegistry.refsMentionedIn()` is the one authority for recognizing a ref inside prose. `ArtifactRegistry.refsWrittenIn()` applies it to every string value of a parsed reply (a map, a list, a string or a JSON tree), at any depth, and reads no field name.
 
-A parsed response's refs are canonical by construction: `ArtifactResponse`'s list setter is package-private (Jackson's door only - no outside caller can plant a variant spelling), the response handler runs `canonicalizeArtifactRefs` right after every parse (normalizing the declared refs and unioning the text mentions, deduplicated, declared order first), and programmatic additions go through `addArtifactRef`, which normalizes each ref.
+A parsed response's refs are canonical by construction: `ArtifactResponse`'s list setter is package-private (Jackson's door only - no outside caller can plant a variant spelling), the response handler runs `canonicalizeArtifactRefs` right after every parse (normalizing the declared refs and unioning the refs written in the reply's values, which it is handed as `refsWrittenIn` found them in the reply before its conversion to the answer class; deduplicated, declared order first), and programmatic additions go through `addArtifactRef`, which normalizes each ref.
 
 ## Key classes
 

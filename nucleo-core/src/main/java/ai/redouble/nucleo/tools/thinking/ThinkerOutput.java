@@ -21,7 +21,8 @@ import java.util.*;
  *
  * <p>When a thinker completes, it populates the artifacts field with actual
  * Java objects resolved from its conversation's artifact registry based on
- * artifact_refs and text mentions.
+ * artifact_refs, which holds the references the answer declared and those it
+ * wrote in its text fields.
  *
  * @param <R> the type of reasoning for this response
  *
@@ -61,11 +62,14 @@ public abstract class ThinkerOutput<R extends Reasoning> extends ArtifactRespons
     }
 
     /**
-     * Takes from the registry the artifacts this answer selects: the references it declares
-     * in {@code artifact_refs} and those written in its text, which is what {@link #toString()}
-     * returns. A reference the registry does not hold is logged and skipped. Declared
+     * Takes from the registry the artifacts this answer selects, which are the references in
+     * {@code artifact_refs}. For a parsed answer that list already holds the references the
+     * model wrote in its text fields beside the ones it declared: the parse gate
+     * ({@link ArtifactResponse#canonicalizeArtifactRefs}) put them there, so nothing is read
+     * from the text here. A reference the registry does not hold is logged and skipped. The
      * references are canonical after the parse gate; they are normalized again here because
-     * an output can also be built programmatically, off the thinking path.
+     * an output can also be built programmatically, off the thinking path, and such an
+     * output selects what its list names.
      *
      * @param registry the registry of the conversation the answer was given in
      */
@@ -76,7 +80,6 @@ public abstract class ThinkerOutput<R extends Reasoning> extends ArtifactRespons
                 refsToResolve.add(ArtifactRegistry.normalizeToKey(ref));
             }
         }
-        refsToResolve.addAll(ArtifactRegistry.refsMentionedIn(toString()));
         for (String ref : refsToResolve) {
             Artifact artifact = registry.get(ref);
             if (artifact != null) {
