@@ -197,7 +197,7 @@ public class MessageSnapshot  {
         this.cacheability = cacheability;
     }
     /**
-     * Reads the boolean a conversation stored before {@link Cacheability} existed: {@code true}
+     * Reads the boolean a stored conversation carries in place of a {@link Cacheability}: {@code true}
      * asked for a breakpoint on the message while the provider's allowance lasted, which is
      * {@link Cacheability#PREFERRED}; {@code false} stated nothing. It is never read as
      * {@link Cacheability#ALWAYS}: that value is only ever an engineer's explicit statement, and

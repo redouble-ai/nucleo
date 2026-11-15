@@ -1037,9 +1037,9 @@ public class NucleoJsonSerializer {
      * rendering that object again is a second copy of the thing that just exhausted the
      * buffer - and string-concatenating a collection field calls toString on every
      * element, which for a list of 5,127 elements without a toString of their own emits
-     * 5,127 identity hashes onto one line. That is what this used to do: megabytes of
-     * {@code ClassName@1bf29bef} naming nothing, logged twice, on the one path where
-     * memory is already gone.
+     * 5,127 identity hashes onto one line. That is megabytes of
+     * {@code ClassName@1bf29bef} naming nothing, on the one path where memory is
+     * already gone.
      * <p>
      * A size is what a reader actually needs: which field is huge, and how huge. The
      * exception's own message says what Jackson objected to, and the cause carries the

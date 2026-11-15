@@ -202,8 +202,8 @@ public abstract class AbstractThinker<I extends ThinkerInput, O extends ThinkerO
      *
      * <p>Subclasses should implement {@link #declareDefaultTools()} to specify initial tools.
      *
-     * <p>Subclasses pass the {@link ThinkerDeclaration} that names the capability floor
-     * their work needs and the answer size their turns book; there is no default, and a
+     * <p>Subclasses pass the {@link ThinkerDeclaration} that names the grade
+     * their work asks for and the answer size their turns book; there is no default, and a
      * thinker without one does not compile. The deployment's picker turns the grade into
      * a model per call.
      *
@@ -525,7 +525,7 @@ public abstract class AbstractThinker<I extends ThinkerInput, O extends ThinkerO
      * STANDARD thinker's sub-agents work at STANDARD). True by default: with
      * {@link SubThinker}'s THOROUGH {@link #delegationThreshold()} it ends every chain of
      * sub-agents, whatever depth the model asks for - a THOROUGH thinker's sub-agents
-     * work at STANDARD at most and cannot delegate (gh-21). A thinker whose sub-agents
+     * work at STANDARD at most and cannot delegate. A thinker whose sub-agents
      * must work at its own depth returns false; bounding the chain is then its author's
      * to do. A named thinker called as a tool is not affected: its ceiling is its
      * caller's depth.
@@ -534,9 +534,6 @@ public abstract class AbstractThinker<I extends ThinkerInput, O extends ThinkerO
         return true;
     }
 
-    /**
-     * The deepest a thinker this one calls may work, given this thinker's own depth.
-     */
     /**
      * Lowers the depth a called thinker was asked to work at to its ceiling under this caller.
      * The caller's depth is this thinker's own, {@link #getDepth()}, whichever way it carries
@@ -547,6 +544,9 @@ public abstract class AbstractThinker<I extends ThinkerInput, O extends ThinkerO
         childInput.setDepth(Depth.min(childInput.getDepth(), depthCeilingFor(called, getDepth())));
     }
 
+    /**
+     * The deepest a thinker this one calls may work, given this thinker's own depth.
+     */
     Depth depthCeilingFor(Thinker<?, ?> called, Depth ownDepth) {
         if (!(called instanceof SubThinker) || !subAgentsWorkOneLevelBelow()) {
             return ownDepth;
@@ -874,7 +874,7 @@ public abstract class AbstractThinker<I extends ThinkerInput, O extends ThinkerO
         }
 
         // A called thinker never works deeper than its ceiling: the caller's depth, or one
-        // level below it for a sub-agent (gh-21). Both sides default to STANDARD in
+        // level below it for a sub-agent. Both sides default to STANDARD in
         // ThinkerInput, so there are no null cases to handle.
         if (tool instanceof Thinker<?, ?> called && rawInput instanceof ThinkerInput childInput) {
             applyDepthCeiling(called, childInput);

@@ -73,7 +73,9 @@ public final class CatalogPing {
      * takes a few steps to answer, so that a model that can reason does. The plain ping runs
      * with thinking off, so it answers alike whatever mode the entry states; this one is
      * refused by a model that does not think the way the entry says, and its outcome says
-     * whether the answer carried reasoning ({@link ProbeOutcome#isReasoned()}). Never throws.
+     * whether the answer carried reasoning ({@link ProbeOutcome#isReasoned()}). A failed call
+     * is an outcome, never an exception; the one thing refused is {@code Depth.IMMEDIATE},
+     * the depth that asks for no thinking.
      */
     public static ProbeOutcome thinkingPing(ClientProvider<?> provider, ModelSpec spec, Depth depth) {
         if (depth == Depth.IMMEDIATE) {

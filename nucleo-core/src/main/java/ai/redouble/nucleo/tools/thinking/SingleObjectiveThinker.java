@@ -53,8 +53,8 @@ public abstract class SingleObjectiveThinker<I extends ThinkerInput, O extends T
      * This is the REQUIRED constructor for all tools.
      *
      * <p>Subclasses implement {@link #declareDefaultTools()} to specify available tools
-     * and pass the {@link ThinkerDeclaration} naming the capability floor their work
-     * needs and the answer size it books - there is no default for either.
+     * and pass the {@link ThinkerDeclaration} naming the grade their work
+     * asks for and the answer size it books - there is no default for either.
      *
      * @param parent      the parent identity for lineage tracking
      * @param declaration what this seat declares: its grade and answer size, required

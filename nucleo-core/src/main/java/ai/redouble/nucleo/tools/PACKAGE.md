@@ -688,7 +688,7 @@ The loop itself fails in a few ways:
   be summarized into one summary, and the call is retried; when it still does not fit, the
   thinker fails with `ContextOverflowException`. A conversation marked non-compactable is not
   touched and fails with `NonCompactableContextException` instead. In a chat, the user's
-  messages and the final answers are kept word for word.
+  messages are kept word for word, each with the answer it replies to.
 
 Where a failure ends up depends on how the thinker was called:
 

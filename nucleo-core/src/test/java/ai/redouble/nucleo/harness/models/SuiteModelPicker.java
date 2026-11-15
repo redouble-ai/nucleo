@@ -16,7 +16,7 @@ package ai.redouble.nucleo.harness.models;
  * Named by {@code TestConfigurator} as the suite's {@code ModelSettings.pickerClass}.
  *
  * @author Andrey Santrosyan
- * @since 0.1 (2026-11-09)
+ * @since 0.1.3 (2026-11-09)
  */
 public class SuiteModelPicker extends DefaultModelPicker {
     @Override

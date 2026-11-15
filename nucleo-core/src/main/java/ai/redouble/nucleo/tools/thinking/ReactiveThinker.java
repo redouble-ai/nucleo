@@ -105,7 +105,7 @@ public abstract class ReactiveThinker<A extends ChatAnswer> extends AbstractThin
     protected ReactiveThinker(Identifiable parent, ThinkerDeclaration declaration, Class<A> answerClass, boolean forceReadOnly) {
         super(parent, declaration, forceReadOnly);
         this.answerClass = answerClass;
-        // Interactive seat: a human is waiting. The old CHAT tier is this flag plus the grade.
+        // Interactive seat: a human is waiting.
         this.interactive = true;
         // Safety timeout: if thinker dies without cleanup, evict after 2 hours
         setRetainDuration(java.time.Duration.ofHours(2));

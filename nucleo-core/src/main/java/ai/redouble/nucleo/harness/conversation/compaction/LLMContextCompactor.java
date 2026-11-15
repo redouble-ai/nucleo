@@ -70,7 +70,7 @@ public class LLMContextCompactor implements ContextCompactor {
     /**
      * Creates a compactor whose compaction calls run at the given grade.
      *
-     * @param grade  the capability floor the compaction calls are resolved at
+     * @param grade  the grade the compaction calls ask for
      * @param parent the parent identity for workflow lineage (required)
      */
     public LLMContextCompactor(Grade grade, Identifiable parent) {

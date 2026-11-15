@@ -32,7 +32,7 @@ import java.util.stream.*;
  * settings and configurator discovery is ServiceLoader, so {@link #services} honors the service
  * files; skills and catalog fragments are resources a scan cannot find, so {@link #resources}
  * includes them; and {@link #typeAliasCheck} fails the build if a concrete Artifact lacks the
- * {@code @TypeAlias} the serializer needs, the invariant the runtime scan used to enforce.
+ * {@code @TypeAlias} the serializer needs, the invariant the runtime's package scan enforces.
  *
  * <p>These steps register Nucleo's OWN types ({@code ai.redouble.*}). They never register a
  * third-party dependency's classes. Native support for a third-party dependency is never
@@ -308,7 +308,7 @@ public class NucleoQuarkusProcessor {
     /**
      * Fails the build if a concrete Artifact subtype does not carry {@code @TypeAlias}: the
      * serializer resolves an artifact's wire name through that annotation, so a missing one is a
-     * runtime deserialization fault the runtime scan used to catch at startup. Reproducing the
+     * runtime deserialization fault the runtime's package scan catches at startup. Reproducing the
      * check here, at build time, keeps the invariant without the scan a native image cannot run.
      */
     @BuildStep

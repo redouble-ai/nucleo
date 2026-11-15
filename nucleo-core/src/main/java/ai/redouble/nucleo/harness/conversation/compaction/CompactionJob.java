@@ -43,7 +43,7 @@ class CompactionJob extends AbstractModelDependentTool<Void, CompactionResult> {
      * @param task the compaction task
      * @param contextWindow surrounding messages for context
      * @param allMessages all messages in the conversation (for reference)
-     * @param grade the capability floor the compaction call is resolved at
+     * @param grade the grade the compaction call asks for
      */
     CompactionJob(Identifiable parent,
                   LLMContextCompactor.CompactionTask task,

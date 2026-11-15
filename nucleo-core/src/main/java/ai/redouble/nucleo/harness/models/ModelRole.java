@@ -35,7 +35,7 @@ package ai.redouble.nucleo.harness.models;
  * @param catalogId the catalog id of the entry the role prefers
  * @param grade     the rung the picker starts from when the entry cannot serve, or {@link Grade#CEILING}
  * @author Andrey Santrosyan
- * @since 0.1 (2026-11-09)
+ * @since 0.1.3 (2026-11-09)
  */
 public record ModelRole(String name, String catalogId, Grade grade) {
     public ModelRole {

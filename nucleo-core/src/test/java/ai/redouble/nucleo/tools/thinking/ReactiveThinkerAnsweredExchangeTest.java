@@ -30,7 +30,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * from the inbox to the delivered answer, runs for real through the dispatcher.
  *
  * @author Andrey Santrosyan
- * @since 0.1 (2026-11-10)
+ * @since 0.1.3 (2026-11-10)
  */
 public class ReactiveThinkerAnsweredExchangeTest {
 

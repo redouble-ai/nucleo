@@ -192,14 +192,6 @@ public final class BedrockClients {
     }
 
     /**
-     * True when the failure, or any cause beneath it, is an HTTP 429 from the service.
-     * Classification is by STATUS CODE, never by message wording - every Bedrock service
-     * failure is an {@link AwsServiceException} carrying its code, and provider message
-     * phrasings ("too many requests", "too many tokens", ...) vary per model family.
-     * The cause-chain walk matters: some callers hand the classifier the raw SDK
-     * exception, others an IOException wrapping it.
-     */
-    /**
      * The AWS request id of the error response a failure carries, from the first
      * {@link AwsServiceException} in its cause chain; null when the chain holds none (a
      * transport failure that never got a response) or the response named no id. The SDK also
@@ -216,6 +208,14 @@ public final class BedrockClients {
         return null;
     }
 
+    /**
+     * True when the failure, or any cause beneath it, is an HTTP 429 from the service.
+     * Classification is by STATUS CODE, never by message wording - every Bedrock service
+     * failure is an {@link AwsServiceException} carrying its code, and provider message
+     * phrasings ("too many requests", "too many tokens", ...) vary per model family.
+     * The cause-chain walk matters: some callers hand the classifier the raw SDK
+     * exception, others an IOException wrapping it.
+     */
     static boolean isThrottling(Exception e) {
         for (Throwable c = e; c != null; c = c.getCause()) {
             if (c instanceof AwsServiceException aws && aws.statusCode() == 429) {

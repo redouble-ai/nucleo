@@ -1261,7 +1261,7 @@ public enum JobDispatcher {
 
         }
         catch (DependencyFailedException e) {
-            // gh-14. The first terminal transition wins: a cancel that landed while this job waited on
+            // The first terminal transition wins: a cancel that landed while this job waited on
             // its dependency already made it CANCELLED, and the outcome its caller was promised
             // is then the cancellation, settled the way a job cancelled in a queue is.
             context.fail(e);
@@ -1768,7 +1768,7 @@ public enum JobDispatcher {
         // User-facing terminal event (WorkflowCompleteEvent) is published by executeJobUnified for root jobs
         // The runtime's own cancellations are JobContext.CancellationException throughout; the
         // JDK's is accepted too, for a job that was waiting on a future somebody cancelled.
-        // gh-14. The first terminal transition wins: an external cancel that landed while the job ran
+        // The first terminal transition wins: an external cancel that landed while the job ran
         // made it CANCELLED already, and whatever the job did afterwards - failed with an error
         // of its own, ran into its timeout - the outcome its caller was promised is the cancel.
         boolean cancelledFirst = context.getState() == JobState.CANCELLED;

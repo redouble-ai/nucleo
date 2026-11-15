@@ -143,7 +143,7 @@ public class JsonModelsBackend implements ModelsBackend {
     /**
      * Explicit sources linked against explicit providers in place of the classpath's: the
      * discovery validates the catalog it writes by loading it against the providers it wrote it
-     * for, so every entry is validated under the provider it names. Spec types are still the
+     * for, so every entry is validated under the provider it names. Spec classes are still the
      * classpath's, the only place a spec class can be instantiated from.
      */
     public JsonModelsBackend(List<Layer> layers, Map<String, ClientProvider<?>> providers) {

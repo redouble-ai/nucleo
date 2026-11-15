@@ -54,9 +54,8 @@ public class ChatAnswer extends ThinkerOutput<SimpleReasoning> {
      * of the conversation shows what the live exchange showed.
      *
      * <p>A message that holds no final answer (a turn that called tools, or one with no
-     * reply object in it) reads as null. An answer stored as a plain string, from before a
-     * chat's answer was an object, reads as an answer with that string as its
-     * {@code message_text} and no artifacts.
+     * reply object in it) reads as null. An answer stored as a plain string
+     * reads as an answer with that string as its {@code message_text} and no artifacts.
      *
      * @param rawContent the stored assistant message, as the model wrote it
      * @param answerClass the chat's answer class

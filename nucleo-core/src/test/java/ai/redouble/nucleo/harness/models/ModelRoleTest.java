@@ -27,7 +27,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * and a conversation declares a role as it declares a grade.
  *
  * @author Andrey Santrosyan
- * @since 0.1 (2026-11-09)
+ * @since 0.1.3 (2026-11-09)
  */
 class ModelRoleTest {
 

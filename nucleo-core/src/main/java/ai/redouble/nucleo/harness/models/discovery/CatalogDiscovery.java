@@ -603,8 +603,22 @@ public final class CatalogDiscovery {
         // the kept entries' thinking modes, checked side by side: a person waits behind the run,
         // and each check writes its own entry and nothing else
         if (!keptThinkingChecks.isEmpty()) {
+            List<Future<?>> checks = new ArrayList<>();
             try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
-                keptThinkingChecks.forEach(executor::submit);
+                keptThinkingChecks.forEach(check -> checks.add(executor.submit(check)));
+            }
+            // a check that threw is a defect of the run, never a mode left quietly unchecked
+            for (Future<?> check : checks) {
+                try {
+                    check.get();
+                }
+                catch (ExecutionException e) {
+                    throw new IllegalStateException("A thinking check of an entry already in the catalog failed", e.getCause());
+                }
+                catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException("Interrupted while the thinking checks ran", e);
+                }
             }
         }
         ObjectNode catalog = NucleoJsonSerializer.createObjectNode();
