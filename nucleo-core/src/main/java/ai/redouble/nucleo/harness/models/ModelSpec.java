@@ -8,6 +8,7 @@ package ai.redouble.nucleo.harness.models;
 
 import ai.redouble.nucleo.harness.conversation.*;
 import ai.redouble.nucleo.harness.llm.*;
+import ai.redouble.nucleo.harness.observability.*;
 import ai.redouble.nucleo.harness.tokens.*;
 
 import java.util.*;
@@ -310,6 +311,21 @@ public interface ModelSpec {
     Double getCacheWritePricePerMillion();
 
     /**
+     * Every rate per token the provider's published price list states for this model, as the
+     * catalog discovery last read it: the row's name exactly as the provider writes it (AWS's
+     * {@code usagetype}, Azure's {@code meterName}) to its rate per million tokens in
+     * {@link #getCurrency()}, in the order the entry holds them. The standard rates are among them beside
+     * every tier, long-context rate and deployment type the provider lists; no name is
+     * interpreted. Null for an entry the discovery read no row for: a provider that publishes
+     * no list, or a model its list does not name.
+     *
+     * <p>Nothing in the runtime prices a call from these: the four prices above are what the
+     * shipped rule of {@link #cost} reads. They are the record of what the provider charges,
+     * and what a spec class of one's own prices a call from.
+     */
+    Map<String, Double> getListedRates();
+
+    /**
      * Whether the entry carries what a call's cost needs: a currency and an input price, and
      * an output price unless the entry is an embeddings or a decision model, whose calls have
      * no output the provider bills.
@@ -317,6 +333,42 @@ public interface ModelSpec {
     default boolean isPriced() {
         return getInputPricePerMillion() != null && getCurrency() != null
                 && (getOutputPricePerMillion() != null || isEmbeddings() || isDecision());
+    }
+
+    /**
+     * What one call with this usage costs on this model, in {@link #getCurrency()}, or null
+     * when the entry carries no price, which a rollup reports as unpriced rather than as zero.
+     * The rule here is the one every shipped spec prices by: uncached input at the input
+     * price, cache writes and reads at the entry's effective cache multipliers, output at the
+     * output price, a facet the usage does not state counted as zero.
+     *
+     * <p>A model its provider bills by another rule (a higher rate above a prompt length, a
+     * rate per deployment zone or service tier, a cache write priced by how long it is held)
+     * is priced by a spec class of its own that overrides this method, named by the entry's
+     * {@code spec_type}; the rates such a rule needs are the entry's
+     * {@link #getListedRates() listed rates} and any field of its own the class reads. The
+     * usage is the provider's own ledger class, so a provider's spec can read a fact its
+     * ledger carries beyond the four counts. The usage is always one call's and never a sum
+     * of calls, because a provider applies its rule to a request; a total is a sum of costs.
+     * An estimate is priced by the same method, so a reservation and a spending cap follow
+     * the rule too.
+     */
+    default Cost cost(TokenLedger usage) {
+        if (!isPriced()) {
+            return null;
+        }
+        long input = usage.inputTokens() != null ? usage.inputTokens() : 0;
+        long cacheWrite = usage.cacheWriteTokens() != null ? usage.cacheWriteTokens() : 0;
+        long cacheRead = usage.cacheReadTokens() != null ? usage.cacheReadTokens() : 0;
+        long output = usage.outputTokens() != null ? usage.outputTokens() : 0;
+        double in = getInputPricePerMillion();
+        // an embeddings entry prices input alone; its calls produce no billed output
+        double out = getOutputPricePerMillion() != null ? getOutputPricePerMillion() : 0.0;
+        double amount = (input - cacheWrite - cacheRead) / 1_000_000.0 * in
+                + cacheWrite / 1_000_000.0 * in * getEffectiveCacheWriteMultiplier()
+                + cacheRead / 1_000_000.0 * in * getEffectiveCacheReadMultiplier()
+                + output / 1_000_000.0 * out;
+        return new Cost(amount, getCurrency());
     }
 
     /**

@@ -16,6 +16,7 @@ import ai.redouble.nucleo.harness.llm.*;
 import ai.redouble.nucleo.harness.models.*;
 import ai.redouble.nucleo.harness.observability.*;
 import ai.redouble.nucleo.harness.schema.*;
+import ai.redouble.nucleo.harness.tokens.*;
 import ai.redouble.nucleo.tools.*;
 import ai.redouble.nucleo.tools.deciding.*;
 import org.slf4j.*;
@@ -404,7 +405,7 @@ public final class DecisionTrace implements JobObserver<JobEvent> {
             if (spec == null) {
                 return null;
             }
-            return Cost.of(spec, inputTokens(response), 0, 0, 0);
+            return spec.cost(new DefaultTokenLedger(spec, Math.toIntExact(inputTokens(response)), 0, 0, 0));
         }
 
         /** The input the provider reported, or zero when it reported nothing: a decision generates no output. */

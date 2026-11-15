@@ -422,7 +422,7 @@ class OpenAICacheBreakpointTest {
         ModelSpec spec = Models.spec("gpt-5-6-sol-azure");
         // 1M tokens of input: 600K stored, 300K read, 100K neither; no output
         TokenLedger usage = new OpenAITokenLedger(spec, 1_000_000, 300_000, 600_000, 0);
-        Cost cost = Cost.of(spec, usage.inputTokens(), usage.cacheWriteTokens(), usage.cacheReadTokens(), usage.outputTokens());
+        Cost cost = Cost.of(usage);
         assertEquals(0.6 * 5.0 + 0.3 * 0.40 + 0.1 * 4.0, cost.amount(), 1e-9, "writes at 5.00, reads at 0.40 and the rest at 4.00 per million");
     }
 }

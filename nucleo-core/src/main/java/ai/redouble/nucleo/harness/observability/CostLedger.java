@@ -195,7 +195,8 @@ public class CostLedger implements JobObserver<JobEvent>, SpendGate {
         long cacheWrite = usage != null && usage.cacheWriteTokens() != null ? usage.cacheWriteTokens() : 0;
         long cacheRead = usage != null && usage.cacheReadTokens() != null ? usage.cacheReadTokens() : 0;
         long output = usage != null && usage.outputTokens() != null ? usage.outputTokens() : 0;
-        Cost cost = spec != null ? Cost.of(spec, input, cacheWrite, cacheRead, output) : null;
+        // priced by the catalog entry's own rule; a response with no usage record is a call of no tokens
+        Cost cost = spec != null ? spec.cost(usage != null ? usage : new DefaultTokenLedger(spec, 0, 0, 0, 0)) : null;
         if (spec == null) {
             log.warn("Call by {} on model '{}' which the catalog does not know; counted unpriced", snapshot.getJobId(), modelId);
         }

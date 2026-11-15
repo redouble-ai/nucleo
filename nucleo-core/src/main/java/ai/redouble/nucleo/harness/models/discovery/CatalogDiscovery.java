@@ -147,11 +147,14 @@ public final class CatalogDiscovery {
      * refused the zero-retention mode the account runs at. {@code classifiedBy} names the model
      * whose judgment wrote the {@code classified} entries (each also noted in the entry itself);
      * {@code classifierFailure} says why unknowns stayed unclassified when they did.
+     * {@code pricesThatAreNoOption} lists, one line each, the entries whose prices are none of
+     * the standard prices the provider's list states for the model, where the listing could
+     * not say which applies; the run left those entries' prices as they were.
      */
     public record Result(ObjectNode catalog, String report, List<ProviderReport> providers, List<EntryReport> entries,
                          Map<String, List<DiscoveredModel>> unknown, List<String> newerThanPinned, List<String> olderLeftOut,
                          List<String> unserved, List<String> nonZdr, String previousSource, String classifiedBy, List<String> classified,
-                         List<String> classifiedDropped, String classifierFailure) {
+                         List<String> classifiedDropped, String classifierFailure, List<String> pricesThatAreNoOption) {
         /** True when at least one provider was configured, so there was something to write. */
         public boolean anythingConfigured() {
             return providers.stream().anyMatch(p -> p.status() != ProviderStatus.NOT_CONFIGURED && p.status() != ProviderStatus.NOT_ON_CLASSPATH);
@@ -183,6 +186,8 @@ public final class CatalogDiscovery {
     private String classifierId;
     /** What each in-scope provider listed, by key then wire id, for the whole run: a key that declines a model looks up its siblings here. */
     private final Map<String, Map<String, DiscoveredModel>> listedByKey = new LinkedHashMap<>();
+    /** By entry id, the report's line on an entry whose prices are none of the standard prices its listing offered. */
+    private final Map<String, String> pricesThatAreNoOption = new LinkedHashMap<>();
     /** The provider defaults the written catalog carries: the seed's, with the previous file's laid over them. */
     private final ObjectNode providerDefaults;
 
@@ -582,10 +587,18 @@ public final class CatalogDiscovery {
         validate(catalog);
         List<EntryReport> ordered = new ArrayList<>(entryReports.values());
         String previousSource = previous != null ? previous.source() : null;
+        // only of the entries the catalog holds: a proposal the run dropped has no price to report
+        List<String> noOption = new ArrayList<>();
+        for (JsonNode model : catalog.get("models")) {
+            String line = pricesThatAreNoOption.get(model.get("id").asText());
+            if (line != null) {
+                noOption.add(line);
+            }
+        }
         Result result = new Result(catalog, null, providerReports, ordered, unknown, newerThanPinned, olderLeftOut, unserved, nonZdr,
-                previousSource, classifiedBy, classified, classifiedDropped, classifierFailure);
+                previousSource, classifiedBy, classified, classifiedDropped, classifierFailure, noOption);
         return new Result(catalog, render(result), providerReports, ordered, unknown, newerThanPinned, olderLeftOut, unserved, nonZdr,
-                previousSource, classifiedBy, classified, classifiedDropped, classifierFailure);
+                previousSource, classifiedBy, classified, classifiedDropped, classifierFailure, noOption);
     }
 
     /**
@@ -613,10 +626,75 @@ public final class CatalogDiscovery {
      * removed where it does not, and the currency is written when it is not the provider's
      * default. An LLM entry the list prices on input alone keeps its prices, because half a
      * listed price and half a typed one would be nobody's number; an embeddings entry is billed
-     * on input alone and takes it.
+     * on input alone and takes it. Whatever the list states for the model beyond those four,
+     * and those four again under their own names, goes onto the entry as its listed rates
+     * ({@link #applyListedRates}), whether or not the prices were written.
      */
     private boolean applyPrices(ObjectNode entry, DiscoveredModel listing) {
-        if (listing == null || listing.prices() == null) {
+        if (listing == null) {
+            return false;
+        }
+        // the prices first: they may state the entry's currency, which the listed rates are held to
+        boolean priced = applyStandardPrices(entry, listing);
+        applyListedRates(entry, listing);
+        notePricesThatAreNoOption(entry, listing);
+        return priced;
+    }
+
+    /**
+     * Remembers, for the report, an entry whose prices are none of the standard prices the
+     * list states for its model, where the listing could not say which of them applies. The
+     * entry is not changed: which price a deployment is billed at is a fact the run does not
+     * have, and a price a person typed from an invoice outranks a guess between two list
+     * prices. What the run can say is that the typed price is neither.
+     */
+    private void notePricesThatAreNoOption(ObjectNode entry, DiscoveredModel listing) {
+        if (listing.priceOptions() == null || !entry.hasNonNull("id")) {
+            return;
+        }
+        Double input = doubleOrNull(entry, "input_price_per_million");
+        Double output = doubleOrNull(entry, "output_price_per_million");
+        StringBuilder options = new StringBuilder();
+        for (DiscoveredModel.PriceOption option : listing.priceOptions()) {
+            if (Objects.equals(input, option.prices().inputPerMillion()) && Objects.equals(output, option.prices().outputPerMillion())) {
+                pricesThatAreNoOption.remove(entry.get("id").asText());
+                return;
+            }
+            options.append(options.isEmpty() ? "" : ", ").append(option.name()).append(' ')
+                    .append(rate(option.prices().inputPerMillion())).append('/').append(rate(option.prices().outputPerMillion()));
+        }
+        pricesThatAreNoOption.put(entry.get("id").asText(), String.format("%-28s", entry.get("id").asText()) + "  price " + rate(input) + "/" + rate(output)
+                + "; the list states " + options);
+    }
+
+    /**
+     * Writes every rate the provider's price list states for the model onto the entry as
+     * {@code listed_rates}, the row's name to its rate per million, replacing what a run
+     * before wrote: a record of what the provider lists, which no part of the runtime prices
+     * a call from. The rates are in the entry's currency, which the entry states once; rows
+     * in another currency are not written and the rows of the earlier run are removed, so the
+     * entry never holds rates its currency does not describe. A listing with no rows, of a
+     * provider that publishes no list or a list that could not be read, leaves the entry as
+     * it is.
+     */
+    private void applyListedRates(ObjectNode entry, DiscoveredModel listing) {
+        DiscoveredModel.ListedRates rates = listing.listedRates();
+        if (rates == null) {
+            return;
+        }
+        String key = entry.get("provider_key").asText();
+        String currency = entry.hasNonNull("currency") ? entry.get("currency").asText() : providerDefaults.path(key).path("currency").asText(null);
+        if (!rates.currency().equals(currency)) {
+            entry.remove("listed_rates");
+            return;
+        }
+        ObjectNode rows = NucleoJsonSerializer.createObjectNode();
+        rates.perMillion().forEach(rows::put);
+        entry.set("listed_rates", rows);
+    }
+
+    private boolean applyStandardPrices(ObjectNode entry, DiscoveredModel listing) {
+        if (listing.prices() == null) {
             return false;
         }
         DiscoveredModel.Prices prices = listing.prices();
@@ -1491,6 +1569,13 @@ public final class CatalogDiscovery {
                             e == null ? "NOT IN THE CATALOG" : e.verdict() + (e.kept() ? "" : " (left out)")));
                 }
             });
+        }
+        if (!result.pricesThatAreNoOption().isEmpty()) {
+            sb.append("PRICES THAT ARE NONE OF THE LISTED ONES (the entries are unchanged; the provider prices the model per deployment type,"
+                    + " the listing does not say which type a deployment is, and the entry's price is neither):\n");
+            for (String line : result.pricesThatAreNoOption()) {
+                sb.append("  ").append(line).append('\n');
+            }
         }
         if (!result.olderLeftOut().isEmpty()) {
             sb.append("Older versions the account lists, left out (rerun with --include-older to add them):\n");

@@ -19,8 +19,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * The price list read on recorded excerpts of the two files AWS published for us-east-1 in
  * October 2026, both grammars of a billing line included: a listed id takes the standard
  * on-demand rate of its profile and its surface, per million whatever the file's unit; every
- * variant the runtime does not buy is left out; two rates for one kind price nothing; and a
- * list that cannot be read, or has no row for the id, says so.
+ * variant the runtime does not buy prices nothing; two rates for one kind price nothing; a
+ * list that cannot be read, or has no row for the id, says so; and every line of a model
+ * priced per token, the variants and a word never seen included, is one of its listed rates.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-10-19)
@@ -160,6 +161,86 @@ class BedrockPriceListTest {
         BedrockPriceList.Pricing unreadable = BedrockPriceList.unreadable("https://pricing.example answered 404").pricesOf("xai.grok-4.6", null, null, true);
         assertNull(unreadable.prices());
         assertEquals("price list unreadable: https://pricing.example answered 404", unreadable.note());
+    }
+
+    /**
+     * Every line of a model that is priced per token is one of its listed rates, under its
+     * {@code usagetype} and per million, ordered by {@code usagetype}: the standard lines
+     * beside the batch line, the cache write held an hour and the other profile's rates. A
+     * line priced by another unit, reserved capacity per hour here, is not a rate per token
+     * and is not among them. The rows are the model's, so every profile of it carries the same.
+     */
+    @Test
+    void everyPerTokenLineOfAModelIsAListedRateUnderItsUsagetype() throws IOException {
+        BedrockPriceList list = both();
+        DiscoveredModel.ListedRates sonnet = list.pricesOf("us.anthropic.claude-sonnet-4-5-20250929-v1:0", "Anthropic", "Claude Sonnet 4.5", false).listedRates();
+        assertEquals("USD", sonnet.currency());
+        assertEquals(List.of(
+                "USE1-MP:USE1_CacheReadInputTokenCount-Units", "USE1-MP:USE1_CacheReadInputTokenCount_Global-Units",
+                "USE1-MP:USE1_CacheWrite1hInputTokenCount-Units", "USE1-MP:USE1_CacheWrite1hInputTokenCount_Global-Units",
+                "USE1-MP:USE1_CacheWriteInputTokenCount-Units", "USE1-MP:USE1_CacheWriteInputTokenCount_Global-Units",
+                "USE1-MP:USE1_InputTokenCount-Units", "USE1-MP:USE1_InputTokenCount_Batch-Units", "USE1-MP:USE1_InputTokenCount_Global-Units",
+                "USE1-MP:USE1_OutputTokenCount-Units", "USE1-MP:USE1_OutputTokenCount_Global-Units"),
+                new ArrayList<>(sonnet.perMillion().keySet()), "eleven lines per token, by name; the reserved-capacity line per hour is not one");
+        assertEquals(1.65, sonnet.perMillion().get("USE1-MP:USE1_InputTokenCount_Batch-Units"), "the batch line, which prices nothing");
+        assertEquals(6.6, sonnet.perMillion().get("USE1-MP:USE1_CacheWrite1hInputTokenCount-Units"), "the cache write held an hour");
+        assertEquals(3.0, sonnet.perMillion().get("USE1-MP:USE1_InputTokenCount_Global-Units"), "the global profile's rate, on a regional id");
+        assertEquals(3.3, sonnet.perMillion().get("USE1-MP:USE1_InputTokenCount-Units"), "the standard line is among them");
+        assertEquals(sonnet, list.pricesOf("global.anthropic.claude-sonnet-4-5-20250929-v1:0", "Anthropic", "Claude Sonnet 4.5", false).listedRates(),
+                "the rows are the model's: its global profile carries the same");
+        DiscoveredModel.ListedRates haiku = list.pricesOf("us.anthropic.claude-haiku-5-5", "Anthropic", "Claude Haiku 5.5", false).listedRates();
+        assertEquals(0.55, haiku.perMillion().get("USE1-MP:USE1_input_tokens_long_ctx_standard-Units"), "the long-context rate of the newer grammar");
+        assertEquals(6, haiku.perMillion().size());
+    }
+
+    /** A rate the file states per thousand tokens is a listed rate per million, as a standard price is. */
+    @Test
+    void aListedRatePerThousandIsCarriedPerMillion() throws IOException {
+        DiscoveredModel.ListedRates nova = both().pricesOf("us.amazon.nova-2-pro-v1:0", "Amazon", "Nova 2.0 Pro", false).listedRates();
+        assertEquals(1.375, nova.perMillion().get("USE1-Nova2.0Pro-text-input-tokens"), 1e-9);
+        assertEquals(0.6875, nova.perMillion().get("USE1-Nova2.0Pro-text-input-tokens-flex"), 1e-9, "the flex tier, stated per thousand at 0.0006875");
+    }
+
+    /**
+     * No word of a line decides whether it is a listed rate: a line with a word this class
+     * has never seen is kept under its name and prices nothing, and the standard price is
+     * what it was without that line.
+     */
+    @Test
+    void aLineWithAWordNeverSeenIsAListedRateAndPricesNothing() throws IOException {
+        String body = """
+                { "products": {
+                    "A": { "sku": "A", "attributes": { "usagetype": "USE1-Novel-input-tokens", "model": "Novel", "provider": "V" } },
+                    "B": { "sku": "B", "attributes": { "usagetype": "USE1-Novel-input-tokens-moonphase", "model": "Novel", "provider": "V" } },
+                    "C": { "sku": "C", "attributes": { "usagetype": "USE1-Novel-output-tokens", "model": "Novel", "provider": "V" } } },
+                  "terms": { "OnDemand": {
+                    "A": { "A.1": { "priceDimensions": { "A.1.1": { "unit": "1M tokens", "pricePerUnit": { "USD": "1" } } } } },
+                    "B": { "B.1": { "priceDimensions": { "B.1.1": { "unit": "1M tokens", "pricePerUnit": { "USD": "9" } } } } },
+                    "C": { "C.1": { "priceDimensions": { "C.1.1": { "unit": "1M tokens", "pricePerUnit": { "USD": "5" } } } } } } } }
+                """;
+        BedrockPriceList.Pricing novel = BedrockPriceList.parse(List.of(body)).pricesOf("v.novel", "V", "Novel", false);
+        assertEquals(9.0, novel.listedRates().perMillion().get("USE1-Novel-input-tokens-moonphase"));
+        assertEquals(3, novel.listedRates().perMillion().size());
+        assertEquals(1.0, novel.prices().inputPerMillion(), "the unknown line is not the standard rate");
+        assertEquals(5.0, novel.prices().outputPerMillion());
+        assertNull(novel.listedNote(), "nothing was left out");
+    }
+
+    /**
+     * One name holds one rate. A {@code usagetype} the list states at two rates, an old model
+     * whose versions share a name, is left out of the listed rates and the note counts it; a
+     * model the list has no line for, and a list that could not be read, have no listed rates.
+     */
+    @Test
+    void aUsagetypeAtTwoRatesIsLeftOutOfTheListedRatesAndTheNoteSaysSo() throws IOException {
+        BedrockPriceList.Pricing old = both().pricesOf("anthropic.claude-v2", "Anthropic", "Claude 2.0", false);
+        assertNull(old.listedRates(), "both of its names are stated at two rates, so no row is left");
+        assertTrue(old.listedNote().startsWith("2 listed at two rates and left out of the listed rates"), old.listedNote());
+        assertTrue(old.listedNote().contains("USE1-MP:USE1_OutputTokenCount-Units"), old.listedNote());
+        BedrockPriceList.Pricing absent = both().pricesOf("us.meta.llama4-maverick-17b-instruct-v1:0", "Meta", "Llama 4 Maverick 17B Instruct", false);
+        assertNull(absent.listedRates());
+        assertNull(absent.listedNote());
+        assertNull(BedrockPriceList.unreadable("https://pricing.example answered 404").pricesOf("xai.grok-4.6", null, null, true).listedRates());
     }
 
     @Test

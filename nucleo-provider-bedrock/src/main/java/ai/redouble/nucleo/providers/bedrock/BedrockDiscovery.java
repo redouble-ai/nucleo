@@ -135,7 +135,7 @@ public final class BedrockDiscovery {
         if (summary == null) {
             BedrockPriceList.Pricing pricing = prices.pricesOf(wireId, null, null, false);
             return new DiscoveredModel(wireId, null, null, null, invokable, null, null, null, null,
-                    "a profile with no foundation model behind it in this region" + priceNote(pricing), pricing.prices());
+                    "a profile with no foundation model behind it in this region" + priceNote(pricing), pricing.prices(), pricing.listedRates(), null);
         }
         List<String> inputs = summary.hasInputModalities() ? summary.inputModalitiesAsStrings() : null;
         List<String> outputs = summary.hasOutputModalities() ? summary.outputModalitiesAsStrings() : null;
@@ -150,12 +150,16 @@ public final class BedrockDiscovery {
                 + (summary.modelLifecycle() != null && summary.modelLifecycle().status() != null ? " [" + summary.modelLifecycle().statusAsString() + "]" : "")
                 + (quotas.failure() != null ? " (quotas unreadable: " + quotas.failure() + ")" : tpm == null ? " (no quota matched)" : "")
                 + priceNote(pricing);
-        return new DiscoveredModel(wireId, inputs, outputs, vision, invokable, retired, null, tpm, rpm, note, pricing.prices());
+        return new DiscoveredModel(wireId, inputs, outputs, vision, invokable, retired, null, tpm, rpm, note, pricing.prices(), pricing.listedRates(), null);
     }
 
-    /** The note's word on a price the list did not give, so the entry says why it keeps the price it had; nothing when it did. */
+    /**
+     * The note's word on a price the list did not give, so the entry says why it keeps the
+     * price it had, and on a line left out of the listed rates; nothing when the list gave both.
+     */
     private static String priceNote(BedrockPriceList.Pricing pricing) {
-        return pricing.prices() != null ? "" : " (no list price: " + pricing.note() + ")";
+        return (pricing.prices() != null ? "" : " (no list price: " + pricing.note() + ")")
+                + (pricing.listedNote() != null ? " (" + pricing.listedNote() + ")" : "");
     }
 
     /** The region's quota table, held briefly: three Bedrock surfaces read the same table in one discovery run, and it takes ~25s to page through. */
@@ -318,7 +322,7 @@ public final class BedrockDiscovery {
             BedrockPriceList.Pricing pricing = prices.pricesOf(id, summary != null ? summary.providerName() : null,
                     summary != null ? summary.modelName() : null, true);
             note = (note + priceNote(pricing)).trim();
-            models.add(new DiscoveredModel(id, null, null, null, null, null, requiresLax, null, null, note.isEmpty() ? null : note, pricing.prices()));
+            models.add(new DiscoveredModel(id, null, null, null, null, null, requiresLax, null, null, note.isEmpty() ? null : note, pricing.prices(), pricing.listedRates(), null));
         }
         return models;
     }

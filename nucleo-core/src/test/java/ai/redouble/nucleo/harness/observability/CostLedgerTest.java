@@ -22,7 +22,9 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * The ledger's arithmetic and the cap's rules, over scripted specs and hand-built events:
- * a call is priced in its entry's currency from its four token counts, sums stay per
+ * a call is priced in its entry's currency from its four token counts by the rule of its
+ * spec, which a spec class of its own replaces for a reported usage, a reservation and the
+ * recorded call alike and which is asked of one call at a time, sums stay per
  * currency, an unpriced call is counted and reported, and the gate refuses what would
  * cross the cap, what is priced in another currency, and what is not priced at all.
  *
@@ -91,10 +93,117 @@ class CostLedgerTest {
     void aCallIsPricedFromItsFourCountsInTheEntrysCurrency() {
         // 10,000 input of which 2,000 written to cache and 3,000 read from it, 1,000 output:
         // uncached 5,000 x 2.0 + 2,000 x 2.0 x 1.25 + 3,000 x 2.0 x 0.1 + 1,000 x 10.0, all per million
-        Cost cost = Cost.of(USD_MODEL, 10_000, 2_000, 3_000, 1_000);
+        Cost cost = Cost.of(usage(USD_MODEL, 10_000, 2_000, 3_000, 1_000));
         assertEquals("USD", cost.currency());
         assertEquals((5_000 * 2.0 + 2_000 * 2.5 + 3_000 * 0.2 + 1_000 * 10.0) / 1e6, cost.amount(), 1e-12);
-        assertNull(Cost.of(FREE_MODEL, 10_000, 0, 0, 1_000), "no price is no cost, never zero");
+        assertEquals(cost, USD_MODEL.cost(usage(USD_MODEL, 10_000, 2_000, 3_000, 1_000)), "Cost.of asks the ledger's spec");
+        assertNull(Cost.of(usage(FREE_MODEL, 10_000, 0, 0, 1_000)), "no price is no cost, never zero");
+        // a facet the provider did not report counts as zero: 10,000 input at 2.0, 1,000 output at 10.0
+        Cost noCacheFacets = USD_MODEL.cost(new DefaultTokenLedger(USD_MODEL, 10_000, null, null, 1_000));
+        assertEquals((10_000 * 2.0 + 1_000 * 10.0) / 1e6, noCacheFacets.amount(), 1e-12);
+    }
+
+    /**
+     * A model billed by a rule the four prices do not express: a call whose prompt is over
+     * 200,000 tokens is billed whole at twice the entry's rates.
+     */
+    static class LongPromptSpec extends StandardModelSpec {
+        static final int THRESHOLD = 200_000;
+
+        @Override
+        public Cost cost(TokenLedger usage) {
+            Cost standard = super.cost(usage);
+            return usage.inputTokens() > THRESHOLD ? new Cost(standard.amount() * 2, standard.currency()) : standard;
+        }
+    }
+
+    private static LongPromptSpec longPromptSpec() {
+        LongPromptSpec s = new LongPromptSpec();
+        s.setId("long-prompt-model");
+        s.setIdentity("long-prompt-model");
+        s.setProviderKey("test");
+        s.setWireModelId("long-prompt-model");
+        s.setMaxContextTokens(100_000_000);
+        s.setMaxOutputTokens(10_000_000);
+        s.setTpm(1_000_000);
+        s.setRpm(1000);
+        s.setGrade(Grade.SMALL);
+        s.setCacheReadMultiplier(0.1);
+        s.setCacheWriteMultiplier(1.25);
+        s.setCurrency("USD");
+        s.setInputPricePerMillion(2.0);
+        s.setOutputPricePerMillion(10.0);
+        return s;
+    }
+
+    @Test
+    void aSpecsOwnRulePricesAReportedUsageAReservationAndTheRecordedCall() {
+        LongPromptSpec spec = longPromptSpec();
+        // below the threshold the entry's rates: 100,000 x 2.0 per million
+        assertEquals(0.2, usage(spec, 100_000, 0, 0, 0).cost().amount(), 1e-12, "a reported usage below the threshold");
+        // above it the whole call at twice the rates: 300,000 x 2.0 x 2 per million
+        assertEquals(1.2, usage(spec, 300_000, 0, 0, 0).cost().amount(), 1e-12, "a reported usage above the threshold");
+        assertEquals(1.2, Cost.of(usage(spec, 300_000, 0, 0, 0)).amount(), 1e-12, "Cost.of reads the same rule");
+        // a reservation: 300,000 input and a reserve of 10,000 output, (0.6 + 0.1) x 2
+        TokenLedger reservation = new DefaultTokenLedger(spec, Map.of(ContextPart.MESSAGES, 300_000), () -> 10_000);
+        assertEquals(1.4, reservation.cost().amount(), 1e-12, "an estimate is priced by the spec's rule too");
+        CostLedger ledger = new CostLedger(id -> spec);
+        LLMResponse<String> call = response("long-prompt-model", 300_000, 0, 0, 0);
+        call.setUsage(usage(spec, 300_000, 0, 0, 0));
+        finish(ledger, "wf", "job-1", call);
+        assertEquals(1.2, ledger.workflow("wf").getCalls().get(0).cost().amount(), 1e-12, "the recorded call carries the rule's cost");
+    }
+
+    @Test
+    void aSpecsRuleIsAskedOfEachCallAndNeverOfASumOfCalls() {
+        LongPromptSpec spec = longPromptSpec();
+        CostLedger ledger = new CostLedger(id -> spec);
+        for (String job : List.of("job-1", "job-2")) {
+            LLMResponse<String> call = response("long-prompt-model", 150_000, 0, 0, 0);
+            call.setUsage(usage(spec, 150_000, 0, 0, 0));
+            finish(ledger, "wf", job, call);
+        }
+        // 300,000 tokens in two calls of 150,000: each below the threshold, 0.3 each
+        assertEquals(0.6, ledger.workflow("wf").getTotal("USD").amount(), 1e-12,
+                "two calls below the threshold cost two calls below it, though their tokens sum above it");
+    }
+
+    /** A provider's own ledger, carrying a fact beyond the four counts: the service tier the response reported. */
+    static class TieredLedger extends DefaultTokenLedger {
+        final String tier;
+
+        TieredLedger(ModelSpec spec, Integer inputTokens, String tier) {
+            super(spec, inputTokens, 0, 0, 0);
+            this.tier = tier;
+        }
+    }
+
+    /** The spec of that provider: a call the response reports as served on the priority tier is billed at twice the rates. */
+    static class TieredSpec extends StandardModelSpec {
+        @Override
+        public Cost cost(TokenLedger usage) {
+            Cost standard = super.cost(usage);
+            return usage instanceof TieredLedger tiered && "priority".equals(tiered.tier) ? new Cost(standard.amount() * 2, standard.currency()) : standard;
+        }
+    }
+
+    @Test
+    void aProvidersSpecReadsAFactOfItsOwnLedgerClass() {
+        TieredSpec spec = new TieredSpec();
+        spec.setId("tiered-model");
+        spec.setProviderKey("test");
+        spec.setCacheReadMultiplier(0.1);
+        spec.setCacheWriteMultiplier(1.25);
+        spec.setCurrency("USD");
+        spec.setInputPricePerMillion(2.0);
+        spec.setOutputPricePerMillion(10.0);
+        assertEquals(2.0, new TieredLedger(spec, 1_000_000, "default").cost().amount(), 1e-12, "the standard tier at the entry's rates");
+        assertEquals(4.0, new TieredLedger(spec, 1_000_000, "priority").cost().amount(), 1e-12, "the tier is the ledger's fact, the rate the spec's rule");
+    }
+
+    /** One call's reported usage, in the order a price reads it: input, cache writes, cache reads, output. */
+    private static TokenLedger usage(ModelSpec spec, int input, int cacheWrite, int cacheRead, int output) {
+        return new DefaultTokenLedger(spec, input, cacheRead, cacheWrite, output);
     }
 
     @Test
@@ -318,7 +427,7 @@ class CostLedgerTest {
     @Test
     void aCostRendersSixDecimalsAndTheCurrency() {
         // 1,000,000 input at 2.0 plus 100,000 output at 10.0, nothing cached
-        Cost priced = Cost.of(USD_MODEL, 1_000_000, 0, 0, 100_000);
+        Cost priced = Cost.of(usage(USD_MODEL, 1_000_000, 0, 0, 100_000));
         assertEquals(3.0, priced.amount(), 1e-12);
         assertEquals("USD", priced.currency());
         assertEquals("3.000000 USD", priced.toString(), "six decimals and the currency");
@@ -373,7 +482,7 @@ class CostLedgerTest {
         assertEquals("usd-model:served", first.servedModelId(), "the model the provider said it served");
         assertTrue(first.latencyMs() >= 250, "the response's own latency: " + first.latencyMs());
         assertEquals(1_000, first.outputTokens());
-        assertEquals(Cost.of(USD_MODEL, 10_000, 2_000, 3_000, 1_000), first.cost());
+        assertEquals(Cost.of(usage(USD_MODEL, 10_000, 2_000, 3_000, 1_000)), first.cost());
         assertTrue(ledger.caps("wf").isEmpty(), "a workflow under no cap reports none");
     }
 }

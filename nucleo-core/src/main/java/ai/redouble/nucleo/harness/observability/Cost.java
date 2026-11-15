@@ -7,6 +7,7 @@
 package ai.redouble.nucleo.harness.observability;
 
 import ai.redouble.nucleo.harness.models.*;
+import ai.redouble.nucleo.harness.tokens.*;
 
 /**
  * An amount in a currency: three upper-case letters, the ISO 4217 code, refused at construction
@@ -20,7 +21,6 @@ import ai.redouble.nucleo.harness.models.*;
  * @since 0.1 (2026-09-14)
  */
 public record Cost(double amount, String currency) {
-    private static final double MILLION = 1_000_000.0;
     /**
      * Money is exact to a billionth of its unit. Token prices are quoted per million tokens to
      * a few decimals, so every real cost is a whole number of nano-units, and rounding there
@@ -51,23 +51,12 @@ public record Cost(double amount, String currency) {
     }
 
     /**
-     * What a call costs on a priced entry: uncached input at the input price, cache writes
-     * and reads at the entry's effective cache rates, output at the output price. Null when
-     * the entry carries no price, which a rollup reports as unpriced rather than as zero.
+     * What one call's ledger costs on the model it counts on: the model's own rule,
+     * {@link ModelSpec#cost}, asked of the ledger's spec. Null when the model carries no
+     * price, which a rollup reports as unpriced rather than as zero.
      */
-    public static Cost of(ModelSpec spec, long inputTokens, long cacheWriteTokens, long cacheReadTokens, long outputTokens) {
-        if (!spec.isPriced()) {
-            return null;
-        }
-        double in = spec.getInputPricePerMillion();
-        // an embeddings entry prices input alone; its calls produce no billed output
-        double out = spec.getOutputPricePerMillion() != null ? spec.getOutputPricePerMillion() : 0.0;
-        long uncached = inputTokens - cacheWriteTokens - cacheReadTokens;
-        double amount = uncached / MILLION * in
-                + cacheWriteTokens / MILLION * in * spec.getEffectiveCacheWriteMultiplier()
-                + cacheReadTokens / MILLION * in * spec.getEffectiveCacheReadMultiplier()
-                + outputTokens / MILLION * out;
-        return new Cost(amount, spec.getCurrency());
+    public static Cost of(TokenLedger ledger) {
+        return ledger.spec().cost(ledger);
     }
 
     @Override

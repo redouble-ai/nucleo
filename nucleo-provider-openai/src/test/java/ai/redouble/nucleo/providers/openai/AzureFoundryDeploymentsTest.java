@@ -35,23 +35,51 @@ class AzureFoundryDeploymentsTest {
 
     @Test
     void deploymentsAreListedByTheirOwnIdWithTheBaseModelAsNote() throws IOException {
-        List<DiscoveredModel> models = AzureFoundryDeployments.parse(BODY, model -> true);
+        List<DiscoveredModel> models = AzureFoundryDeployments.parse(BODY, model -> true, AzurePriceList.regionUnknown());
         assertEquals(2, models.size(), "a deployment still being created is not reachable");
         assertEquals("claude-opus-5", models.get(0).wireModelId());
-        assertEquals("deployment of claude-opus-5", models.get(0).note());
+        assertEquals("deployment of claude-opus-5 (no listed rates: the resource's listing did not state its region)", models.get(0).note());
         assertEquals("my-sol", models.get(1).wireModelId(), "the wire id is the deployment's own name");
-        assertEquals("deployment of gpt-5.6-sol", models.get(1).note());
+        assertTrue(models.get(1).note().startsWith("deployment of gpt-5.6-sol"), models.get(1).note());
+        assertNull(models.get(1).listedRates(), "a resource that named no region has no price list to read");
+    }
+
+    /**
+     * A deployment takes from the price list its base model's listed rates and the standard
+     * price of each deployment type, and never a price: the listing says {@code standard} of
+     * a Global and of a Data Zone deployment alike, so which price applies is not known here.
+     * A base model the list has no meter for says so in its note.
+     */
+    @Test
+    void aDeploymentTakesItsBaseModelsListedRatesAndPriceOptionsAndNoPrice() throws IOException {
+        List<DiscoveredModel> models = AzureFoundryDeployments.parse(BODY, model -> true, AzurePriceListTest.list());
+        DiscoveredModel sol = models.get(1);
+        assertEquals("deployment of gpt-5.6-sol", sol.note(), "nothing is missing, so the note says nothing of prices");
+        assertNull(sol.prices(), "the discovery is given no price to write");
+        assertEquals(4.4, sol.listedRates().perMillion().get("5.6 sol ShortCo Inp Std DZ 1M Tokens"));
+        assertEquals(20.0, sol.listedRates().perMillion().get("5.6 sol ShortCo Opt Std Gl 1M Tokens"), "the rows of both deployment types");
+        assertEquals(List.of("Data Zone"), sol.priceOptions().stream().map(DiscoveredModel.PriceOption::name).toList());
+        DiscoveredModel claude = models.get(0);
+        assertNull(claude.listedRates());
+        assertEquals("deployment of claude-opus-5 (not in the price list as claude-opus-5)", claude.note());
+    }
+
+    @Test
+    void aRegionsDisplayNameIsTheNameThePriceListFiltersBy() {
+        assertEquals("eastus2", AzureFoundryDeployments.armRegion("East US 2"));
+        assertEquals("swedencentral", AzureFoundryDeployments.armRegion("Sweden Central"));
+        assertEquals("germanywestcentral", AzureFoundryDeployments.armRegion("Germany West Central"));
     }
 
     @Test
     void theChatCompletionsSurfaceLeavesClaudeDeploymentsToTheAnthropicSurface() throws IOException {
-        List<DiscoveredModel> models = AzureFoundryDeployments.parse(BODY, AzureFoundryOpenAIProvider::onChatCompletions);
+        List<DiscoveredModel> models = AzureFoundryDeployments.parse(BODY, AzureFoundryOpenAIProvider::onChatCompletions, AzurePriceList.regionUnknown());
         assertEquals(List.of("my-sol"), models.stream().map(DiscoveredModel::wireModelId).toList());
     }
 
     @Test
     void aBodyWithoutTheListIsRefused() {
-        assertThrows(IOException.class, () -> AzureFoundryDeployments.parse("{\"error\": {\"code\": \"401\"}}", model -> true));
+        assertThrows(IOException.class, () -> AzureFoundryDeployments.parse("{\"error\": {\"code\": \"401\"}}", model -> true, AzurePriceList.regionUnknown()));
     }
 
     /**

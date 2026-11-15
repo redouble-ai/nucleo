@@ -44,10 +44,15 @@ import java.util.concurrent.*;
  * {@code mantle} anywhere in the line marks the Mantle surface's rate. Any other word marks a
  * variant the runtime does not buy, a tier ({@code flex}, {@code priority}, {@code batch}), a
  * long-context rate, a cache write held an hour, latency-optimized inference, reserved
- * capacity, a modality other than text, and the line is left out. A word this class does not
+ * capacity, a modality other than text, and the line prices nothing. A word this class does not
  * know is a variant by that rule, never silently the standard rate. Two lines left for one
  * kind at different rates (an old model whose versions share a name) price nothing and say
  * so, rather than pick one.
+ *
+ * <p>Beside the standard rates, every line of a model that is priced per token is kept as it
+ * is written, the {@code usagetype} to the rate per million: the model's listed rates. No word
+ * of a line decides whether it is kept, so a variant this class prices nothing from, and a
+ * word AWS writes next month, are both there for whoever reads the catalog entry.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-10-19)
@@ -79,11 +84,20 @@ public final class BedrockPriceList {
     /** What a line's {@code usagetype} says: its kind, whether it is the global profile's rate, whether it is the Mantle surface's. */
     record Line(Kind kind, boolean global, boolean mantle) {}
 
-    /** A listed id's prices, or why it has none; exactly one of the two is set. */
-    public record Pricing(DiscoveredModel.Prices prices, String note) {}
+    /** One billing line of the list priced per token, whatever its {@code usagetype} says, per million. */
+    record Rate(String usageType, double perMillion, String currency) {}
+
+    /**
+     * What the list says of a listed id. Its standard prices, or the note on why it has none:
+     * exactly one of those two is set. And every rate per token the list states for the model,
+     * null when the list has no line for it, with a note on any line left out of them.
+     */
+    public record Pricing(DiscoveredModel.Prices prices, String note, DiscoveredModel.ListedRates listedRates, String listedNote) {}
 
     private final Map<String, List<Row>> byProviderAndModel = new HashMap<>();
     private final Map<String, List<Row>> byModel = new HashMap<>();
+    private final Map<String, List<Rate>> ratesByProviderAndModel = new HashMap<>();
+    private final Map<String, List<Rate>> ratesByModel = new HashMap<>();
     /** Why the list could not be read, in which case it holds no row; null for a list that was read. */
     private final String failure;
 
@@ -164,10 +178,8 @@ public final class BedrockPriceList {
         if (usageType == null || model == null) {
             return;
         }
+        // null for a line that is not a standard rate: it prices nothing and is still a listed rate
         Line line = analyze(usageType);
-        if (line == null) {
-            return;
-        }
         String provider = attributes.path("provider").asText(null);
         for (JsonNode term : terms) {
             for (JsonNode dimension : term.path("priceDimensions")) {
@@ -179,8 +191,16 @@ public final class BedrockPriceList {
                 // the rate is stated once, under its currency, as a decimal string: scaled as a
                 // decimal, so that a rate per thousand and the same rate per million are one number
                 Map.Entry<String, JsonNode> rate = pricePerUnit.properties().iterator().next();
-                Row row = new Row(provider, model, usageType, line.kind(), line.global(), line.mantle(),
-                        new BigDecimal(rate.getValue().asText()).multiply(BigDecimal.valueOf(perMillion)).doubleValue(), rate.getKey());
+                double scaled = new BigDecimal(rate.getValue().asText()).multiply(BigDecimal.valueOf(perMillion)).doubleValue();
+                Rate listed = new Rate(usageType, scaled, rate.getKey());
+                if (provider != null) {
+                    ratesByProviderAndModel.computeIfAbsent(key(provider, model), k -> new ArrayList<>()).add(listed);
+                }
+                ratesByModel.computeIfAbsent(model.toLowerCase(Locale.ROOT), k -> new ArrayList<>()).add(listed);
+                if (line == null) {
+                    continue;
+                }
+                Row row = new Row(provider, model, usageType, line.kind(), line.global(), line.mantle(), scaled, rate.getKey());
                 if (provider != null) {
                     byProviderAndModel.computeIfAbsent(key(provider, model), k -> new ArrayList<>()).add(row);
                 }
@@ -258,7 +278,8 @@ public final class BedrockPriceList {
      * taken are the global profile's for a {@code global.} id and the regional ones for every
      * other, which is what AWS bills a geography profile at, and the Mantle surface's rows for
      * a Mantle id where the list prices the surface apart. The input rate is required; the
-     * others are carried where the list has them.
+     * others are carried where the list has them. The listed rates are every per-token line
+     * of the same model, of every profile and surface, whether or not it has a standard price.
      *
      * @param wireId       the id as listed
      * @param providerName the provider's name as the control plane lists it, null when unknown
@@ -267,17 +288,61 @@ public final class BedrockPriceList {
      */
     public Pricing pricesOf(String wireId, String providerName, String modelName, boolean mantle) {
         if (failure != null) {
-            return new Pricing(null, "price list unreadable: " + failure);
+            return new Pricing(null, "price list unreadable: " + failure, null, null);
         }
-        List<Row> rows = providerName != null && modelName != null ? byProviderAndModel.get(key(providerName, modelName)) : null;
+        Listed listed = listed(find(ratesByProviderAndModel, ratesByModel, wireId, providerName, modelName));
+        Pricing standard = standardPricesOf(wireId, providerName, modelName, mantle);
+        return new Pricing(standard.prices(), standard.note(), listed.rates(), listed.note());
+    }
+
+    /** A model's lines, found by the provider and model names, by the model name alone, else by the bare id; null when the list has none. */
+    private static <T> List<T> find(Map<String, List<T>> byProviderAndModel, Map<String, List<T>> byModel, String wireId, String providerName, String modelName) {
+        List<T> rows = providerName != null && modelName != null ? byProviderAndModel.get(key(providerName, modelName)) : null;
         if (rows == null && modelName != null) {
             rows = byModel.get(modelName.toLowerCase(Locale.ROOT));
         }
         if (rows == null) {
             rows = byModel.get(ModelLineage.bare(wireId).toLowerCase(Locale.ROOT));
         }
+        return rows;
+    }
+
+    /** A model's listed rates, and a note on any line left out of them; both null when the list has no line for the model. */
+    private record Listed(DiscoveredModel.ListedRates rates, String note) {}
+
+    /**
+     * Every per-token line of a model as its listed rates: the {@code usagetype} to the rate
+     * per million, ordered by {@code usagetype} so that two readings of the list differ only
+     * where a rate did. A {@code usagetype} the list states at two different rates (two
+     * operations billed under one name) is left out, because one name holds one rate, and the
+     * note counts those; lines in more than one currency are no listed rates at all, because
+     * the rates of an entry are in its one currency.
+     */
+    private static Listed listed(List<Rate> rates) {
+        if (rates == null) {
+            return new Listed(null, null);
+        }
+        List<String> currencies = rates.stream().map(Rate::currency).distinct().toList();
+        if (currencies.size() > 1) {
+            return new Listed(null, "no listed rates: the price list states this model in " + currencies);
+        }
+        Map<String, Double> perMillion = new TreeMap<>();
+        Set<String> conflicting = new TreeSet<>();
+        for (Rate rate : rates) {
+            Double before = perMillion.putIfAbsent(rate.usageType(), rate.perMillion());
+            if (before != null && before != rate.perMillion()) {
+                conflicting.add(rate.usageType());
+            }
+        }
+        conflicting.forEach(perMillion::remove);
+        String note = conflicting.isEmpty() ? null : conflicting.size() + " listed at two rates and left out of the listed rates: " + conflicting;
+        return new Listed(perMillion.isEmpty() ? null : new DiscoveredModel.ListedRates(perMillion, currencies.get(0)), note);
+    }
+
+    private Pricing standardPricesOf(String wireId, String providerName, String modelName, boolean mantle) {
+        List<Row> rows = find(byProviderAndModel, byModel, wireId, providerName, modelName);
         if (rows == null) {
-            return new Pricing(null, "not in the price list" + (providerName != null && modelName != null ? " as " + providerName + " " + modelName : ""));
+            return new Pricing(null, "not in the price list" + (providerName != null && modelName != null ? " as " + providerName + " " + modelName : ""), null, null);
         }
         boolean onMantle = mantle && rows.stream().anyMatch(Row::mantle);
         boolean global = ModelLineage.GLOBAL.equals(ModelLineage.prefix(wireId));
@@ -286,7 +351,7 @@ public final class BedrockPriceList {
             List<Row> candidates = rows.stream().filter(r -> r.kind() == kind && r.global() == global && r.mantle() == onMantle).toList();
             if (candidates.stream().map(Row::perMillion).distinct().count() > 1) {
                 return new Pricing(null, "the price list has " + candidates.size() + " " + kind + " rows at different rates: "
-                        + candidates.stream().map(Row::usageType).toList());
+                        + candidates.stream().map(Row::usageType).toList(), null, null);
             }
             if (!candidates.isEmpty()) {
                 chosen.put(kind, candidates.get(0));
@@ -294,10 +359,10 @@ public final class BedrockPriceList {
         }
         Row input = chosen.get(Kind.INPUT);
         if (input == null) {
-            return new Pricing(null, "no standard on-demand " + (global ? "global " : "") + "input rate in the price list");
+            return new Pricing(null, "no standard on-demand " + (global ? "global " : "") + "input rate in the price list", null, null);
         }
         return new Pricing(new DiscoveredModel.Prices(input.perMillion(), rate(chosen, Kind.OUTPUT), rate(chosen, Kind.CACHE_READ),
-                rate(chosen, Kind.CACHE_WRITE), input.currency()), null);
+                rate(chosen, Kind.CACHE_WRITE), input.currency()), null, null, null);
     }
 
     private static Double rate(Map<Kind, Row> chosen, Kind kind) {

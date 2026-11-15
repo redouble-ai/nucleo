@@ -64,6 +64,13 @@ class CatalogDiscoveryTest {
         private final Set<String> retired = new HashSet<>();
         private final Map<String, List<List<String>>> modalities = new HashMap<>();
         private final Map<String, DiscoveredModel.Prices> prices = new HashMap<>();
+        private final Map<String, DiscoveredModel.ListedRates> listedRates = new HashMap<>();
+        private final Map<String, List<DiscoveredModel.PriceOption>> priceOptions = new HashMap<>();
+
+        /** The provider's price list states this standard price for the id's model under the name, one of several the listing cannot choose between. */
+        void priceOption(String wireId, String name, double input, double output) {
+            priceOptions.computeIfAbsent(wireId, k -> new ArrayList<>()).add(new DiscoveredModel.PriceOption(name, new DiscoveredModel.Prices(input, output, null, null, "USD")));
+        }
         private java.util.function.Predicate<String> serves = wireId -> true;
 
         /** The listing marks these ids as retired by the vendor. */
@@ -71,6 +78,9 @@ class CatalogDiscoveryTest {
 
         /** The provider's price list prices the id at these rates per million, in USD. */
         void price(String wireId, double input, Double output) {prices.put(wireId, new DiscoveredModel.Prices(input, output, null, null, "USD"));}
+
+        /** The provider's price list states these rows for the id's model, the row's name to its rate per million, in the currency. */
+        void listRates(String wireId, String currency, Map<String, Double> perMillion) {listedRates.put(wireId, new DiscoveredModel.ListedRates(perMillion, currency));}
 
         /** The listing states what the id takes and produces, in the provider's words. */
         void markModalities(String wireId, List<String> inputs, List<String> outputs) {modalities.put(wireId, List.of(inputs, outputs));}
@@ -138,7 +148,7 @@ class CatalogDiscoveryTest {
             for (String wireId : wireIds) {
                 List<List<String>> stated = modalities.get(wireId);
                 models.add(new DiscoveredModel(wireId, stated != null ? stated.get(0) : null, stated != null ? stated.get(1) : null,
-                        null, null, retired.contains(wireId) ? Boolean.TRUE : null, null, null, null, null, prices.get(wireId)));
+                        null, null, retired.contains(wireId) ? Boolean.TRUE : null, null, null, null, null, prices.get(wireId), listedRates.get(wireId), priceOptions.get(wireId)));
             }
             return models;
         }
@@ -1129,6 +1139,150 @@ class CatalogDiscoveryTest {
         assertEquals(1.0, entry.get("input_price_per_million").doubleValue());
         assertEquals(5.0, entry.get("output_price_per_million").doubleValue());
         assertFalse(result.report().contains("(list"), result.report());
+    }
+
+    /** The rows of a price list, in an order that is not the alphabet's, so a test can tell the order was kept. */
+    private static Map<String, Double> rows(Object... nameThenRate) {
+        Map<String, Double> rows = new LinkedHashMap<>();
+        for (int i = 0; i < nameThenRate.length; i += 2) {
+            rows.put((String) nameThenRate[i], (Double) nameThenRate[i + 1]);
+        }
+        return rows;
+    }
+
+    /**
+     * Every rate the provider's price list states for a model is written onto its entry as
+     * {@code listed_rates}, each under the name the provider gives the row and in the order
+     * the listing gave them, a row whose name says nothing the discovery knows included; the
+     * four prices are what the list's standard rows made them; and the entry read back from
+     * the written catalog hands the rows out through {@link ModelSpec#getListedRates()}.
+     */
+    @Test
+    void everyRateTheListStatesIsWrittenOntoTheEntryUnderTheRowsOwnName() {
+        JsonModelsBackend seed = pricedCatalog(true, priced("a-kept", "alpha", "wire-kept", 1.0, 5.0, null));
+        Scripted alpha = Scripted.listing("alpha", "wire-kept");
+        alpha.price("wire-kept", 2.0, 10.0);
+        alpha.listRates("wire-kept", "USD", rows("R1-Output-Units", 10.0, "R1-Input-Units", 2.0, "R1-Input_Batch-Units", 1.0,
+                "R1-Input_LongContext-Units", 4.0, "R1-Input_NeverSeenWord-Units", 7.5));
+        CatalogDiscovery.Result result = new CatalogDiscovery(seed, null, Map.of("alpha", alpha), (p, s) -> ok(s, 55000)).discover();
+        JsonNode entry = written(result, "a-kept");
+        JsonNode listed = entry.get("listed_rates");
+        assertEquals(List.of("R1-Output-Units", "R1-Input-Units", "R1-Input_Batch-Units", "R1-Input_LongContext-Units", "R1-Input_NeverSeenWord-Units"),
+                listed.properties().stream().map(Map.Entry::getKey).toList(), "every row, under its own name, in the listing's order");
+        assertEquals(1.0, listed.get("R1-Input_Batch-Units").doubleValue());
+        assertEquals(7.5, listed.get("R1-Input_NeverSeenWord-Units").doubleValue(), "a row is kept whatever its name says");
+        assertEquals(2.0, entry.get("input_price_per_million").doubleValue(), "the four prices are the standard rows' and no other row's");
+        assertEquals(10.0, entry.get("output_price_per_million").doubleValue());
+        JsonModelsBackend reread = new JsonModelsBackend(List.of(new JsonModelsBackend.Layer("previous", result.catalog().toString(), false)));
+        Map<String, Double> rates = reread.specOf(reread.rawEntries().get("a-kept")).getListedRates();
+        assertEquals(new ArrayList<>(rows("R1-Output-Units", 10.0, "R1-Input-Units", 2.0, "R1-Input_Batch-Units", 1.0,
+                "R1-Input_LongContext-Units", 4.0, "R1-Input_NeverSeenWord-Units", 7.5).entrySet()), new ArrayList<>(rates.entrySet()),
+                "the spec hands out the rows as the entry holds them");
+    }
+
+    /** A run over a changed list replaces an entry's listed rates whole: no row of the earlier reading is left beside the new ones. */
+    @Test
+    void aLaterReadingReplacesAnEntrysListedRatesWhole() {
+        JsonModelsBackend seed = pricedCatalog(true, priced("a-kept", "alpha", "wire-kept", 1.0, 5.0, null));
+        Scripted first = Scripted.listing("alpha", "wire-kept");
+        first.listRates("wire-kept", "USD", rows("R1-Input-Units", 2.0, "R1-Input_Flex-Units", 1.0));
+        CatalogDiscovery.Result earlier = new CatalogDiscovery(seed, null, Map.of("alpha", first), (p, s) -> ok(s, 55000)).discover();
+        JsonModelsBackend previous = new JsonModelsBackend(List.of(new JsonModelsBackend.Layer("previous", earlier.catalog().toString(), false)));
+        Scripted second = Scripted.listing("alpha", "wire-kept");
+        second.listRates("wire-kept", "USD", rows("R1-Input-Units", 2.5, "R1-Input_Priority-Units", 5.0));
+        CatalogDiscovery.Result later = new CatalogDiscovery(seed, previous, Map.of("alpha", second), (p, s) -> ok(s, 55000)).discover();
+        JsonNode listed = written(later, "a-kept").get("listed_rates");
+        assertEquals(List.of("R1-Input-Units", "R1-Input_Priority-Units"), listed.properties().stream().map(Map.Entry::getKey).toList(),
+                "the flex row the list no longer states is gone");
+        assertEquals(2.5, listed.get("R1-Input-Units").doubleValue(), "a rate that moved is the new one");
+    }
+
+    /**
+     * The listed rates do not wait on the four prices: an LLM the list prices on input alone
+     * keeps the prices a person typed and still gets its rows, and so does a model the list
+     * has rows for and no standard price.
+     */
+    @Test
+    void anEntryTheListDoesNotPriceStillGetsItsListedRates() {
+        JsonModelsBackend seed = pricedCatalog(true, priced("a-half", "alpha", "wire-half", 1.0, 5.0, null), priced("a-rows", "alpha", "wire-rows", 3.0, 15.0, null));
+        Scripted alpha = Scripted.listing("alpha", "wire-half", "wire-rows");
+        alpha.price("wire-half", 0.11, null);
+        alpha.listRates("wire-half", "USD", rows("R1-Input-Units", 0.11));
+        alpha.listRates("wire-rows", "USD", rows("Zone A Input", 3.0, "Zone B Input", 3.3));
+        CatalogDiscovery.Result result = new CatalogDiscovery(seed, null, Map.of("alpha", alpha), (p, s) -> ok(s, 55000)).discover();
+        JsonNode half = written(result, "a-half");
+        assertEquals(1.0, half.get("input_price_per_million").doubleValue(), "the typed price stays");
+        assertEquals(0.11, half.get("listed_rates").get("R1-Input-Units").doubleValue());
+        JsonNode rowsOnly = written(result, "a-rows");
+        assertEquals(3.0, rowsOnly.get("input_price_per_million").doubleValue(), "an entry with rows and no listed price keeps its typed prices");
+        assertEquals(15.0, rowsOnly.get("output_price_per_million").doubleValue());
+        assertEquals(3.3, rowsOnly.get("listed_rates").get("Zone B Input").doubleValue());
+    }
+
+    /**
+     * An entry of a provider that lists no rate is written without the field and its spec has
+     * no listed rates, null and never an empty map; an entry that holds rows from an earlier
+     * run keeps them through a run whose listing states none, as it keeps its prices.
+     */
+    @Test
+    void anEntryWithNoListedRowHasNoListedRates_andARunThatReadsNoneKeepsTheEarlierOnes() {
+        JsonModelsBackend seed = pricedCatalog(true, priced("a-plain", "alpha", "wire-plain", 1.0, 5.0, null), priced("a-kept", "alpha", "wire-kept", 1.0, 5.0, null));
+        Scripted first = Scripted.listing("alpha", "wire-plain", "wire-kept");
+        first.listRates("wire-kept", "USD", rows("R1-Input-Units", 2.0));
+        CatalogDiscovery.Result earlier = new CatalogDiscovery(seed, null, Map.of("alpha", first), (p, s) -> ok(s, 55000)).discover();
+        assertFalse(written(earlier, "a-plain").has("listed_rates"), "no row, no field");
+        JsonModelsBackend previous = new JsonModelsBackend(List.of(new JsonModelsBackend.Layer("previous", earlier.catalog().toString(), false)));
+        assertNull(previous.specOf(previous.rawEntries().get("a-plain")).getListedRates(), "no listed rates is null, never an empty map");
+        Scripted unreadable = Scripted.listing("alpha", "wire-plain", "wire-kept");
+        CatalogDiscovery.Result later = new CatalogDiscovery(seed, previous, Map.of("alpha", unreadable), (p, s) -> ok(s, 55000)).discover();
+        assertEquals(2.0, written(later, "a-kept").get("listed_rates").get("R1-Input-Units").doubleValue(), "a run that read no row leaves the earlier reading");
+    }
+
+    /**
+     * The rates of an entry are in its one currency. Rows the list states in another are not
+     * written, and the rows of an earlier run are removed with them, so the entry never holds
+     * rates its currency does not describe.
+     */
+    @Test
+    void rowsInAnotherCurrencyThanTheEntrysAreNotWritten_andEarlierRowsGoWithThem() {
+        JsonModelsBackend seed = pricedCatalog(true, priced("a-kept", "alpha", "wire-kept", 1.0, 5.0, null));
+        Scripted first = Scripted.listing("alpha", "wire-kept");
+        first.listRates("wire-kept", "USD", rows("R1-Input-Units", 2.0));
+        CatalogDiscovery.Result earlier = new CatalogDiscovery(seed, null, Map.of("alpha", first), (p, s) -> ok(s, 55000)).discover();
+        JsonModelsBackend previous = new JsonModelsBackend(List.of(new JsonModelsBackend.Layer("previous", earlier.catalog().toString(), false)));
+        Scripted second = Scripted.listing("alpha", "wire-kept");
+        second.listRates("wire-kept", "CNY", rows("R1-Input-Units", 14.0));
+        CatalogDiscovery.Result later = new CatalogDiscovery(seed, previous, Map.of("alpha", second), (p, s) -> ok(s, 55000)).discover();
+        JsonNode entry = written(later, "a-kept");
+        assertFalse(entry.has("listed_rates"), "a rate in yuan is not written onto an entry priced in dollars, and the dollar rows of the earlier list are not left to stand for it");
+        assertEquals(1.0, entry.get("input_price_per_million").doubleValue());
+    }
+
+    /**
+     * Where the list states a standard price per deployment type and the listing cannot say
+     * which type a deployment is, the run writes no price and reports the entry whose typed
+     * price is none of them, with the typed price and each price it could have been. An
+     * entry typed at one of them is not reported, and neither entry is changed.
+     */
+    @Test
+    void anEntryPricedAtNoneOfTheListedOptionsIsReportedAndLeftAsItIs() {
+        JsonModelsBackend seed = pricedCatalog(true, priced("a-off", "alpha", "wire-off", 0.28, 0.42, null), priced("a-on", "alpha", "wire-on", 2.0, 10.0, null));
+        Scripted alpha = Scripted.listing("alpha", "wire-off", "wire-on");
+        alpha.priceOption("wire-off", "Global", 1.75, 3.48);
+        alpha.priceOption("wire-off", "Data Zone", 1.925, 3.828);
+        alpha.priceOption("wire-on", "Global", 2.0, 10.0);
+        alpha.priceOption("wire-on", "Data Zone", 2.2, 11.0);
+        CatalogDiscovery.Result result = new CatalogDiscovery(seed, null, Map.of("alpha", alpha), (p, s) -> ok(s, 55000)).discover();
+        assertEquals(1, result.pricesThatAreNoOption().size(), result.pricesThatAreNoOption().toString());
+        String line = result.pricesThatAreNoOption().get(0);
+        assertTrue(line.startsWith("a-off"), line);
+        assertTrue(line.endsWith("price 0.28/0.42; the list states Global 1.75/3.48, Data Zone 1.925/3.828"), line);
+        assertTrue(result.report().contains("PRICES THAT ARE NONE OF THE LISTED ONES"), result.report());
+        assertTrue(result.report().contains(line), result.report());
+        assertEquals(0.28, written(result, "a-off").get("input_price_per_million").doubleValue(), "the entry keeps the price a person typed");
+        assertEquals(0.42, written(result, "a-off").get("output_price_per_million").doubleValue());
+        assertEquals(2.0, written(result, "a-on").get("input_price_per_million").doubleValue());
+        assertFalse(result.report().contains("a-on  " + " price"), "an entry typed at one of the options is not reported");
     }
 
     private static CatalogDiscovery.Verdict verdict(CatalogDiscovery.Result result, String id) {

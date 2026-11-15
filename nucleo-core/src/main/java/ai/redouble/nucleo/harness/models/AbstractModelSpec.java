@@ -50,6 +50,8 @@ public abstract class AbstractModelSpec implements ModelSpec {
     private Double outputPricePerMillion;
     private Double cacheReadPricePerMillion;
     private Double cacheWritePricePerMillion;
+    /** Every rate the provider's price list states for the model ({@code listed_rates}), by the row's name, or null when the entry has none. */
+    private Map<String, Double> listedRates;
     /**
      * The entry's own per-depth thinking budgets ({@code thinking_budgets}), or null when the
      * entry rides the framework ladder. The backend validates all five depths for a
@@ -253,6 +255,11 @@ public abstract class AbstractModelSpec implements ModelSpec {
     public Double getCacheWritePricePerMillion() {return cacheWritePricePerMillion;}
 
     public void setCacheWritePricePerMillion(Double cacheWritePricePerMillion) {this.cacheWritePricePerMillion = cacheWritePricePerMillion;}
+
+    @Override
+    public Map<String, Double> getListedRates() {return listedRates;}
+
+    public void setListedRates(Map<String, Double> listedRates) {this.listedRates = listedRates;}
 
     @Override
     public boolean equals(Object o) {

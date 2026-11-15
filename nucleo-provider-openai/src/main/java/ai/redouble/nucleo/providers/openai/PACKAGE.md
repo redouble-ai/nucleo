@@ -44,6 +44,11 @@ resource under OpenAI's API: the Azure OpenAI models and the other vendors Azure
 that form. The discovery lists the resource's deployments by the names the people who
 created them gave them; the library ships no entries, since those names are the
 deployment's. Claude on Foundry is served under a different API and is not this provider's.
+The discovery also reads Microsoft's public retail price list for the region the resource
+answers from, and writes onto each deployment's entry every rate the list states for its
+base model, the Global and the Data Zone rates side by side (`listed_rates`). It writes no
+price: the listing does not say which type a deployment is, so the entry's prices stay as a
+person typed them, and the report names an entry whose price is neither type's.
 Embedding deployments on an Azure OpenAI resource are not listed at all: their entries are
 written in the deployment's `models.json`, and the discovery keeps them as written.
 

@@ -10,7 +10,8 @@ usage the provider reported, both in the same shape.
 
 A `TokenLedger` is one call's tokens by kind: `inputTokens()`, `cacheReadTokens()`,
 `cacheWriteTokens()`, `outputTokens()`, with `uncachedInputTokens()`, `cacheHitRate()`,
-`cost()` and `meteredTokens()` derived from them. The same interface describes a call before
+`cost()` and `meteredTokens()` derived from them; `cost()` is what the ledger's model says
+the call costs, `ModelSpec.cost(ledger)`. The same interface describes a call before
 it is made and after it returns; the method names carry no "estimate" or "actual" because
 provenance is a property of the instance, not of the facet. The estimate is what
 `ModelSpec.estimate(conversation)` returns and what a `ModelBinding` wired to a conversation

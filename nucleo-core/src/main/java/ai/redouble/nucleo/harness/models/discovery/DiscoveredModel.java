@@ -34,11 +34,14 @@ import java.util.*;
  * @param rpm              the account's requests-per-minute quota for this endpoint, null when the provider publishes none through an API
  * @param note             anything else the listing said worth showing a person (a lifecycle status, a display name), or null
  * @param prices           what the provider's published price list charges for a call on this id, null when the provider publishes no list or the list has no readable row for the id, which the note then says
+ * @param listedRates      every rate per token the provider's published price list states for this model, the rows {@code prices} was read from and the ones it leaves out, null when the provider publishes no list or the list has no row for the model
+ * @param priceOptions     the standard prices the provider's price list states for this model where the listing cannot say which of them the id is billed at (Azure prices a model per deployment type and lists a deployment without its type), null when {@code prices} is stated or the list states none; the discovery writes none of them and reports an entry whose typed prices are none of them
  * @author Andrey Santrosyan
  * @since 0.1 (2026-09-12)
  */
 public record DiscoveredModel(String wireModelId, List<String> inputModalities, List<String> outputModalities, Boolean supportsVision,
-                              Boolean onDemand, Boolean retired, Boolean requiresLax, Integer tpm, Integer rpm, String note, Prices prices) {
+                              Boolean onDemand, Boolean retired, Boolean requiresLax, Integer tpm, Integer rpm, String note, Prices prices,
+                              ListedRates listedRates, List<PriceOption> priceOptions) {
     /** The modality word every LLM client speaks, as providers spell it. */
     public static final String TEXT = "TEXT";
     /** The modality word of an embeddings model's output, as providers spell it. */
@@ -64,22 +67,63 @@ public record DiscoveredModel(String wireModelId, List<String> inputModalities, 
         }
     }
 
+    /**
+     * Every rate per token a provider's price list states for one model, each under the name
+     * the provider gives the row (AWS's {@code usagetype}, Azure's {@code meterName}) and
+     * scaled to a million tokens, in one currency and in the order the provider's reader gives
+     * them, which it keeps the same from run to run so that two readings differ only where a
+     * rate did. Nothing is read out
+     * of a name and no row is left out for what its name says: the standard rates are here
+     * beside the tiers, the long-context rates, the rates of other deployment types and
+     * whatever the provider adds next. A row not priced per token is not one of these.
+     *
+     * @param perMillion the rate per million tokens by the row's name as the provider writes it
+     * @param currency   the ISO 4217 code every rate is stated in
+     */
+    public record ListedRates(Map<String, Double> perMillion, String currency) {
+        public ListedRates {
+            if (currency == null || currency.isBlank()) {
+                throw new IllegalArgumentException("listed rates state their currency");
+            }
+            if (perMillion == null || perMillion.isEmpty()) {
+                throw new IllegalArgumentException("listed rates hold at least one row; a model the list has no row for has none");
+            }
+            perMillion = Collections.unmodifiableMap(new LinkedHashMap<>(perMillion));
+        }
+    }
+
+    /**
+     * One of the standard prices a price list states for a model, and what it is the price
+     * of: the deployment type, in the provider's word for it.
+     *
+     * @param name   what the price applies to ({@code Global}, {@code Data Zone})
+     * @param prices the standard rates under that name
+     */
+    public record PriceOption(String name, Prices prices) {
+        public PriceOption {
+            if (name == null || name.isBlank() || prices == null) {
+                throw new IllegalArgumentException("a price option states its name and its prices");
+            }
+        }
+    }
+
     public DiscoveredModel {
         if (wireModelId == null || wireModelId.isBlank()) {
             throw new IllegalArgumentException("a discovered model needs its wire id");
         }
+        priceOptions = priceOptions != null ? List.copyOf(priceOptions) : null;
         inputModalities = inputModalities != null ? List.copyOf(inputModalities) : null;
         outputModalities = outputModalities != null ? List.copyOf(outputModalities) : null;
     }
 
     /** A listing that carried nothing but the id. */
     public static DiscoveredModel of(String wireModelId) {
-        return new DiscoveredModel(wireModelId, null, null, null, null, null, null, null, null, null, null);
+        return new DiscoveredModel(wireModelId, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     /** A listing that carried the id and a note. */
     public static DiscoveredModel of(String wireModelId, String note) {
-        return new DiscoveredModel(wireModelId, null, null, null, null, null, null, null, null, note, null);
+        return new DiscoveredModel(wireModelId, null, null, null, null, null, null, null, null, note, null, null, null);
     }
 
     /**

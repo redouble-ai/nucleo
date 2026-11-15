@@ -91,11 +91,7 @@ final class RunMeasure {
             return null;
         }
         TokenLedger usage = response.getUsage();
-        if (usage == null) {
-            return Cost.of(spec, 0, 0, 0, 0);
-        }
-        return Cost.of(spec, tokens(usage.inputTokens()), tokens(usage.cacheWriteTokens()),
-                tokens(usage.cacheReadTokens()), tokens(usage.outputTokens()));
+        return spec.cost(usage != null ? usage : new DefaultTokenLedger(spec, 0, 0, 0, 0));
     }
 
     private static long tokens(Integer count) {

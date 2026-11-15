@@ -142,11 +142,7 @@ public abstract class AbstractTokenLedger implements TokenLedger {
         if (inputTokens == null) {
             return null;
         }
-        long cacheWrite = cacheWriteTokens != null ? cacheWriteTokens : 0;
-        long cacheRead = cacheReadTokens != null ? cacheReadTokens : 0;
-        Integer resolvedOutput = outputTokens();
-        long output = resolvedOutput != null ? resolvedOutput : 0;
-        return Cost.of(spec, inputTokens, cacheWrite, cacheRead, output);
+        return spec.cost(this);
     }
 
     @Override

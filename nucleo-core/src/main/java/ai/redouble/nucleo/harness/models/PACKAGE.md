@@ -71,6 +71,10 @@ limits, and the same identity. An entry from the Anthropic library's shipped cat
 - The prices are per million tokens, in the currency the entry states or inherits from its
   provider's defaults (`USD` here). Nucleo never converts between currencies: costs add up
   per currency, and a spending cap in one currency refuses a call priced in another.
+- `listed_rates`, where an entry has it, is every rate the provider's price list states for
+  the model, written by the discovery: the record of what the provider charges, tiers and
+  long-context rates included. No call is priced from it unless a
+  [price rule of your own](#a-price-rule-of-your-own) reads it.
 - `supports_vision` and `supports_documents` say whether the model reads pictures and whole
   files such as PDFs.
 - `cache_breakpoints` is how many prompt-cache breakpoints one request to the model may
@@ -264,6 +268,39 @@ The deployment declares its picker once, at start-up, with `ModelPickers.use(pic
 names a class without constructor arguments in `ModelSettings.pickerClass`. A picker may
 name models; when it does, those choices are checked only when a request reaches them,
 where a pin is checked at start-up.
+
+## A price rule of your own
+
+What a call costs is computed by the model's spec, `ModelSpec.cost(TokenLedger)`, and every
+figure the runtime reports comes from it: the cost of a finished call, the most a
+reservation can cost, the spend a cap is checked against. The rule every shipped spec prices
+by reads the entry's four prices: uncached input at the input price, cache writes and reads
+at their rates, output at the output price.
+
+Providers bill some models by rules those four numbers do not express: a higher rate for
+the whole call once the prompt passes a length, a rate per deployment zone or service tier,
+a cache write priced by how long it is held. Nucleo ships none of those rules. A spec class
+of your own states one by overriding `cost`:
+
+```java
+public class LongPromptSpec extends StandardModelSpec {
+    @Override
+    public Cost cost(TokenLedger usage) {
+        Cost standard = super.cost(usage);
+        return usage.inputTokens() > 200_000 ? new Cost(standard.amount() * 2, standard.currency()) : standard;
+    }
+}
+```
+
+- The usage is one call's, never a sum of calls, because a provider applies its rule to a
+  request. Totals are sums of costs.
+- The usage is the provider's own ledger class, so a spec can read a fact that ledger
+  carries beyond the four token counts.
+- The rates a rule needs are on the entry: `getListedRates()` returns every rate the
+  provider's price list states for the model, by the name the provider gives the row, as
+  the [discovery](discovery/PACKAGE.md) last read them; it is null for an entry with none.
+- An entry is served by the class its `spec_type` names, and a provider declares the classes
+  behind the names it serves in `ClientProvider.specTypes()`.
 
 ## How it works inside
 

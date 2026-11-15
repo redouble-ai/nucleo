@@ -134,7 +134,13 @@ report begins at the line `Catalog discovery <timestamp>` and has these sections
   `haiku`, `medium`, `large`) decides the grade by itself, and the classifier judges only
   names that carry none. A `price 1/5 -> 0.11/0.55 (list)` on a line is the AWS price list
   correcting a Bedrock entry's input and output rates per million, a previous entry's as much
-  as a new one's; `(list, unchanged)` confirms them.
+  as a new one's; `(list, unchanged)` confirms them. Bedrock and Azure AI Foundry entries
+  also gain `listed_rates`, every rate the provider's public price list states for the model;
+  nothing prices a call from them and they need no checking.
+- `PRICES THAT ARE NONE OF THE LISTED ONES` names Azure AI Foundry entries whose typed price
+  is the standard price of no deployment type. The run changed none of them. Show the person
+  each line: the type of the deployment (Global or Data Zone, on the deployment's page in
+  the Azure portal) says which of the listed prices is theirs to type.
 - `NEWER THAN A PIN`, when present, is the first block after the timestamp: the account has a
   newer version of a pinned model. It is added and the pin is not moved. Tell the person.
 - `Older versions the account lists, left out`, `Served only under provider data share` (the

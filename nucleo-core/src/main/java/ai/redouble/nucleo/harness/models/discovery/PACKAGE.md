@@ -47,6 +47,34 @@ The deployment's file is the deployment's, and the discovery treats it that way:
   goes stale. The report shows each such entry's rates before and after. An entry the list
   does not price, and every entry of a provider that publishes no list, keeps the prices a
   person typed.
+- **Every rate the provider lists for a model is kept on its entry.** Beside the four prices
+  the discovery writes `listed_rates`: each row the provider's price list states for the
+  model, under the name the provider gives the row and per million tokens, in the entry's
+  currency.
+
+  ```json
+  "listed_rates" : {
+    "USE1-MP:USE1_InputTokenCount-Units" : 3.3,
+    "USE1-MP:USE1_InputTokenCount_Batch-Units" : 1.65,
+    "USE1-MP:USE1_InputTokenCount_Global-Units" : 3.0
+  }
+  ```
+
+  No name is interpreted and no row is left out for what its name says: the batch, flex and
+  priority tiers, the long-context rates, the cache write held an hour, the rates of the
+  other deployment types, and whatever the provider adds next. Nucleo prices no call from
+  them; they are the record of what the provider charges, and what a
+  [spec class of your own](../PACKAGE.md) prices a call from. Each run replaces an entry's
+  rows whole, and a run that read none leaves the earlier ones. Bedrock entries take theirs
+  from the AWS price list and Azure AI Foundry entries from Microsoft's retail price list,
+  both public; an entry of a provider that publishes no list has none.
+- **An Azure AI Foundry entry's prices stay as you typed them.** Microsoft prices a model
+  per deployment type, a Data Zone deployment above a Global one, and the
+  listing a resource key reads does not say which type a deployment is. So the discovery
+  writes the rows of every type into `listed_rates` and no price. What it can tell it
+  reports: under `PRICES THAT ARE NONE OF THE LISTED ONES` the report names each entry whose
+  price is the standard price of no deployment type, with the price and the ones the list
+  states, and leaves the entry as it is.
 - **Nothing is deleted, and kept is all it is.** An entry the account no longer lists is
   closed as `UNLISTED`; an entry of a provider whose endpoint is not served where this
   deployment points, or whose own ping fails for a reason no retry changes, is closed as

@@ -5,6 +5,26 @@ group `ai.redouble`; a published version is never changed in place.
 
 ## Unreleased
 
+- A model's spec computes what a call on it costs: `ModelSpec.cost(TokenLedger)`, a default
+  method holding the rule every shipped spec prices by. A spec class of your own overrides
+  it to price a model its provider bills by another rule (a long-context rate, a deployment
+  zone, a service tier), and a reported usage, a reservation and a spending cap all follow
+  it. Breaking: `Cost.of(ModelSpec, long, long, long, long)` is replaced by
+  `Cost.of(TokenLedger)` ([#25](https://github.com/redouble-ai/nucleo/issues/25)).
+- A catalog entry keeps every rate its provider's price list states for the model, as
+  `listed_rates`: the row's name as the provider writes it to the rate per million, tiers
+  and long-context rates included. The discovery writes them for Bedrock entries from the
+  AWS price list; `ModelSpec.getListedRates()` returns them. Nothing prices a call from
+  them unless a spec class of your own does. Breaking: `ModelSpec` gains
+  `getListedRates()`, which an implementation outside `AbstractModelSpec` has to add;
+  `DiscoveredModel` gains the components `listedRates` and `priceOptions`
+  ([#26](https://github.com/redouble-ai/nucleo/issues/26)).
+- The discovery reads Microsoft's public retail price list for an Azure AI Foundry resource
+  and writes the rates of each deployment's base model into `listed_rates`, Global and Data
+  Zone side by side. It writes no price, because the listing does not say which type a
+  deployment is; the report names an entry whose typed price is neither type's. Breaking:
+  `CatalogDiscovery.Result` gains the component `pricesThatAreNoOption`
+  ([#27](https://github.com/redouble-ai/nucleo/issues/27)).
 - A chat's answer is an object, and only the artifacts it selects leave the chat. A chat
   answered with a string, which had no place for a selection, and `ChatThinker` published
   every artifact any tool had registered in the conversation with each answer. The answer

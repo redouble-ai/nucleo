@@ -40,10 +40,15 @@ A `Cost` is an amount and a three-letter upper-case currency; any other currency
 construction. The amount is rounded to a billionth of its unit, so a thousand summed
 thousandths read as exactly one. `plus` and `exceeds` refuse a different currency, and
 `exceeds` is strictly past the cap: an amount equal to the cap is not past it.
-`Cost.of(spec, input, cacheWrite, cacheRead, output)` prices a call on a priced entry: the
-uncached input at the input price, cache writes and reads at the entry's effective cache
-multipliers, output at the output price, an embeddings entry pricing input alone; it is null on
-an unpriced entry, never zero. The most a reservation can cost is its estimate ledger's
+A call is priced by its model's spec, `ModelSpec.cost(TokenLedger)`, and `Cost.of(ledger)`
+asks the ledger's own spec. The rule every shipped spec prices by: the uncached input at the
+input price, cache writes and reads at the entry's effective cache multipliers, output at the
+output price, an embeddings entry pricing input alone, a facet the usage does not state
+counted as zero; it is null on an unpriced entry, never zero. A spec class that overrides
+`cost` replaces the rule for a reported usage, a reservation and the call the ledger records
+alike, and can read a fact of its provider's own ledger class. The rule is asked of one call
+at a time: the ledger sums costs, never tokens, so two calls below a threshold of the rule
+cost two calls below it. The most a reservation can cost is its estimate ledger's
 `cost()`, every token at its own price and none of it cached, null on an unpriced entry; the
 spend gate reads it from `ModelBinding.getReservation()`. `toString` renders six decimals and
 the currency.

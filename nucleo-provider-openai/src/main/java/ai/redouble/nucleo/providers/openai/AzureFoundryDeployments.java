@@ -8,6 +8,7 @@ package ai.redouble.nucleo.providers.openai;
 
 import com.fasterxml.jackson.databind.*;
 import org.apache.hc.client5.http.classic.methods.*;
+import org.apache.hc.core5.http.*;
 import java.io.*;
 import java.util.*;
 import java.util.function.*;
@@ -43,6 +44,8 @@ import ai.redouble.nucleo.http.*;
 final class AzureFoundryDeployments extends AbstractApiClient {
     /** The GA authoring version that lists deployments; the surface is versioned by query parameter. */
     static final String PATH = "/openai/deployments?api-version=2022-12-01";
+    /** The response header in which an Azure resource names the region that answered, by its display name ({@code Sweden Central}). */
+    static final String REGION_HEADER = "x-ms-region";
     private final String host;
     private final String apiKey;
 
@@ -68,23 +71,52 @@ final class AzureFoundryDeployments extends AbstractApiClient {
         request.setHeader("api-key", apiKey);
     }
 
-    /** The resource's deployments whose base model the caller's surface serves, as the discovery reads them. */
+    /** The region the resource's last answer named in its {@link #REGION_HEADER}, as it wrote it; null when it named none. */
+    private volatile String region;
+
+    @Override
+    protected void postProcessResponse(int statusCode, Header[] headers, String responseBody) {
+        for (Header header : headers) {
+            if (REGION_HEADER.equalsIgnoreCase(header.getName())) {
+                region = header.getValue();
+            }
+        }
+    }
+
+    /**
+     * The resource's deployments whose base model the caller's surface serves, as the
+     * discovery reads them, each with the rates Microsoft's retail price list states for its
+     * base model in the resource's region. The region is what the resource's answer names in
+     * its {@link #REGION_HEADER}; an answer that names none leaves every deployment without
+     * rates, and its note says so.
+     */
     List<DiscoveredModel> list(Predicate<String> servedHere) throws IOException {
         try {
-            return parse(getText(PATH, "application/json"), servedHere);
+            String body = getText(PATH, "application/json");
+            String named = region;
+            return parse(body, servedHere, named != null ? AzurePriceList.read(armRegion(named)) : AzurePriceList.regionUnknown());
         }
         catch (LLMReadableCheckedException e) {
             throw new IOException(e.getLLMMessage(), e);
         }
     }
 
+    /** A region as the price list names it, from the display name a resource answers with: {@code East US 2} is {@code eastus2}. */
+    static String armRegion(String displayName) {
+        return displayName.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
+    }
+
     /**
      * The listing's shape, as a pure function so it tests on a recorded body: one model per
      * deployment whose {@code status} is {@code succeeded} and whose base model the caller's
      * surface serves, its id the wire id, its base model the note. A deployment still being
-     * created or failed is not reachable and is left out.
+     * created or failed is not reachable and is left out. From the price list a deployment
+     * takes its base model's listed rates and the standard price of each deployment type,
+     * and never a price: the listing does not say which type a deployment is, so which of
+     * those prices it is billed at is not known here. What the list could not give is said
+     * in the note.
      */
-    static List<DiscoveredModel> parse(String body, Predicate<String> servedHere) throws IOException {
+    static List<DiscoveredModel> parse(String body, Predicate<String> servedHere, AzurePriceList priceList) throws IOException {
         JsonNode data = NucleoJsonSerializer.readTree(body).get("data");
         if (data == null || !data.isArray()) {
             throw new IOException("Deployment listing carried no 'data' array: " + body);
@@ -96,7 +128,9 @@ final class AzureFoundryDeployments extends AbstractApiClient {
             if (!"succeeded".equals(status) || model == null || !servedHere.test(model)) {
                 continue;
             }
-            models.add(DiscoveredModel.of(deployment.get("id").asText(), "deployment of " + model));
+            AzurePriceList.Rates rates = priceList.ratesOf(model);
+            models.add(new DiscoveredModel(deployment.get("id").asText(), null, null, null, null, null, null, null, null,
+                    "deployment of " + model + (rates.note() != null ? " (" + rates.note() + ")" : ""), null, rates.listedRates(), rates.priceOptions()));
         }
         return models;
     }
