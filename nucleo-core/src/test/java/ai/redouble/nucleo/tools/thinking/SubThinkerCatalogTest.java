@@ -203,6 +203,42 @@ class SubThinkerCatalogTest {
                 "an ULTRA_THOROUGH caller gets one more level");
     }
 
+    /** A chat: a thinker that runs with no input and holds its depth itself. */
+    static class Chat extends ChatThinker<ChatAnswer> {
+        Chat(Identifiable parent, Depth depth) {
+            super(parent, new ThinkerDeclaration(Grade.SMALL, OutputSize.COMPACT), ChatAnswer.class);
+            setDepth(depth);
+        }
+
+        @Override
+        protected List<Class<? extends Tool>> declareDefaultTools() {
+            return List.of(CurrentTimeTool.class);
+        }
+    }
+
+    /**
+     * The ceiling is applied from the caller's own depth, so a chat, which has no input to
+     * carry one, holds its sub-agents to it like any other caller: a STANDARD chat's
+     * sub-agent asked to work at ULTRA_THOROUGH works at STANDARD, and a THOROUGH chat's at
+     * STANDARD too, one level below.
+     */
+    @Test
+    void aChatsSubAgentIsHeldToTheChatsDepth() {
+        Chat standard = new Chat(root(), Depth.STANDARD);
+        assertNull(standard.getInput(), "a chat runs with no input");
+        SubThinker asked = delegateOf(standard, Depth.ULTRA_THOROUGH);
+        standard.applyDepthCeiling(asked, asked.getInput());
+        assertEquals(Depth.STANDARD, asked.getInput().getDepth(), "a STANDARD chat's sub-agent never works deeper than the chat");
+        Chat thorough = new Chat(root(), Depth.THOROUGH);
+        SubThinker deeper = delegateOf(thorough, Depth.ULTRA_THOROUGH);
+        thorough.applyDepthCeiling(deeper, deeper.getInput());
+        assertEquals(Depth.STANDARD, deeper.getInput().getDepth(), "a THOROUGH chat's sub-agent works one level below it");
+        Chat deepest = new Chat(root(), Depth.ULTRA_THOROUGH);
+        SubThinker below = delegateOf(deepest, Depth.ULTRA_THOROUGH);
+        deepest.applyDepthCeiling(below, below.getInput());
+        assertEquals(Depth.THOROUGH, below.getInput().getDepth(), "an ULTRA_THOROUGH chat's sub-agent gets one level more");
+    }
+
     @Test
     void theStepDownStopsAtStandard() {
         ParentThinker parent = new ParentThinker(root());

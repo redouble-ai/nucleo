@@ -537,6 +537,16 @@ public abstract class AbstractThinker<I extends ThinkerInput, O extends ThinkerO
     /**
      * The deepest a thinker this one calls may work, given this thinker's own depth.
      */
+    /**
+     * Lowers the depth a called thinker was asked to work at to its ceiling under this caller.
+     * The caller's depth is this thinker's own, {@link #getDepth()}, whichever way it carries
+     * one: a thinker with an input reads it there, and a chat, which runs with no input,
+     * holds it itself. So a chat's sub-agents are held to the same rule as any other's.
+     */
+    void applyDepthCeiling(Thinker<?, ?> called, ThinkerInput childInput) {
+        childInput.setDepth(Depth.min(childInput.getDepth(), depthCeilingFor(called, getDepth())));
+    }
+
     Depth depthCeilingFor(Thinker<?, ?> called, Depth ownDepth) {
         if (!(called instanceof SubThinker) || !subAgentsWorkOneLevelBelow()) {
             return ownDepth;
@@ -866,8 +876,8 @@ public abstract class AbstractThinker<I extends ThinkerInput, O extends ThinkerO
         // A called thinker never works deeper than its ceiling: the caller's depth, or one
         // level below it for a sub-agent (gh-21). Both sides default to STANDARD in
         // ThinkerInput, so there are no null cases to handle.
-        if (tool instanceof Thinker<?, ?> called && rawInput instanceof ThinkerInput childInput && this.input instanceof ThinkerInput parentInput) {
-            childInput.setDepth(Depth.min(childInput.getDepth(), depthCeilingFor(called, parentInput.getDepth())));
+        if (tool instanceof Thinker<?, ?> called && rawInput instanceof ThinkerInput childInput) {
+            applyDepthCeiling(called, childInput);
         }
 
         // Publish enhanced start info for thinker invocations (after depth propagation)
