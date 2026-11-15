@@ -3,8 +3,13 @@
 Every release of Nucleo, newest first. Released artifacts are on Maven Central under the
 group `ai.redouble`; a published version is never changed in place.
 
-## Unreleased
+## 0.1.3 (2026-11-14)
 
+- Security: the BOM pins three dependencies past a published advisory.
+  `io.micrometer:micrometer-core` 1.16.6 (GHSA-g3pr-3p32-fp23, GHSA-w737-wx49-qj23),
+  `org.apache.httpcomponents.client5:httpclient5` 5.6.3 (GHSA-hjcp-jmpx-g3qm) and
+  `io.opentelemetry:opentelemetry-api` 1.67.0 (GHSA-ccrj-gw8r-854m). An application that
+  imports the BOM takes them with this release.
 - A chat exchange whose closing call still asks for tools fails the turn. When a chat
   spent its tool budget and the one call instructed to answer returned tool calls again,
   the exchange was saved as a success, ending in tool calls with no results, and the
