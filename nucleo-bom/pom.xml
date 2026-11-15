@@ -49,7 +49,7 @@
         <!-- jackson-annotations is released once per minor line since 2.20; no patch digit -->
         <jackson.annotations.version>2.22</jackson.annotations.version>
         <!-- HTTP transport shared by every client through the connection pool -->
-        <httpclient5.version>5.5.2</httpclient5.version>
+        <httpclient5.version>5.6.3</httpclient5.version>
         <httpcore5.version>5.4.4</httpcore5.version>
         <!-- LLM providers -->
         <anthropic.version>2.62.0</anthropic.version>
