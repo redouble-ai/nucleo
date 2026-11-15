@@ -25,7 +25,7 @@
     <properties>
         <!-- The demo's reader, run from the checkout: never published to Maven Central -->
         <skipPublishing>true</skipPublishing>
-        <poi.version>5.2.5</poi.version>
+        <poi.version>5.4.0</poi.version>
         <pdfbox.version>2.0.30</pdfbox.version>
     </properties>
 
