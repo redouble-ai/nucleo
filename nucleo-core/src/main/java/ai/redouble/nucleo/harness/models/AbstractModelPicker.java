@@ -94,7 +94,20 @@ public abstract class AbstractModelPicker implements ModelPicker {
     private ModelSpec forRole(Seat seat, Situation situation) {
         ModelRole role = seat.role();
         ModelSpec entry = Models.findSpec(role.catalogId());
-        String why = entry == null ? "this deployment's catalog has no entry " + role.catalogId() : whyNot(entry, situation);
+        String why;
+        if (entry == null) {
+            why = "this deployment's catalog has no entry " + role.catalogId();
+        }
+        else if (entry.kind() != seat.kind()) {
+            // an entry the gate would refuse is an entry that cannot serve: the role falls back, it does not fail
+            why = "it is " + entry.kind() + " entry and the seat is " + seat.kind();
+        }
+        else if (seat.kind() == ModelKind.LLM && entry.getGrade() == null) {
+            why = "it carries no grade, and an entry on no rung serves no seat on the ladder";
+        }
+        else {
+            why = whyNot(entry, situation);
+        }
         if (why == null) {
             return entry;
         }

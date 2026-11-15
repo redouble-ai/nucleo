@@ -106,6 +106,26 @@ class ModelRoleTest {
                 "an entry the probe reports down");
     }
 
+    /**
+     * A role's entry the gate would refuse is an entry that cannot serve, and the request
+     * falls back to the role's grade like any other: an entry of another kind (an embeddings
+     * entry named by a role for chat work), and an entry on no rung of the ladder.
+     */
+    @Test
+    void anEntryOfAnotherKindOrOnNoRungFallsBackToTheRolesGrade() {
+        ModelSpec forEmbeddingsEntry = picker(spec -> true).provide(seat(IngestJob.class, new ModelRole("misnamed", "live-embed", Grade.SMALL)), situation());
+        assertEquals(ModelKind.LLM, forEmbeddingsEntry.kind(), "a chat seat is never served by the embeddings entry the role named");
+        assertEquals(Grade.SMALL, forEmbeddingsEntry.getGrade(), "it is served from the role's grade");
+        DefaultModelPickerTest.useEdited(root -> {
+            ObjectNode gradeless = DefaultModelPickerTest.entry("no-rung", "SMALL");
+            gradeless.remove("grade");
+            ((ArrayNode) root.get("models")).add(gradeless);
+        });
+        ModelSpec forGradeless = picker(spec -> true).provide(seat(IngestJob.class, new ModelRole("rungless", "no-rung", Grade.SMALL)), situation());
+        assertNotEquals("no-rung", forGradeless.getId(), "an entry on no rung serves no seat on the ladder");
+        assertEquals(Grade.SMALL, forGradeless.getGrade(), "the request is served from the role's grade");
+    }
+
     @Test
     void anEntryNotAcceptingADeclaredInputFallsBackToTheRolesGrade() {
         DefaultModelPickerTest.useEdited(root -> ((ArrayNode) root.get("models"))
