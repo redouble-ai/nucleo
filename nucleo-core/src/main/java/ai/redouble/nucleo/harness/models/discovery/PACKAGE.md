@@ -115,7 +115,10 @@ The deployment's file is the deployment's, and the discovery treats it that way:
   when the provider answered the request itself and its text names thinking or reasoning,
   the entry's own id set aside; a failure to authenticate or to reach the provider is never
   one. A model that refuses the reasoning effort one depth sends is asked at the next
-  before its mode is given up, and the report says which effort it took. An entry that
+  before its mode is given up. A model that reasons at another depth alone keeps its mode
+  and is reported as `BROKEN AT STANDARD`: the runtime sends the effort of each call's own
+  depth, so calls at the depth it refused will fail, and the entry is yours to disable or
+  to keep for the depths it takes. An entry that
   carries its own `thinking_budgets` loses them when its mode changes, since they were
   written for the mode it had, and the report says so. A model that does not take text and
   answer in text is not asked.

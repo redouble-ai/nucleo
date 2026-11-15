@@ -1537,7 +1537,8 @@ class CatalogDiscoveryTest {
         assertEquals("REASONING_EFFORT", written(result, "a-locked").get("thinking_mode").asText(), "a failure to authenticate is not a refusal of reasoning");
         assertEquals("REASONING_EFFORT", written(result, "a-high-only").get("thinking_mode").asText(), "refusing one effort is not refusing the mode");
         assertTrue(asked.containsAll(List.of("a-high-only STANDARD", "a-high-only THOROUGH")), asked.toString());
-        assertTrue(report.contains("REASONING_EFFORT confirmed; it refused the reasoning effort of STANDARD and took that of THOROUGH"), report);
+        assertTrue(report.contains("REASONING_EFFORT BROKEN AT STANDARD: the model refuses the reasoning effort STANDARD sends and reasons at the one THOROUGH sends: calls at STANDARD will fail"),
+                "a mode the model takes at another depth alone is reported as broken at the depth it refused, never as confirmed: " + report);
         JsonNode nowPlain = written(result, "a-budgeted");
         assertEquals("NONE", nowPlain.get("thinking_mode").asText(), "the client cannot ask for EXTENDED and the model refused an effort at every depth");
         assertFalse(nowPlain.has("thinking_budgets"), "the budgets written for the mode it had go with it, and the catalog still loads");

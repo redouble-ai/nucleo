@@ -1113,13 +1113,16 @@ public final class CatalogDiscovery {
                         refused = false;
                         break;
                     }
-                    String only = depth == depths.get(0) ? "" : "; it refused the reasoning effort of " + depths.get(0) + " and took that of " + depth;
+                    // a mode the model takes at another depth alone is no confirmation: the runtime sends
+                    // the effort of the call's own depth, and most work runs at the depth it refused
+                    String only = depth == depths.get(0) ? "" : "the model refuses the reasoning effort " + depths.get(0) + " sends and reasons at the one "
+                            + depth + " sends: calls at " + depths.get(0) + " will fail";
                     if (candidate != written) {
-                        thinkingModes.put(spec.getId(), name + "  " + written + " -> " + candidate + " (the model reasoned when asked as " + candidate + only + ")"
+                        thinkingModes.put(spec.getId(), name + "  " + written + " -> " + candidate + " (the model reasoned when asked as " + candidate + (only.isEmpty() ? "" : "; " + only) + ")"
                                 + setMode(entry, candidate));
                     }
                     else if (!only.isEmpty()) {
-                        thinkingModes.put(spec.getId(), name + "  " + written + " confirmed" + only);
+                        thinkingModes.put(spec.getId(), name + "  " + written + " BROKEN AT " + depths.get(0) + ": " + only);
                     }
                     return;
                 }
