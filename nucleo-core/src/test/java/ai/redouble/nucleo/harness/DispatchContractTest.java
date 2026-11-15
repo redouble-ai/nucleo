@@ -261,6 +261,47 @@ class DispatchContractTest {
         }
     }
 
+    /** A job cancelled from its own pre-execute hook: after the dispatcher's check at the start of the attempt, before the job is marked running. */
+    static class CancelledAtTheLastMomentJob extends AbstractJob<String> {
+        final AtomicBoolean executed = new AtomicBoolean(false);
+
+        CancelledAtTheLastMomentJob(Identifiable parent) {
+            super(parent, "last-moment-fixture");
+        }
+
+        @Override
+        public JobRequirements getRequirements() {
+            return new JobRequirements();
+        }
+
+        @Override
+        public void preExecute(JobContext<String> context) {
+            assertTrue(JobDispatcher.getInstance().cancel(getId(), "cancelled while starting"), "the job is found: it is among the running by now");
+        }
+
+        @Override
+        public String execute(JobResources resources, JobContext<String> context) {
+            executed.set(true);
+            return "ran";
+        }
+    }
+
+    /**
+     * A cancel that lands after the check at the start of an attempt and before the job is
+     * marked running ends the job as cancelled: it does not execute, and the outcome is the
+     * cancellation, never an error about an illegal state transition.
+     */
+    @Test
+    void aCancelBetweenTheStartCheckAndTheRunningMark_endsTheJobAsCancelled() throws Exception {
+        CancelledAtTheLastMomentJob job = new CancelledAtTheLastMomentJob(root());
+        JobHandle<String> handle = JobDispatcher.getInstance().submit(job);
+        ExecutionException ended = assertThrows(ExecutionException.class, () -> handle.get(10, java.util.concurrent.TimeUnit.SECONDS));
+        assertFalse(job.executed.get(), "a job cancelled before it was marked running never executes");
+        assertEquals(JobState.CANCELLED, handle.getContext().getState());
+        assertFalse(String.valueOf(ended.getCause()).contains("illegal state transition"), "the outcome is the cancellation: " + ended.getCause());
+        assertTrue(String.valueOf(ended.getCause()).toLowerCase().contains("cancel"), String.valueOf(ended.getCause()));
+    }
+
     @Test
     void tolerantDependentExecutesAndSeesTheFailureAsNull() throws Exception {
         JobHandle<String> producer = JobDispatcher.getInstance().submit(new ProducerJob(root(), true));
