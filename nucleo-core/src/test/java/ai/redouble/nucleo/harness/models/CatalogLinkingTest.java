@@ -17,11 +17,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * A catalog read by a classpath that lacks a provider it was written for. An entry whose
  * provider is absent is linked in memory to a present provider of its addressing (the record's
  * word, else its platform), keeping
- * its id and wire id, its own {@code spec_type} dropped so the new provider's defaults shape it;
+ * its id and wire id, and loading under its new provider's defaults;
  * an entry whose platform has no present provider is left out of the loaded catalog with the
  * pins naming it, while the raw view keeps both as written; an entry with no platform on record
- * loads as written when this classpath can build its spec type, and is left out the same way when
- * it cannot, while a present provider's entry naming an undeclared spec type is refused. Only the
+ * loads as written. Only the
  * runtime's own load warns about what it linked and left out; a view over the same file does not.
  * The fakes on this classpath are {@code fake-llm}, {@code fake-embeddings}
  * and {@code fake-decision}, all on the platform {@code fake}.
@@ -69,17 +68,17 @@ class CatalogLinkingTest {
     }
 
     @Test
-    void aLinkedEntryDropsItsOwnSpecTypeForTheNewProvidersDefaults() {
-        JsonModelsBackend catalog = catalog("{ \"provider_defaults\": { \"gone-llm\": { \"spec_type\": \"no-artifact-here\" } }, \"models\": ["
-                + llm("moved", "gone-llm", ", \"platform\": \"fake\", \"spec_type\": \"no-artifact-here\"") + "] }");
-        assertEquals(StandardModelSpec.class, catalog.spec("moved").getClass(),
-                "neither the entry's spec type nor its old provider's defaults apply once it is linked to fake-llm");
+    void aLinkedEntryLoadsUnderItsNewProvidersDefaults() {
+        JsonModelsBackend catalog = catalog("{ \"provider_defaults\": { \"gone-llm\": { \"cache_breakpoints\": 9 }, \"fake-llm\": { \"cache_breakpoints\": 2 } },"
+                + " \"models\": [" + llm("moved", "gone-llm", ", \"platform\": \"fake\"") + "] }");
+        assertEquals(2, catalog.spec("moved").getCacheBreakpoints(),
+                "its old provider's defaults do not apply once it is linked to fake-llm");
     }
 
     @Test
     void anEntryWhosePlatformHasNoProviderHereIsLeftOutWithItsPins() {
         JsonModelsBackend catalog = catalog("{ \"models\": [" + llm("kept", "fake-llm", "") + ","
-                + llm("stranded", "gone-llm", ", \"platform\": \"elsewhere\", \"spec_type\": \"no-artifact-here\"")
+                + llm("stranded", "gone-llm", ", \"platform\": \"elsewhere\"")
                 + "], \"pins\": { \"SMALL\": [\"stranded\", \"kept\"] } }");
         assertNull(catalog.spec("stranded"), "no provider of its platform here: not in the loaded catalog");
         assertEquals(List.of("kept"), catalog.all().stream().map(ModelSpec::getId).toList());
@@ -92,15 +91,6 @@ class CatalogLinkingTest {
     void anEntryWithNoPlatformOnRecordLoadsAsWritten() {
         JsonModelsBackend catalog = catalog("{ \"models\": [" + llm("unlinked", "gone-llm", "") + "] }");
         assertEquals("gone-llm", catalog.spec("unlinked").getProviderKey(), "nothing says where it came from, so nothing links it");
-    }
-
-    @Test
-    void anEntryWithNoPlatformOnRecordWhoseSpecTypeNoArtifactHereDeclaresIsLeftOut() {
-        JsonModelsBackend catalog = catalog("{ \"provider_defaults\": { \"gone-llm\": { \"spec_type\": \"no-artifact-here\" } }, \"models\": ["
-                + llm("kept", "fake-llm", "") + "," + llm("unbuildable", "gone-llm", "") + "], \"pins\": { \"SMALL\": [\"unbuildable\"] } }");
-        assertNull(catalog.spec("unbuildable"), "its provider is absent and its shape is declared by nothing here: nothing here can serve it");
-        assertTrue(catalog.rawEntries().containsKey("unbuildable"), "the raw view keeps it as written");
-        assertNull(catalog.pins().grades().get(Grade.SMALL), "an order left empty is dropped, and the grade falls to its cheapest entries");
     }
 
     /** A runtime catalog over {@code /models-linking.json}: one entry to link, one nothing here serves, pinned. */
@@ -132,12 +122,5 @@ class CatalogLinkingTest {
         finally {
             logger.detachAppender(appender);
         }
-    }
-
-    @Test
-    void aPresentProvidersEntryWithASpecTypeNoArtifactDeclaresIsStillRefused() {
-        UncorrectableRuntimeLLMException refusal = assertThrows(UncorrectableRuntimeLLMException.class,
-                () -> catalog("{ \"models\": [" + llm("misshapen", "fake-llm", ", \"spec_type\": \"no-artifact-here\"") + "] }"));
-        assertTrue(refusal.getMessage().contains("no-artifact-here"), refusal.getMessage());
     }
 }

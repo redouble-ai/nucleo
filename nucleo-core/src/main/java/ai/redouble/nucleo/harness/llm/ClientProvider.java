@@ -105,16 +105,6 @@ public interface ClientProvider<E extends Client> {
     }
 
     /**
-     * The concrete {@link ModelSpec} shapes this provider's catalog entries may name in their
-     * {@code spec_type}, keyed by that name. The catalog loader resolves a spec type through the
-     * discovered providers, so a provider artifact brings its own spec class along and the core
-     * knows none of them. Empty for a provider whose models are all standard.
-     */
-    default Map<String, Class<? extends AbstractModelSpec>> specTypes() {
-        return Map.of();
-    }
-
-    /**
      * The ways this provider's client can ask a model to think, in the order worth trying:
      * the {@link ThinkingMode}s it turns into request parameters, {@code NONE} left out. The
      * catalog discovery asks each entry to think in these ways and writes the one the model

@@ -54,7 +54,7 @@ class AnthropicBedrockProviderModuleTest {
     }
 
     @Test
-    void anthropicOnBedrockEntriesAreAnthropicSpecs() throws IOException {
+    void anthropicOnBedrockEntriesLoadWithTheirProvidersDefaults() throws IOException {
         // The suite's Models facade runs on the shared test fixture; this test's subject is
         // the shipped fragments themselves, loaded the way the runtime's fallback does.
         List<JsonModelsBackend.Layer> layers = new ArrayList<>();
@@ -65,8 +65,8 @@ class AnthropicBedrockProviderModuleTest {
             }
         }
         JsonModelsBackend fragmentCatalog = new JsonModelsBackend(layers);
-        assertInstanceOf(AnthropicModelSpec.class, fragmentCatalog.spec("claude-opus-5-bedrock"));
-        assertInstanceOf(AnthropicModelSpec.class, fragmentCatalog.spec("claude-opus-5-mantle"));
+        assertEquals(4, fragmentCatalog.spec("claude-opus-5-bedrock").getCacheBreakpoints(), "the runtime surface's defaults reach its entries");
+        assertEquals(4, fragmentCatalog.spec("claude-opus-5-mantle").getCacheBreakpoints(), "and Mantle's reach Mantle's");
     }
 
     @Test

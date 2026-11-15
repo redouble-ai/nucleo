@@ -344,8 +344,8 @@ public interface ModelSpec {
      *
      * <p>A model its provider bills by another rule (a higher rate above a prompt length, a
      * rate per deployment zone or service tier, a cache write priced by how long it is held)
-     * is priced by a spec class of its own that overrides this method, named by the entry's
-     * {@code spec_type}; the rates such a rule needs are the entry's
+     * is priced by a spec class of its own that overrides this method and claims the entry
+     * ({@link AbstractModelSpec#match()}); the rates such a rule needs are the entry's
      * {@link #getListedRates() listed rates} and any field of its own the class reads. The
      * usage is the provider's own ledger class, so a provider's spec can read a fact its
      * ledger carries beyond the four counts. The usage is always one call's and never a sum

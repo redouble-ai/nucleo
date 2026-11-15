@@ -16,8 +16,8 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Covers {@link ClientProviders} registry with the providers core's own test classpath holds,
  * the test-scope fakes declared in {@code META-INF/services}: service discovery registers a
- * provider and resolves its key, an unknown key fails loud, a spec type nobody declares
- * resolves to nothing, and the app-shared client accessors guard the LLM vs embeddings family.
+ * provider and resolves its key, an unknown key fails loud, and the app-shared client
+ * accessors guard the LLM vs embeddings family.
  * Each provider artifact proves its own discovery in its own tests.
  *
  * @author Andrey Santrosyan
@@ -49,12 +49,6 @@ class ClientProvidersTest {
     @Test
     void unknownKeyFailsLoud() {
         assertThrows(UncorrectableRuntimeLLMException.class, () -> ClientProviders.get("no-such-provider"));
-    }
-
-    @Test
-    void specTypesComeFromProvidersAndAnUndeclaredOneIsNull() {
-        assertNull(ClientProviders.specClass("anthropic"), "no provider artifact on core's classpath declares the anthropic spec type");
-        assertNull(ClientProviders.specClass("no-such-spec-type"));
     }
 
     @Test

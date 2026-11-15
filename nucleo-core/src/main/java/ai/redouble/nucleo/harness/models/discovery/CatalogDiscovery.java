@@ -23,6 +23,7 @@ import java.nio.file.*;
 import java.time.*;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.*;
 import java.util.function.*;
 
 /**
@@ -191,7 +192,19 @@ public final class CatalogDiscovery {
     /** What each in-scope provider listed, by key then wire id, for the whole run: a key that declines a model looks up its siblings here. */
     private final Map<String, Map<String, DiscoveredModel>> listedByKey = new LinkedHashMap<>();
     /** The ping that asks an entry to think, null for a run that does not test thinking modes; a test scripts it. */
-    BiFunction<ClientProvider<?>, ModelSpec, ProbeOutcome> thinkingPing;
+    ThinkingPing thinkingPing;
+
+    /** One call asking an entry to think at a depth: the entry's thinking mode sent as that depth sends it. A test scripts it. */
+    interface ThinkingPing {
+        ProbeOutcome ask(ClientProvider<?> provider, ModelSpec spec, Depth depth);
+    }
+
+    /** The depths a reasoning effort is tried at, in turn, when the model refuses the effort a depth sends: medium, then high, then low. */
+    private static final List<Depth> EFFORT_DEPTHS = List.of(Depth.STANDARD, Depth.THOROUGH, Depth.QUICK);
+    /** The thinking checks of the entries the deployment's file already holds, gathered during the walk and run together after it. */
+    private final List<Runnable> keptThinkingChecks = new ArrayList<>();
+    /** By provider key, how many thinking calls ran out of time: a provider that stopped answering is not asked for every entry it has. */
+    private final Map<String, AtomicInteger> thinkingTimeouts = new ConcurrentHashMap<>();
     /** By entry id, the report's line on an entry whose thinking mode the run corrected or could not check. */
     private final Map<String, String> thinkingModes = new ConcurrentSkipListMap<>();
     /** By entry id, the report's line on an entry whose prices are none of the standard prices its listing offered. */
@@ -483,7 +496,9 @@ public final class CatalogDiscovery {
                         // refuses it fails every call that asks it to think
                         ModelSpec kept = previous.specOf(entry);
                         if (envelope.permits(kept) && !(kept.requiresLax() && Settings.get(ModelSettings.class).mantleLaxProject == null)) {
-                            learnThinkingMode(provider, kept, entry, listed != null ? listed.get(wireBefore) : null);
+                            // run with the others once the walk is done: one call or two per entry, side by side
+                            DiscoveredModel stated = listed != null ? listed.get(wireBefore) : null;
+                            keptThinkingChecks.add(() -> learnThinkingMode(provider, kept, entry, stated));
                         }
                     }
                     entryReports.put(id, gone
@@ -585,6 +600,13 @@ public final class CatalogDiscovery {
             classifierFailure = classify(entries, fromPrevious, unknown, entryReports, classified, classifiedDropped, nonZdr, today);
         }
         String classifiedBy = classifierId;
+        // the kept entries' thinking modes, checked side by side: a person waits behind the run,
+        // and each check writes its own entry and nothing else
+        if (!keptThinkingChecks.isEmpty()) {
+            try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+                keptThinkingChecks.forEach(executor::submit);
+            }
+        }
         ObjectNode catalog = NucleoJsonSerializer.createObjectNode();
         catalog.set("provider_defaults", providerDefaults);
         ArrayNode models = catalog.putArray("models");
@@ -1035,15 +1057,26 @@ public final class CatalogDiscovery {
         if (spec.isEmbeddings() || spec.isDecision()) {
             return;
         }
+        // a model that does not take text and answer in text has no chat to think in: an image,
+        // speech or video entry is written for the record and never called
+        if (spec.getInputModalities() != null && spec.getOutputModalities() != null
+                && !(spec.getInputModalities().contains(DiscoveredModel.TEXT) && spec.getOutputModalities().contains(DiscoveredModel.TEXT))) {
+            return;
+        }
         ThinkingMode written = spec.getThinkingMode();
+        String name = String.format("%-28s", spec.getId());
         if (discovered != null && discovered.thinkingMode() != null) {
             if (discovered.thinkingMode() != written) {
-                entry.put("thinking_mode", discovered.thinkingMode().name());
-                thinkingModes.put(spec.getId(), String.format("%-28s", spec.getId()) + "  " + written + " -> " + discovered.thinkingMode() + " (stated by the provider's listing)");
+                thinkingModes.put(spec.getId(), name + "  " + written + " -> " + discovered.thinkingMode() + " (stated by the provider's listing)"
+                        + setMode(entry, discovered.thinkingMode()));
             }
             return;
         }
         if (thinkingPing == null || provider.thinkingModes().isEmpty()) {
+            return;
+        }
+        if (thinkingTimeouts.computeIfAbsent(provider.key(), k -> new AtomicInteger()).get() >= THINKING_TIMEOUTS_TOLERATED) {
+            thinkingModes.put(spec.getId(), name + "  " + written + " NOT CHECKED: " + provider.key() + " stopped answering thinking calls in this run");
             return;
         }
         // the mode as written first, where the client can send it, then the client's other ways of asking
@@ -1058,46 +1091,100 @@ public final class CatalogDiscovery {
         }
         // a way of asking the model accepted while its answer showed no reasoning: the request may have been ignored
         ThinkingMode unproven = null;
+        // read under the defaults of the file the entry came from, as its own spec was
+        JsonModelsBackend backend = previous != null && previous.rawEntries().containsKey(spec.getId()) ? previous : seed;
         for (ThinkingMode candidate : candidates) {
             ObjectNode trial = entry.deepCopy();
             trial.put("thinking_mode", candidate.name());
-            // read under the defaults of the file the entry came from, as its own spec was
-            JsonModelsBackend backend = previous != null && previous.rawEntries().containsKey(spec.getId()) ? previous : seed;
-            ProbeOutcome outcome = thinkingPing.apply(provider, backend.specOf(trial));
-            if (outcome.getStatus() == ProbeOutcome.Status.OK) {
-                // where the API refuses what a model does not support, its acceptance is the proof
-                if (!outcome.isReasoned() && !provider.refusesUnsupportedThinking()) {
-                    unproven = unproven == null ? candidate : unproven;
-                    continue;
-                }
-                if (candidate != written) {
-                    entry.put("thinking_mode", candidate.name());
-                    thinkingModes.put(spec.getId(), String.format("%-28s", spec.getId()) + "  " + written + " -> " + candidate + " (the model reasoned when asked as " + candidate + ")");
-                }
-                return;
+            if (candidate != written) {
+                // the entry's own budgets were written for the mode it has; another mode is tried on the framework's
+                trial.remove("thinking_budgets");
             }
-            String why = outcome.getErrorMessage();
-            String lower = why != null ? why.toLowerCase(Locale.ROOT) : "";
-            if (transientFailure(outcome) || !(lower.contains("thinking") || lower.contains("reasoning"))) {
-                thinkingModes.put(spec.getId(), String.format("%-28s", spec.getId()) + "  " + written + " NOT CHECKED: the call asking it to think as " + candidate
-                        + " failed for another reason: " + oneLine(why));
-                return;
+            ModelSpec asked = backend.specOf(trial);
+            // a reasoning effort has several values and a model may take only some: the next depth sends another
+            List<Depth> depths = candidate == ThinkingMode.REASONING_EFFORT ? EFFORT_DEPTHS : List.of(Depth.STANDARD);
+            boolean refused = false;
+            for (Depth depth : depths) {
+                ProbeOutcome outcome = thinkingPing.ask(provider, asked, depth);
+                if (outcome.getStatus() == ProbeOutcome.Status.OK) {
+                    // where the API refuses what a model does not support, its acceptance is the proof
+                    if (!outcome.isReasoned() && !provider.refusesUnsupportedThinking()) {
+                        unproven = unproven == null ? candidate : unproven;
+                        refused = false;
+                        break;
+                    }
+                    String only = depth == depths.get(0) ? "" : "; it refused the reasoning effort of " + depths.get(0) + " and took that of " + depth;
+                    if (candidate != written) {
+                        thinkingModes.put(spec.getId(), name + "  " + written + " -> " + candidate + " (the model reasoned when asked as " + candidate + only + ")"
+                                + setMode(entry, candidate));
+                    }
+                    else if (!only.isEmpty()) {
+                        thinkingModes.put(spec.getId(), name + "  " + written + " confirmed" + only);
+                    }
+                    return;
+                }
+                if (TimeoutException.class.getSimpleName().equals(outcome.getErrorClass())) {
+                    thinkingTimeouts.get(provider.key()).incrementAndGet();
+                }
+                if (!refusesThinking(outcome, asked)) {
+                    thinkingModes.put(spec.getId(), name + "  " + written + " NOT CHECKED: the call asking it to think as " + candidate
+                            + " failed for another reason: " + oneLine(outcome.getErrorMessage()));
+                    return;
+                }
+                refused = true;
             }
-        }
-        if (written == ThinkingMode.NONE) {
-            // asked every way the client can ask, and no answer showed reasoning: NONE is what the model is
-            return;
+            if (!refused) {
+                continue;
+            }
         }
         if (unproven == written) {
-            thinkingModes.put(spec.getId(), String.format("%-28s", spec.getId()) + "  " + written + " NOT CONFIRMED: the model accepted the request and its answer showed no reasoning");
+            thinkingModes.put(spec.getId(), name + "  " + written + " NOT CONFIRMED: the model accepted the request and its answer showed no reasoning");
             return;
         }
-        entry.put("thinking_mode", ThinkingMode.NONE.name());
+        if (written == ThinkingMode.NONE) {
+            // every way was refused: NONE is what the model is. A way that was accepted with no
+            // reasoning in the answer proves neither that it thinks nor that it does not
+            if (unproven != null) {
+                thinkingModes.put(spec.getId(), name + "  NONE NOT CONFIRMED: the model accepted a request to think as " + unproven + " and its answer showed no reasoning");
+            }
+            return;
+        }
         // a mode the client has no parameters for was never sent, whatever the entry said
         String ofWritten = candidates.contains(written) ? "the model refused " + written : "this provider's client cannot ask for " + written;
-        thinkingModes.put(spec.getId(), String.format("%-28s", spec.getId()) + "  " + written + " -> NONE (" + (unproven != null
+        thinkingModes.put(spec.getId(), name + "  " + written + " -> NONE (" + (unproven != null
                 ? ofWritten + ", and accepted " + unproven + " with no reasoning in its answer"
-                : candidates.contains(written) ? "the model refused every request to think" : ofWritten + ", and the model refused every way it can ask") + ")");
+                : candidates.contains(written) ? "the model refused every request to think" : ofWritten + ", and the model refused every way it can ask") + ")"
+                + setMode(entry, ThinkingMode.NONE));
+    }
+
+    /** How many thinking calls of one provider may run out of time before the run stops asking that provider. */
+    private static final int THINKING_TIMEOUTS_TOLERATED = 2;
+
+    /**
+     * Writes the entry's new thinking mode and removes its own {@code thinking_budgets}, which
+     * were written for the mode it had and which the catalog refuses under another: the
+     * entry rides the framework's budgets until a person writes a table for the new mode.
+     * Returns what the report adds about the table, nothing when the entry had none.
+     */
+    private static String setMode(ObjectNode entry, ThinkingMode mode) {
+        entry.put("thinking_mode", mode.name());
+        return entry.remove("thinking_budgets") != null ? "; its thinking_budgets, written for the mode it had, were removed" : "";
+    }
+
+    /**
+     * Whether a failed thinking call is the model refusing the way it was asked to think: an
+     * answer the provider gave to the request itself, never a failure to authenticate, to
+     * reach the provider or to be let through, whose text names thinking or reasoning. The
+     * entry's own id and wire id are taken out of the text first, because the runtime words
+     * a failure with the id in it and an id may contain either word.
+     */
+    private static boolean refusesThinking(ProbeOutcome outcome, ModelSpec spec) {
+        if (outcome.getClassification() != ProbeOutcome.Classification.OTHER || outcome.getErrorMessage() == null) {
+            return false;
+        }
+        String text = outcome.getErrorMessage().toLowerCase(Locale.ROOT)
+                .replace(spec.getId().toLowerCase(Locale.ROOT), "").replace(spec.getWireModelId().toLowerCase(Locale.ROOT), "");
+        return text.contains("thinking") || text.contains("reasoning");
     }
 
     private ProbeOutcome pingWithRetry(ClientProvider<?> provider, ModelSpec spec) {
@@ -1376,11 +1463,6 @@ public final class CatalogDiscovery {
         entry.put("id", newId);
         entry.put("wire_model_id", chosen.wireModelId());
         entry.put("provider_key", key);
-        // the spec shape is the key's, not the template's: keep it only where this key already uses it
-        if (entry.has("spec_type") && entries.values().stream().noneMatch(e -> key.equals(e.get("provider_key").asText())
-                && e.has("spec_type") && e.get("spec_type").asText().equals(entry.get("spec_type").asText()))) {
-            entry.remove("spec_type");
-        }
         entry.put("status", ModelStatus.DISABLED.name());
         entry.put("note", note);
         Double inputBefore = doubleOrNull(entry, "input_price_per_million");

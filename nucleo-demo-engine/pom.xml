@@ -74,9 +74,8 @@
             <artifactId>junit-jupiter-engine</artifactId>
             <scope>test</scope>
         </dependency>
-        <!-- A host supplies the provider artifacts; the catalog test needs them to resolve the
-             spec_type of the models its pinned fixture names, so they are on the test classpath
-             only -->
+        <!-- A host supplies the provider artifacts; the catalog test needs the providers of the
+             models its pinned fixture names, so they are on the test classpath only -->
         <dependency>
             <groupId>ai.redouble</groupId>
             <artifactId>nucleo-provider-anthropic</artifactId>

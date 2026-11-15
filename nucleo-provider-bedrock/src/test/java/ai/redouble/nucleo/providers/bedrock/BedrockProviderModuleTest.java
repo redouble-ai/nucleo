@@ -65,14 +65,13 @@ class BedrockProviderModuleTest {
     void aClaudeEntryOfTheAbsentRuntimeSurfaceLinksToConverseAndAMantleEntryIsUnavailable() {
         // written by a classpath that carried nucleo-provider-bedrock-anthropic, read by one that
         // does not (a native image): an entry of the Anthropic runtime surface names its model the
-        // way bedrock-runtime does, so it rides Converse, the provider there that serves every vendor,
-        // with no need of its Anthropic spec type; a Mantle entry's bare id is spelled for Mantle's
+        // way bedrock-runtime does, so it rides Converse, the provider there that serves every vendor;
+        // a Mantle entry's bare id is spelled for Mantle's
         // endpoint, which nothing in this artifact reaches, so it is left out
         String catalog = """
                 { "providers": { "anthropic-bedrock": { "platform": "bedrock", "addressing": "bedrock" },
                                  "anthropic-bedrock-mantle": { "platform": "bedrock", "addressing": "bedrock-mantle" },
                                  "bedrock-converse": { "platform": "bedrock", "addressing": "bedrock" } },
-                  "provider_defaults": { "anthropic-bedrock": { "spec_type": "anthropic" }, "anthropic-bedrock-mantle": { "spec_type": "anthropic" } },
                   "models": [
                     { "id": "claude-opus-5-bedrock", "identity": "opus-5", "grade": "XL", "provider_key": "anthropic-bedrock",
                       "platform": "bedrock", "wire_model_id": "us.anthropic.claude-opus-5", "max_context_tokens": 200000,

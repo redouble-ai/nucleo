@@ -1,0 +1,10 @@
+{
+  "models": [
+    { "id": "plain", "identity": "plain", "grade": "SMALL", "provider_key": "fake-llm", "platform": "fake", "wire_model_id": "wire-plain",
+      "max_context_tokens": 1000, "max_output_tokens": 100, "tpm": 5000, "mystery_rate": 3.5 },
+    { "id": "marked", "identity": "marked", "grade": "SMALL", "provider_key": "fake-llm", "wire_model_id": "wire-marked",
+      "max_context_tokens": 1000, "max_output_tokens": 100, "tpm": 5000, "test_marker": "x", "mystery_rate": 3.5 },
+    { "id": "owned", "identity": "owned", "grade": "SMALL", "provider_key": "fake-llm", "wire_model_id": "wire-owned",
+      "max_context_tokens": 1000, "max_output_tokens": 100, "tpm": 5000, "test_owned": true, "mystery_rate": 3.5 }
+  ]
+}

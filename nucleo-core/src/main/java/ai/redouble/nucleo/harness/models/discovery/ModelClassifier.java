@@ -90,8 +90,7 @@ public final class ModelClassifier {
             - id: short kebab-case, unique against the reference, suffixed the way the reference \
             suffixes that provider's channel.
             - A deployment or alias of a base model you recognize (the listing's note may name it) \
-            copies the base model's shape: grade, ceilings, vision, thinking mode, and the spec_type \
-            the reference entries of comparable models carry.
+            copies the base model's shape: grade, ceilings, vision and thinking mode.
             - Prices: the provider's published list prices where you know them, the platform's price \
             for the base model otherwise. A price is a number in a currency: state currency (for \
             example "USD"). Limits (tpm, rpm): the provider's published defaults, modest entry-tier \

@@ -14,13 +14,17 @@ import java.util.*;
  * backend (no-arg constructor + setters), {@code equals}/{@code hashCode} pinned to
  * {@link #getId() id}, and the thinking-budget scaling shared by every provider.
  *
- * <p>Provider subtypes add endpoint-specific fields.
- * The base carries everything cross-provider machinery reads.
+ * <p>A subclass adds the fields of its own that an entry may state, and a price rule of its
+ * own where its models are billed by one ({@link #cost}). The base carries everything
+ * cross-provider machinery reads. Which class an entry is loaded as is the classes' own
+ * answer ({@link #match()}); the catalog names none.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-06-21)
  */
 public abstract class AbstractModelSpec implements ModelSpec {
+    /** The answer of {@link #match()} from a class written for the entry it was loaded from. */
+    public static final int DEFINITELY_MINE = Integer.MAX_VALUE;
     private String id;
     private String identity;
     private String providerKey;
@@ -260,6 +264,20 @@ public abstract class AbstractModelSpec implements ModelSpec {
     public Map<String, Double> getListedRates() {return listedRates;}
 
     public void setListedRates(Map<String, Double> listedRates) {this.listedRates = listedRates;}
+
+    /**
+     * How well this class fits the entry it was loaded from, asked by the catalog loader of
+     * every spec class on the classpath before it keeps one: 0 when the entry is not this
+     * class's to load, a higher number for a narrower fit, {@link #DEFINITELY_MINE} when the
+     * class was written for this entry. The answer is read off the instance's own fields,
+     * which the entry has already filled.
+     *
+     * <p>A subclass answers {@code super.match() + 1} when its own check of the entry passes.
+     * On equal answers the loader keeps a superclass over its subclass, so a subclass that
+     * inherits this method, or returns its parent's answer, is never chosen: it has checked
+     * nothing of its own.
+     */
+    public abstract int match();
 
     @Override
     public boolean equals(Object o) {

@@ -146,22 +146,6 @@ public final class ClientProviders {
         return Collections.unmodifiableMap(PROVIDERS);
     }
 
-    /**
-     * The concrete spec class a catalog {@code spec_type} names, found among the discovered
-     * providers ({@link ClientProvider#specTypes()}); null when no provider on the classpath
-     * declares it, which the catalog loader reports as the missing provider artifact.
-     */
-    public static Class<? extends AbstractModelSpec> specClass(String specType) {
-        loadOnce();
-        for (ClientProvider<?> provider : PROVIDERS.values()) {
-            Class<? extends AbstractModelSpec> declared = provider.specTypes().get(specType);
-            if (declared != null) {
-                return declared;
-            }
-        }
-        return null;
-    }
-
     private static void loadOnce() {
         // Double-checked once: the flag flips only AFTER discovery completes, and a
         // concurrent first caller blocks on the monitor until it has - two jobs

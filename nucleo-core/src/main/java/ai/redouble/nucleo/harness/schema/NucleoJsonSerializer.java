@@ -14,6 +14,7 @@ import com.fasterxml.jackson.core.json.*;
 import com.fasterxml.jackson.databind.*;
 import com.fasterxml.jackson.databind.deser.*;
 import com.fasterxml.jackson.databind.exc.*;
+import com.fasterxml.jackson.databind.introspect.*;
 import com.fasterxml.jackson.databind.json.*;
 import com.fasterxml.jackson.databind.module.*;
 import com.fasterxml.jackson.databind.node.*;
@@ -295,6 +296,21 @@ public class NucleoJsonSerializer {
      */
     public static <T> T convert(Object value, Class<T> target) {
         return MAPPER.convertValue(value, target);
+    }
+
+    /**
+     * The names of the JSON properties {@link #convert} can set on a type, spelled the way
+     * this serializer reads them. A property of the source that is not among them is one the
+     * type has no field for, which {@code convert} passes over in silence.
+     */
+    public static Set<String> settableProperties(Class<?> type) {
+        Set<String> names = new LinkedHashSet<>();
+        for (BeanPropertyDefinition property : MAPPER.getDeserializationConfig().introspect(MAPPER.constructType(type)).findProperties()) {
+            if (property.couldDeserialize()) {
+                names.add(property.getName());
+            }
+        }
+        return names;
     }
 
     // --- Tree API ---

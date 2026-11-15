@@ -157,6 +157,7 @@ public class NucleoQuarkusProcessor {
     void services(BuildProducer<ServiceProviderBuildItem> services) {
         services.produce(ServiceProviderBuildItem.allProvidersFromClassPath("ai.redouble.nucleo.harness.llm.ClientProvider"));
         services.produce(ServiceProviderBuildItem.allProvidersFromClassPath("ai.redouble.nucleo.Settings"));
+        services.produce(ServiceProviderBuildItem.allProvidersFromClassPath("ai.redouble.nucleo.harness.models.AbstractModelSpec"));
         services.produce(ServiceProviderBuildItem.allProvidersFromClassPath("ai.redouble.nucleo.NucleoConfigurator"));
     }
 

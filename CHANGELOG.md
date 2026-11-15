@@ -5,6 +5,20 @@ group `ai.redouble`; a published version is never changed in place.
 
 ## Unreleased
 
+- The spec classes choose a catalog entry's class, and the catalog names none. An entry is
+  loaded into every spec class on the classpath, each answers `match()` (0 for an entry that
+  is not its own, a higher number for a narrower fit, `AbstractModelSpec.DEFINITELY_MINE`
+  for the entry it was written for), and the highest answer is kept; on equal answers a
+  superclass is kept over its subclass. So a spec class shipped after a catalog was written
+  takes the entries it recognizes without the file being touched. A class is found by
+  naming it in `META-INF/services/ai.redouble.nucleo.harness.models.AbstractModelSpec`. The
+  runtime's load warns once of the properties entries state that their class has no field
+  for. Breaking: `spec_type` is no longer read, and a catalog that states it is warned of
+  it as an unread property; `ClientProvider.specTypes()`, `ClientProviders.specClass` and
+  `AnthropicModelSpec` are removed, the Anthropic entries being standard ones; a subclass
+  of `AbstractModelSpec` has to implement `match()`; an entry with no platform on record
+  loads whatever its catalog said of its class.
+
 - An artifact a thinker's answer refers to in a text field is selected for every answer
   class. The references in the text were looked for in the answer's `toString()`, which for
   an answer class that does not override it holds no reference, so an artifact named in a

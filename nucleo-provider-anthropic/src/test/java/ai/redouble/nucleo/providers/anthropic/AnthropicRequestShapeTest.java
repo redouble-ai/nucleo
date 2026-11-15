@@ -288,7 +288,7 @@ public class AnthropicRequestShapeTest {
     /** An entry like the shipped ones in every respect a request reads, with its own count of cache breakpoints. */
     private static ModelSpec entryWithCacheBreakpoints(int cacheBreakpoints) {
         ModelSpec shipped = Models.spec("claude-haiku-4-5-direct");
-        AnthropicModelSpec spec = new AnthropicModelSpec();
+        StandardModelSpec spec = new StandardModelSpec();
         spec.setId("claude-test-" + cacheBreakpoints + "-breakpoints");
         spec.setIdentity(shipped.getIdentity());
         spec.setProviderKey(shipped.getProviderKey());

@@ -44,16 +44,21 @@ import java.util.stream.*;
  *
  * <p>Within a file, the {@code provider_defaults} object (per provider key) sits under each
  * entry of the {@code models} array, so an entry carries only what differs from its provider's
- * defaults. The explicit {@code spec_type} selects the concrete {@link ModelSpec} subtype,
- * hand-dispatched through {@link NucleoJsonSerializer#convert} (no Jackson subtype machinery),
+ * defaults. The catalog names no class: the entry is loaded into every spec class on the
+ * classpath ({@link SpecClasses}) and each is asked how well it fits
+ * ({@link AbstractModelSpec#match()}); the highest answer is kept, and on equal answers the
+ * class nearer to {@link AbstractModelSpec}, then the one whose name sorts first, so a
+ * superclass is kept over its subclass and the choice is the same on every start. The spec is
  * then validated fail-fast so a misspelled key throws at load rather than silently defaulting a
  * limit to zero. Field names are snake_case to match the framework serializer's naming strategy.
+ * A property an entry states that its class has no field for is named in one warning of the
+ * runtime's own load, unless the class answered {@link AbstractModelSpec#DEFINITELY_MINE}.
  *
  * <p>A written catalog records the providers it was written for, with their platform and
  * addressing, and each entry's platform ({@link ProviderLinks}). An entry whose provider this
  * classpath does not carry is linked, in memory and before its spec is built, to a provider here
  * of the same addressing; an entry nothing here can serve (no provider here of its addressing
- * fits, or it states no platform and no artifact here declares its spec type) is left out of the
+ * fits) is left out of the
  * loaded catalog, with any pin
  * naming it. Either way, and whenever the recorded providers differ from this classpath's, the
  * runtime's own load (the no-argument and named-file constructors) warns once per source, saying
@@ -73,8 +78,8 @@ public class JsonModelsBackend implements ModelsBackend {
     public static final String CLASSPATH_RESOURCE = "models.json";
     /** The fragment each provider artifact ships; every copy on the classpath loads when the deployment has no file of its own. */
     public static final String FRAGMENT_RESOURCE = "META-INF/nucleo/seed_models.json";
-    /** The one spec type the core defines; every other {@code spec_type} is declared by the provider artifact that serves it. */
-    private static final String STANDARD_SPEC_TYPE = "standard";
+    /** The properties of an entry the loader reads itself, which no spec class has a field for. */
+    private static final Set<String> LOADER_PROPERTIES = Set.of(ProviderLinks.PLATFORM);
 
     /** One catalog source: where it came from (for messages), its text, and whether it is a fragment. */
     public record Layer(String name, String json, boolean fragment) {}
@@ -85,6 +90,8 @@ public class JsonModelsBackend implements ModelsBackend {
     private final Map<String, ObjectNode> rawById = new LinkedHashMap<>();
     /** The provider defaults of every source, merged per provider key. */
     private final ObjectNode rawProviderDefaults = NucleoJsonSerializer.createObjectNode();
+    /** The spec classes an entry is offered to, in the order that settles equal answers. */
+    private final List<Class<? extends AbstractModelSpec>> specClasses = SpecClasses.find();
     private ObjectNode rawPins;
     /** The record of the providers the catalog was written for, as written, or null when it records none. */
     private JsonNode rawProviders;
@@ -283,6 +290,7 @@ public class JsonModelsBackend implements ModelsBackend {
             }
             List<String> linked = new ArrayList<>();
             List<String> left = new ArrayList<>();
+            Map<String, List<String>> unread = new TreeMap<>();
             JsonNode providerDefaults = root.get("provider_defaults");
             if (providerDefaults != null && providerDefaults.isObject()) {
                 providerDefaults.properties().forEach(field -> {
@@ -297,7 +305,7 @@ public class JsonModelsBackend implements ModelsBackend {
                 throw new UncorrectableRuntimeLLMException("Model catalog has no 'models' array: " + layer.name());
             }
             for (JsonNode modelNode : models) {
-                JsonNode linkedNode = link(modelNode, record, providerDefaults, loaded, linked, left);
+                JsonNode linkedNode = link(modelNode, record, loaded, linked, left);
                 if (linkedNode == null) {
                     // nothing here can serve it: this process leaves it out, and the
                     // discovery still carries it through as written
@@ -307,13 +315,26 @@ public class JsonModelsBackend implements ModelsBackend {
                     rawById.put(id, modelNode.deepCopy());
                     continue;
                 }
-                ModelSpec spec = buildSpec(linkedNode, providerDefaults);
+                AbstractModelSpec spec = buildSpec(linkedNode, providerDefaults);
                 claimId(origin, spec.getId(), layer);
                 index(spec);
                 rawById.put(spec.getId(), modelNode.deepCopy());
+                if (spec.match() != AbstractModelSpec.DEFINITELY_MINE) {
+                    Set<String> read = NucleoJsonSerializer.settableProperties(spec.getClass());
+                    merged(linkedNode, providerDefaults).fieldNames().forEachRemaining(property -> {
+                        if (!read.contains(property) && !LOADER_PROPERTIES.contains(property)) {
+                            unread.computeIfAbsent(property, p -> new ArrayList<>()).add(spec.getId());
+                        }
+                    });
+                }
             }
             if (announce) {
                 warnOnMismatch(layer, record, loaded, linked, left);
+                if (!unread.isEmpty()) {
+                    log.warn("Model catalog {} states properties that the spec class of their entry has no field for, by property: {}."
+                            + " Nothing reads them; a spec class that declares the field is chosen for those entries when it is on the classpath.",
+                            layer.name(), unread);
+                }
             }
             JsonNode pinsNode = root.get("pins");
             if (pinsNode != null) {
@@ -340,15 +361,12 @@ public class JsonModelsBackend implements ModelsBackend {
 
     /**
      * The entry as this process loads it: itself when its provider is here, or when it states
-     * no platform, its catalog records none for its provider, and its spec type is one this
-     * classpath can build (it loads as written, no picker lands on it, and a call to it names
-     * the missing provider); a copy naming the provider of its addressing that
-     * {@link ProviderLinks#resolve} picks, its own {@code spec_type} dropped so the new
-     * provider's defaults shape it; null when nothing here can serve it: no provider here of its
-     * addressing fits, or, with no platform on record, its spec type is declared by no artifact
-     * on this classpath.
+     * no platform and its catalog records none for its provider (it loads as written, no picker
+     * lands on it, and a call to it names the missing provider); a copy naming the provider of
+     * its addressing that {@link ProviderLinks#resolve} picks, which its new provider's defaults
+     * then shape; null when no provider here of its addressing fits, so nothing here can serve it.
      */
-    private static JsonNode link(JsonNode entry, JsonNode record, JsonNode providerDefaults, Map<String, ClientProvider<?>> loaded,
+    private static JsonNode link(JsonNode entry, JsonNode record, Map<String, ClientProvider<?>> loaded,
                                  List<String> linked, List<String> left) {
         JsonNode keyNode = entry.get("provider_key");
         JsonNode wireNode = entry.get("wire_model_id");
@@ -359,12 +377,7 @@ public class JsonModelsBackend implements ModelsBackend {
         String id = entry.path("id").asText();
         String platform = ProviderLinks.recordedPlatform(entry, key, record);
         if (platform == null) {
-            String specType = specTypeOf(entry, providerDefaults != null ? providerDefaults.get(key) : null);
-            if (STANDARD_SPEC_TYPE.equals(specType) || ClientProviders.specClass(specType) != null) {
-                return entry;
-            }
-            left.add(id + " (" + key + ", spec type " + specType + " declared by no artifact here)");
-            return null;
+            return entry;
         }
         String addressing = ProviderLinks.recordedAddressing(entry, key, record);
         ClientProvider<?> target = ProviderLinks.resolve(loaded, addressing, ModelKind.ofProviderKey(key), wireNode.asText());
@@ -374,7 +387,6 @@ public class JsonModelsBackend implements ModelsBackend {
         }
         ObjectNode relinked = ((ObjectNode) entry).deepCopy();
         relinked.put("provider_key", target.key());
-        relinked.remove("spec_type");
         linked.add(id + " (" + key + " -> " + target.key() + ")");
         return relinked;
     }
@@ -462,35 +474,38 @@ public class JsonModelsBackend implements ModelsBackend {
         return buildSpec(entry, rawProviderDefaults);
     }
 
-    /** The spec type an entry names: its own, else its provider defaults', else the standard one. */
-    private static String specTypeOf(JsonNode entry, JsonNode defaults) {
-        if (entry.has("spec_type")) {
-            return entry.get("spec_type").asText();
-        }
-        return defaults != null && defaults.has("spec_type") ? defaults.get("spec_type").asText() : STANDARD_SPEC_TYPE;
-    }
-
-    private ModelSpec buildSpec(JsonNode modelNode, JsonNode providerDefaults) {
+    /** The entry with its provider's defaults under it: what a spec class is loaded from. */
+    private static ObjectNode merged(JsonNode modelNode, JsonNode providerDefaults) {
         JsonNode providerKeyNode = modelNode.get("provider_key");
         if (providerKeyNode == null || providerKeyNode.asText().isBlank()) {
             throw new UncorrectableRuntimeLLMException("Model catalog entry missing provider_key: " + modelNode);
         }
-        String providerKey = providerKeyNode.asText();
         ObjectNode merged = NucleoJsonSerializer.createObjectNode();
-        JsonNode defaults = providerDefaults != null ? providerDefaults.get(providerKey) : null;
+        JsonNode defaults = providerDefaults != null ? providerDefaults.get(providerKeyNode.asText()) : null;
         if (defaults != null && defaults.isObject()) {
             merged.setAll((ObjectNode) defaults);
         }
         merged.setAll((ObjectNode) modelNode);
-        String specType = specTypeOf(modelNode, defaults);
-        Class<? extends AbstractModelSpec> specClass = STANDARD_SPEC_TYPE.equals(specType)
-                ? StandardModelSpec.class
-                : ClientProviders.specClass(specType);
-        if (specClass == null) {
-            throw new UncorrectableRuntimeLLMException("Unknown spec_type '" + specType + "' for model " + merged.get("id")
-                    + ": no provider artifact on the classpath declares it - add the provider that serves this model");
+        return merged;
+    }
+
+    /**
+     * The entry as the spec class that fits it best: every class is loaded from the entry and
+     * asked, and the first of the highest answer is kept. {@link SpecClasses} orders the
+     * classes so that the first is the one equal answers go to.
+     */
+    private AbstractModelSpec buildSpec(JsonNode modelNode, JsonNode providerDefaults) {
+        ObjectNode merged = merged(modelNode, providerDefaults);
+        AbstractModelSpec spec = null;
+        int best = 0;
+        for (Class<? extends AbstractModelSpec> specClass : specClasses) {
+            AbstractModelSpec candidate = NucleoJsonSerializer.convert(merged, specClass);
+            int match = candidate.match();
+            if (match > best) {
+                spec = candidate;
+                best = match;
+            }
         }
-        AbstractModelSpec spec = NucleoJsonSerializer.convert(merged, specClass);
         validate(spec, merged);
         return spec;
     }

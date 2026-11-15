@@ -39,12 +39,6 @@ public abstract class AnthropicProvider<E extends AnthropicSDKClient> extends Ab
         return client;
     }
 
-    /** Every Anthropic-served entry, direct or Bedrock-hosted, is an {@link AnthropicModelSpec}. */
-    @Override
-    public Map<String, Class<? extends AbstractModelSpec>> specTypes() {
-        return Map.of("anthropic", AnthropicModelSpec.class);
-    }
-
     /** Claude's counting rules, the same on every channel the Anthropic SDK reaches. */
     @Override
     public ContextEstimator contextEstimator(ModelSpec spec) {

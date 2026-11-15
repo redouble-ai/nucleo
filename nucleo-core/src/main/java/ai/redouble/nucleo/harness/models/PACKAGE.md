@@ -280,17 +280,51 @@ at their rates, output at the output price.
 Providers bill some models by rules those four numbers do not express: a higher rate for
 the whole call once the prompt passes a length, a rate per deployment zone or service tier,
 a cache write priced by how long it is held. Nucleo ships none of those rules. A spec class
-of your own states one by overriding `cost`:
+of your own states one by overriding `cost`, and claims the entries the rule is for by
+overriding `match`:
 
 ```java
 public class LongPromptSpec extends StandardModelSpec {
+    private Integer longPromptTokens;
+
+    public Integer getLongPromptTokens() {return longPromptTokens;}
+
+    public void setLongPromptTokens(Integer longPromptTokens) {this.longPromptTokens = longPromptTokens;}
+
+    @Override
+    public int match() {
+        return longPromptTokens != null ? super.match() + 1 : 0;
+    }
+
     @Override
     public Cost cost(TokenLedger usage) {
         Cost standard = super.cost(usage);
-        return usage.inputTokens() > 200_000 ? new Cost(standard.amount() * 2, standard.currency()) : standard;
+        return usage.inputTokens() > longPromptTokens ? new Cost(standard.amount() * 2, standard.currency()) : standard;
     }
 }
 ```
+
+The catalog names no class. Every entry is loaded into every spec class on the classpath,
+each class says how well it fits, and the best fit is kept:
+
+- `match()` is asked of an instance the entry has already filled, so a class answers from
+  its own fields. Above, an entry that states `long_prompt_tokens` is this class's, and any
+  other entry is not.
+- 0 means the entry is not this class's. `StandardModelSpec` answers 1 for every entry, so
+  an entry no class claims is a standard one. A subclass answers `super.match() + 1` when
+  its own check passes. `AbstractModelSpec.DEFINITELY_MINE` is the answer of a class written
+  for exactly this entry, and is kept over any other.
+- On equal answers the class with fewer classes between it and `AbstractModelSpec` is kept,
+  and of two at the same distance the one whose name sorts first. A superclass is therefore
+  kept over its subclass, and the choice is the same on every start. So a subclass that
+  overrides `cost` and not `match` is never chosen, and prices stay as they were.
+- A class is found by naming it in
+  `META-INF/services/ai.redouble.nucleo.harness.models.AbstractModelSpec`. It needs a public
+  constructor without arguments.
+- A property an entry states that its class has no field for is passed over, and the
+  runtime's load names it in one warning. That is how facts a provider adds wait in the
+  catalog for the class that reads them: the class ships later, and the entries become its
+  own without the catalog being touched.
 
 - The usage is one call's, never a sum of calls, because a provider applies its rule to a
   request. Totals are sums of costs.
@@ -299,8 +333,6 @@ public class LongPromptSpec extends StandardModelSpec {
 - The rates a rule needs are on the entry: `getListedRates()` returns every rate the
   provider's price list states for the model, by the name the provider gives the row, as
   the [discovery](discovery/PACKAGE.md) last read them; it is null for an entry with none.
-- An entry is served by the class its `spec_type` names, and a provider declares the classes
-  behind the names it serves in `ClientProvider.specTypes()`.
 
 ## How it works inside
 

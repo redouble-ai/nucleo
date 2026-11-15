@@ -138,8 +138,8 @@ class JsonModelsBackendTest {
 
     @Test
     void providerDefaultsMergeIntoEveryFamilyMember() {
-        // The Anthropic family constants (0.10/1.25 cache weights, 4 breakpoints, the typed spec
-        // subclass) live once in provider_defaults; every entry of every anthropic-* provider must
+        // The Anthropic family constants (0.10/1.25 cache weights, 4 breakpoints) live once in
+        // provider_defaults; every entry of every anthropic-* provider must
         // inherit them - a per-family fact, indifferent to which models the families carry.
         boolean anthropicSeen = false;
         for (ModelSpec spec : backend.all()) {
@@ -147,7 +147,6 @@ class JsonModelsBackendTest {
                 anthropicSeen = true;
                 assertEquals(0.10, spec.getCacheReadMultiplier(), 0.0001, spec.getId());
                 assertEquals(1.25, spec.getCacheWriteMultiplier(), 0.0001, spec.getId());
-                assertInstanceOf(AnthropicModelSpec.class, spec, spec.getId());
                 assertEquals(4, spec.getCacheBreakpoints(), spec.getId());
             }
         }

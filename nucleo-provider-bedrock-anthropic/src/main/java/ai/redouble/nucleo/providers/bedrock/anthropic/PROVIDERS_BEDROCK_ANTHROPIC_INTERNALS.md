@@ -18,8 +18,8 @@ report the same region as every Bedrock surface, and both serve Claude ids alone
 catalog entry whose runtime-surface provider is absent and whose model is Claude links to
 `anthropic-bedrock` before Converse, and to Converse when this artifact is absent. Mantle spells its
 ids for its own endpoint (`addressing` is `bedrock-mantle`, bare ids that `bedrock-runtime` refuses),
-so a Mantle entry links to the Mantle provider alone, and without this artifact it is unavailable. Their entries are `AnthropicModelSpec`s, the spec type the
-direct Anthropic provider declares. They list through the base's `BedrockDiscovery`: the runtime
+so a Mantle entry links to the Mantle provider alone, and without this artifact it is unavailable.
+They list through the base's `BedrockDiscovery`: the runtime
 surface for `anthropic-bedrock`, the Mantle listing for `anthropic-bedrock-mantle`.
 
 ## Mantle projects
@@ -35,13 +35,12 @@ account's retention setting.
 ## Catalog
 
 The artifact ships its own `META-INF/nucleo/seed_models.json` fragment: the Claude entries on the
-`bedrock` and `mantle` channels, with their `provider_defaults` (`spec_type: anthropic`, Anthropic's
-cache multipliers and breakpoints).
+`bedrock` and `mantle` channels, with their `provider_defaults` (Anthropic's cache multipliers and breakpoints).
 
 ## Tests
 
 `AnthropicBedrockProviderModuleTest` pins the two providers' discovery beside the base's and their
-fragment entries' spec type; `BedrockMantleWiringTest` the Mantle wiring. The base's pickers
+fragment entries' provider defaults; `BedrockMantleWiringTest` the Mantle wiring. The base's pickers
 (`BedrockOnlyModelPicker`, `ZdrOnlyModelPicker`) and the resolution gate are tested here too
 (`AbstractModelPickerTest`, `ModelResolutionGateTest`), because their substitution cases are between
 the two Claude routes this artifact adds.
