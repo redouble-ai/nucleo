@@ -1056,16 +1056,23 @@ public final class CatalogDiscovery {
      * same; only a provider whose API refuses what a model does not support
      * ({@link ClientProvider#refusesUnsupportedThinking}) makes the acceptance the proof. The
      * first way that is answered with reasoning is the entry's mode. A refusal that
-     * names thinking or reasoning moves on to the next way. When no way is answered with
-     * reasoning, an entry written {@code NONE} is right as it stands, an entry whose written
-     * way was accepted without reasoning keeps it and is reported as not confirmed, and an
-     * entry whose written way was refused becomes {@code NONE}. A failure that is transient,
-     * or that does not name thinking, teaches nothing: the entry keeps its mode and the
-     * report says it was not checked.
+     * names thinking or reasoning moves on to the next way; a reasoning effort is first tried
+     * at {@code STANDARD}, then {@code THOROUGH}, then {@code QUICK}, and an entry that
+     * reasons at another depth than {@code STANDARD} alone has the mode and is reported
+     * {@code BROKEN AT STANDARD}. When no way is answered with reasoning, an entry written
+     * {@code NONE} stands, reported {@code NOT CONFIRMED} when a request to think was accepted
+     * without reasoning; an entry whose written way was accepted without reasoning keeps it
+     * and is reported {@code NOT CONFIRMED}; and an entry whose written way was refused
+     * becomes {@code NONE}. A failure that is transient, or that does not name thinking,
+     * teaches nothing: the entry keeps its mode and the report says {@code NOT CHECKED}. A
+     * mode that changes removes the entry's own {@code thinking_budgets}. An embeddings or
+     * decision entry, and one that does not take and produce text, is not asked, and a
+     * provider whose thinking calls time out twice in a run is not asked again.
      *
      * <p>An open entry the deployment's file already holds is checked the same way on every
      * run, without a ping: its mode was inherited when it was added, and nothing else in the
-     * run would ever test it.
+     * run would ever test it. Those checks run side by side after the walk, and one that
+     * throws fails the run.
      */
     private void learnThinkingMode(ClientProvider<?> provider, ModelSpec spec, ObjectNode entry, DiscoveredModel discovered) {
         if (spec.isEmbeddings() || spec.isDecision()) {

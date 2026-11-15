@@ -39,7 +39,7 @@ validated before it is written, so a file the discovery writes always loads.
 The deployment's file is the deployment's, and the discovery treats it that way:
 
 - **Nothing you wrote is re-checked or rewritten, except a price the provider publishes and
-  a thinking mode the model refuses.**
+  a thinking mode the provider states or shows to be another.**
   An entry already in the file keeps its facts exactly as they are and is not pinged again.
   Your pins are kept and never moved. The thinking mode is described below. The other
   exception is a price: on Bedrock the discovery
@@ -99,24 +99,27 @@ The deployment's file is the deployment's, and the discovery treats it that way:
   accepted request proves nothing by itself, because a model or a host that ignores the
   parameter answers all the same; the one exception is Anthropic's API, which refuses a
   thinking type the model does not take, so there the acceptance is the proof. The first
-  way the model reasons in is the entry's mode, and an entry no way makes reason is `NONE`.
+  way the model reasons in is the entry's mode, and an entry whose written mode is refused
+  and that reasons in no other is `NONE`.
   The report's `THINKING MODES` block lists each corrected entry with the mode before and
   after, each entry whose written mode was accepted without any reasoning in the answer as
-  `NOT CONFIRMED`, and each entry whose thinking call failed for an unrelated reason as
-  `NOT CHECKED`. An open entry already in your file is checked the same way on every run,
-  without a ping and with nothing else of it touched.
+  `NOT CONFIRMED`, an entry written `NONE` that accepted a request to think without
+  reasoning as `NOT CONFIRMED` too, and each entry whose thinking call failed for an
+  unrelated reason as `NOT CHECKED`. An open entry already in your file is checked the
+  same way on every run, without a ping and with nothing else of it touched.
 - **What a run pays for**: the listings it has not seen, the classification of those that
   need one (below), one call per new entry, and the thinking check of every open chat
   entry, new or already in the file: one call where the model reasons as written, a few
-  where it does not. The checks of the entries already in the file run side by side. A
+  where it does not. The checks of the entries already in the file run side by side, and
+  one that fails with an error fails the run. A
   provider whose thinking calls run out of time twice is not asked for its remaining
   entries, which the report lists as `NOT CHECKED`.
 - **What the thinking check never does**: it reads a failure as a refusal of thinking only
   when the provider answered the request itself and its text names thinking or reasoning,
   the entry's own id set aside; a failure to authenticate or to reach the provider is never
   one. A model that refuses the reasoning effort one depth sends is asked at the next
-  before its mode is given up. A model that reasons at another depth alone keeps its mode
-  and is reported as `BROKEN AT STANDARD`: the runtime sends the effort of each call's own
+  before its mode is given up: at `STANDARD`, then `THOROUGH`, then `QUICK`. A model that
+  reasons at another depth alone keeps its mode and is reported as `BROKEN AT STANDARD`: the runtime sends the effort of each call's own
   depth, so calls at the depth it refused will fail, and the entry is yours to disable or
   to keep for the depths it takes. An entry that
   carries its own `thinking_budgets` loses them when its mode changes, since they were

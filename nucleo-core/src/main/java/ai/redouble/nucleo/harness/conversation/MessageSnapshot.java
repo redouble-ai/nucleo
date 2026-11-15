@@ -203,7 +203,11 @@ public class MessageSnapshot  {
      * {@link Cacheability#ALWAYS}: that value is only ever an engineer's explicit statement, and
      * a stored conversation holding many flagged messages must stay sendable. There is no
      * getter, so the boolean is never written again.
+     *
+     * @deprecated read only for conversations a release before 0.1.3 stored; removed no later
+     *             than 1.0, after which such a conversation loads with no cacheability stated
      */
+    @Deprecated(since = "0.1.3", forRemoval = true)
     public void setEnableCache(boolean enableCache) {
         if (enableCache) {
             this.cacheability = Cacheability.PREFERRED;

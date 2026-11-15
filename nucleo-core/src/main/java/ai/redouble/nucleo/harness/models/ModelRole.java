@@ -31,7 +31,7 @@ package ai.redouble.nucleo.harness.models;
  * passed over the same way, since an application ships to deployments whose catalogs it did
  * not write. The entry may be of any grade: the role chose it by measurement.
  *
- * @param name      what the log, the probe report and the call record show for the work
+ * @param name      what the log and the call record show for the work
  * @param catalogId the catalog id of the entry the role prefers
  * @param grade     the rung the picker starts from when the entry cannot serve, or {@link Grade#CEILING}
  * @author Andrey Santrosyan

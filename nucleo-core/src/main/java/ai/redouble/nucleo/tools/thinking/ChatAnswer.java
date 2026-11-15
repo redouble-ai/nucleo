@@ -55,7 +55,9 @@ public class ChatAnswer extends ThinkerOutput<SimpleReasoning> {
      *
      * <p>A message that holds no final answer (a turn that called tools, or one with no
      * reply object in it) reads as null. An answer stored as a plain string
-     * reads as an answer with that string as its {@code message_text} and no artifacts.
+     * reads as an answer with that string as its {@code message_text} and no artifacts. That
+     * reading is deprecated: it serves conversations a release before 0.1.3 stored, and is
+     * removed no later than 1.0, after which a plain-string answer is refused as unreadable.
      *
      * @param rawContent the stored assistant message, as the model wrote it
      * @param answerClass the chat's answer class
@@ -76,6 +78,7 @@ public class ChatAnswer extends ThinkerOutput<SimpleReasoning> {
         }
         A answer;
         if (written.isTextual()) {
+            // deprecated, removed no later than 1.0: the answer shape of releases before 0.1.3
             answer = NucleoJsonSerializer.convert(Map.of("message_text", written.asText()), answerClass);
         }
         else {

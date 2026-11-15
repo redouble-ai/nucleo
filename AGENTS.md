@@ -108,8 +108,8 @@ report begins at the line `Catalog discovery <timestamp>` and has these sections
   `OTHER`) and the provider's message; `UNVERIFIED` when the ping kept failing transiently, the
   entry is kept with its seed limits and a re-run later settles it; `SKIPPED` for a `DISABLED`
   or `DEPRECATED` entry, and for any entry the deployment's file already carries - the
-  discovery never re-evaluates what a person's file states, so those are kept as they were
-  and never pinged, and only the account's listing dropping a model flags it (`NOT_LISTED`); `OLDER` for an older version of a model the
+  discovery never re-evaluates what a person's file states beyond its thinking mode and a
+  price the provider lists, so those are kept as they were and never pinged, and only the account's listing dropping a model flags it (`NOT_LISTED`); `OLDER` for an older version of a model the
   account has newer, left out of a first pull; `NOT_LISTED` for an entry the account does not
   list on that provider (on Bedrock, model access not granted; on Anthropic and OpenAI, a key
   or organization without it; on Azure, a deployment deleted) - a seed entry is left out, and
@@ -137,13 +137,15 @@ report begins at the line `Catalog discovery <timestamp>` and has these sections
   as a new one's; `(list, unchanged)` confirms them. Bedrock and Azure AI Foundry entries
   also gain `listed_rates`, every rate the provider's public price list states for the model;
   nothing prices a call from them and they need no checking.
-- `THINKING MODES` names the new entries whose thinking mode the run corrected, from the
-  provider's listing or from the model's own answer to a request to think, with the mode
-  before and after; nothing to do for those. Every chat entry is asked to think on every
-  run, so an entry absent from the block was confirmed as written. A line reading
-  `NOT CHECKED` is an entry whose thinking call failed for an unrelated reason, and
-  `NOT CONFIRMED` one whose written mode was accepted with no reasoning in the answer: tell
-  the person, such an entry's mode is still the one it was written with.
+- `THINKING MODES` names the entries, new or already in the file, whose thinking mode the
+  run corrected, from the provider's listing or from the model's own answer to a request to
+  think, with the mode before and after; nothing to do for those. Every open chat entry is
+  asked to think on every run, so an entry absent from the block was confirmed as written. A
+  line reading `NOT CHECKED` is an entry whose thinking call failed for an unrelated reason,
+  and `NOT CONFIRMED` one whose request to think was accepted with no reasoning in the
+  answer: tell the person, such an entry's mode is the one it was written with. A line
+  reading `BROKEN AT STANDARD` is an entry that reasons at another depth alone: calls at
+  `STANDARD` will fail, and the entry is the person's to disable or keep.
 - `PRICES THAT ARE NONE OF THE LISTED ONES` names Azure AI Foundry entries whose typed price
   is the standard price of no deployment type. The run changed none of them. Show the person
   each line: the type of the deployment (Global or Data Zone, on the deployment's page in

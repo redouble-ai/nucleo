@@ -53,7 +53,7 @@ public final class CatalogPing {
     static final int PING_OUTPUT_BUDGET = 2048;
     /**
      * A question of a few steps: a model that can reason has something to reason about, and
-     * answers well inside the cap. A harder puzzle was tried and ran a reasoning model past it.
+     * answers well inside the cap. A harder puzzle runs a reasoning model past it.
      */
     static final String THINKING_PROMPT = "A train leaves at 9:40 and arrives at 13:05. On the way it stands for 7 minutes at one"
             + " station and 12 minutes at another. For how many minutes was it moving? Reply with the number alone.";
