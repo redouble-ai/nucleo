@@ -211,6 +211,56 @@ class DispatchContractTest {
         }
     }
 
+    /** A job that would take ten seconds, so one that ends early was stopped and did not finish. */
+    static class SlowJob extends AbstractJob<String> {
+        final AtomicBoolean finished = new AtomicBoolean(false);
+
+        SlowJob(Identifiable parent) {
+            super(parent, "slow-fixture");
+        }
+
+        @Override
+        public JobRequirements getRequirements() {
+            return new JobRequirements();
+        }
+
+        @Override
+        public String execute(JobResources resources, JobContext<String> context) throws InterruptedException {
+            Thread.sleep(10_000);
+            finished.set(true);
+            return "late";
+        }
+    }
+
+    /**
+     * A cancel reaches a job at every moment of its life, the moment it is starting included:
+     * handed to the executor and not yet registered as running by its own thread, where it is
+     * in no queue and not among the running jobs. Each job here is cancelled the instant it
+     * is submitted, so the cancel lands before, during or just after that moment; every one
+     * of them is found, none runs to its end, and each ends as cancelled.
+     */
+    @Test
+    void aJobCancelledTheInstantItIsSubmittedIsAlwaysFoundAndNeverRunsToItsEnd() throws Exception {
+        List<SlowJob> jobs = new ArrayList<>();
+        List<JobHandle<String>> handles = new ArrayList<>();
+        for (int i = 0; i < 300; i++) {
+            SlowJob job = new SlowJob(root());
+            JobHandle<String> handle = JobDispatcher.getInstance().submit(job);
+            assertTrue(JobDispatcher.getInstance().cancel(job.getId(), "cancelled at the door"),
+                    "job " + i + ": a job just submitted is live, so its cancel finds it");
+            jobs.add(job);
+            handles.add(handle);
+        }
+        long deadline = System.currentTimeMillis() + 5_000;
+        for (int i = 0; i < handles.size(); i++) {
+            JobHandle<String> handle = handles.get(i);
+            long wait = Math.max(1, deadline - System.currentTimeMillis());
+            assertThrows(Exception.class, () -> handle.get(wait, java.util.concurrent.TimeUnit.MILLISECONDS), "job " + i + " ends without an answer");
+            assertEquals(JobState.CANCELLED, handle.getContext().getState(), "job " + i + " ends as cancelled, well before its ten seconds");
+            assertFalse(jobs.get(i).finished.get(), "job " + i + " never ran to its end");
+        }
+    }
+
     @Test
     void tolerantDependentExecutesAndSeesTheFailureAsNull() throws Exception {
         JobHandle<String> producer = JobDispatcher.getInstance().submit(new ProducerJob(root(), true));

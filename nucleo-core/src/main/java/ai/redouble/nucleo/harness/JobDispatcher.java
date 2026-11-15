@@ -1044,6 +1044,15 @@ public enum JobDispatcher {
             }
         }
 
+        // A job that is starting is in neither queue and not yet among the running: it was
+        // handed to the executor, or polled off its queue, and its own thread has not
+        // registered it. Its context is live from the submit on, and a cancel set on it is
+        // what the job's thread meets before it executes anything.
+        JobContext<?> starting = liveJobs.get(jobId);
+        if (starting != null && !starting.getState().isTerminal()) {
+            starting.cancel(reason);
+            return true;
+        }
         return false;
     }
 
