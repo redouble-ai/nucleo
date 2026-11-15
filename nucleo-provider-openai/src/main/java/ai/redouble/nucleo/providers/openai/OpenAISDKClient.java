@@ -293,6 +293,9 @@ public class OpenAISDKClient extends AbstractOpenAIChatClient {
             // Read off the JSON form, where the count is found whether this SDK version models the field or not
             int cacheWriteTokens = ObjectMappers.jsonMapper().valueToTree(usage[0]).path("prompt_tokens_details").path("cache_write_tokens").asInt(0);
             response.setUsage(new OpenAITokenLedger(getModel(), promptTokens, cachedTokens, cacheWriteTokens, completionTokens));
+            // the same word the single-response path sets: the model reasoned when the usage counts reasoning tokens
+            com.fasterxml.jackson.databind.JsonNode reasoningTokens = ObjectMappers.jsonMapper().valueToTree(usage[0]).path("completion_tokens_details").path("reasoning_tokens");
+            response.setReasoned(reasoningTokens.isNumber() ? reasoningTokens.asInt() > 0 : null);
         }
         response.setStopReason(LLMStopReason.from(finishReason[0]));
     }

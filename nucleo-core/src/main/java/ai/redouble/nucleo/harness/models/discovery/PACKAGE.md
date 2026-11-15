@@ -105,8 +105,20 @@ The deployment's file is the deployment's, and the discovery treats it that way:
   `NOT CONFIRMED`, and each entry whose thinking call failed for an unrelated reason as
   `NOT CHECKED`. An open entry already in your file is checked the same way on every run,
   without a ping and with nothing else of it touched.
-- **A run pays only for what is new**: the listings it has not seen, the classification of
-  those that need one (below), and one call per new entry.
+- **What a run pays for**: the listings it has not seen, the classification of those that
+  need one (below), one call per new entry, and the thinking check of every open chat
+  entry, new or already in the file: one call where the model reasons as written, a few
+  where it does not. The checks of the entries already in the file run side by side. A
+  provider whose thinking calls run out of time twice is not asked for its remaining
+  entries, which the report lists as `NOT CHECKED`.
+- **What the thinking check never does**: it reads a failure as a refusal of thinking only
+  when the provider answered the request itself and its text names thinking or reasoning,
+  the entry's own id set aside; a failure to authenticate or to reach the provider is never
+  one. A model that refuses the reasoning effort one depth sends is asked at the next
+  before its mode is given up, and the report says which effort it took. An entry that
+  carries its own `thinking_budgets` loses them when its mode changes, since they were
+  written for the mode it had, and the report says so. A model that does not take text and
+  answer in text is not asked.
 
 A listed model with no older relative in the catalog is written, where it can be, by the
 strongest model the run can call, under strict checks: the proposal must name a model the

@@ -67,20 +67,24 @@ public final class CatalogPing {
     }
 
     /**
-     * The ping asked to think: one call at {@code Depth.STANDARD}, where a chat entry's
-     * thinking mode is sent as an application's call would send it, with a question that
+     * The ping asked to think: one call at the depth given, {@code Depth.STANDARD} first and
+     * another depth where a model refuses the reasoning effort that one sends, where a chat
+     * entry's thinking mode is sent as an application's call would send it, with a question that
      * takes a few steps to answer, so that a model that can reason does. The plain ping runs
      * with thinking off, so it answers alike whatever mode the entry states; this one is
      * refused by a model that does not think the way the entry says, and its outcome says
      * whether the answer carried reasoning ({@link ProbeOutcome#isReasoned()}). Never throws.
      */
-    public static ProbeOutcome thinkingPing(ClientProvider<?> provider, ModelSpec spec) {
+    public static ProbeOutcome thinkingPing(ClientProvider<?> provider, ModelSpec spec, Depth depth) {
+        if (depth == Depth.IMMEDIATE) {
+            throw new IllegalArgumentException("a thinking ping asks a model to think, and IMMEDIATE is the depth that does not");
+        }
         ProbeOutcome outcome = new ProbeOutcome();
         outcome.setSpecId(spec.getId());
         outcome.setProvider(spec.getProviderKey());
         outcome.setProbedAt(Instant.now());
         long start = System.currentTimeMillis();
-        pingModel(provider, spec, outcome, PING_CAP, Depth.STANDARD);
+        pingModel(provider, spec, outcome, PING_CAP, depth);
         outcome.setLatencyMs(System.currentTimeMillis() - start);
         return outcome;
     }

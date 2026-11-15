@@ -507,8 +507,8 @@ public final class CatalogDiscovery {
                                     "the account no longer lists it; kept for the runs it served, status set to UNLISTED, not served until listed again", false)
                             : new EntryReport(id, key, Verdict.SKIPPED, true, true,
                                     null, tpmBefore, tpmBefore, rpmBefore, rpmBefore, priceChange(inputBefore, outputBefore, entry, priced), wireBefore, wireBefore,
-                                    priced ? "already in the deployment's file; not re-evaluated, its prices from the provider's price list"
-                                           : "already in the deployment's file; kept as it was, not re-evaluated", false));
+                                    priced ? "already in the deployment's file; not re-evaluated beyond its thinking mode, its prices from the provider's price list"
+                                           : "already in the deployment's file; not re-evaluated beyond its thinking mode", false));
                     continue;
                 }
                 DiscoveredModel discovered = listed != null ? listed.get(wireBefore) : null;
