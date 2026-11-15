@@ -150,11 +150,15 @@ public final class CatalogDiscovery {
      * {@code pricesThatAreNoOption} lists, one line each, the entries whose prices are none of
      * the standard prices the provider's list states for the model, where the listing could
      * not say which applies; the run left those entries' prices as they were.
+     * {@code thinkingModes} lists, one line each, the entries whose thinking mode the run set
+     * from the provider's listing or from the model's own answer to a request to think, with
+     * the mode before and after, and the entries whose mode it could not check.
      */
     public record Result(ObjectNode catalog, String report, List<ProviderReport> providers, List<EntryReport> entries,
                          Map<String, List<DiscoveredModel>> unknown, List<String> newerThanPinned, List<String> olderLeftOut,
                          List<String> unserved, List<String> nonZdr, String previousSource, String classifiedBy, List<String> classified,
-                         List<String> classifiedDropped, String classifierFailure, List<String> pricesThatAreNoOption) {
+                         List<String> classifiedDropped, String classifierFailure, List<String> pricesThatAreNoOption,
+                         List<String> thinkingModes) {
         /** True when at least one provider was configured, so there was something to write. */
         public boolean anythingConfigured() {
             return providers.stream().anyMatch(p -> p.status() != ProviderStatus.NOT_CONFIGURED && p.status() != ProviderStatus.NOT_ON_CLASSPATH);
@@ -186,6 +190,10 @@ public final class CatalogDiscovery {
     private String classifierId;
     /** What each in-scope provider listed, by key then wire id, for the whole run: a key that declines a model looks up its siblings here. */
     private final Map<String, Map<String, DiscoveredModel>> listedByKey = new LinkedHashMap<>();
+    /** The ping that asks an entry to think, null for a run that does not test thinking modes; a test scripts it. */
+    BiFunction<ClientProvider<?>, ModelSpec, ProbeOutcome> thinkingPing;
+    /** By entry id, the report's line on an entry whose thinking mode the run corrected or could not check. */
+    private final Map<String, String> thinkingModes = new ConcurrentSkipListMap<>();
     /** By entry id, the report's line on an entry whose prices are none of the standard prices its listing offered. */
     private final Map<String, String> pricesThatAreNoOption = new LinkedHashMap<>();
     /** The provider defaults the written catalog carries: the seed's, with the previous file's laid over them. */
@@ -257,9 +265,11 @@ public final class CatalogDiscovery {
      * as credentials arrive, paying only for what changed. Null means every provider.
      */
     public static Result run(boolean includeOlder, Set<String> scope) {
-        return new CatalogDiscovery(JsonModelsBackend.shipped(), JsonModelsBackend.deploymentFile(),
+        CatalogDiscovery discovery = new CatalogDiscovery(JsonModelsBackend.shipped(), JsonModelsBackend.deploymentFile(),
                 ClientProviders.all(), CatalogPing::ping, PING_RETRY_DELAY, includeOlder, scope,
-                ModelClassifier::call, JobDispatcher.getInstance().getComplianceEnvelope()).discover();
+                ModelClassifier::call, JobDispatcher.getInstance().getComplianceEnvelope());
+        discovery.thinkingPing = CatalogPing::thinkingPing;
+        return discovery.discover();
     }
 
     /** The envelope a discovery process runs under: every posture permitted, the default with its one knob open. */
@@ -595,10 +605,17 @@ public final class CatalogDiscovery {
                 noOption.add(line);
             }
         }
+        List<String> thinking = new ArrayList<>();
+        for (JsonNode model : catalog.get("models")) {
+            String line = thinkingModes.get(model.get("id").asText());
+            if (line != null) {
+                thinking.add(line);
+            }
+        }
         Result result = new Result(catalog, null, providerReports, ordered, unknown, newerThanPinned, olderLeftOut, unserved, nonZdr,
-                previousSource, classifiedBy, classified, classifiedDropped, classifierFailure, noOption);
+                previousSource, classifiedBy, classified, classifiedDropped, classifierFailure, noOption, thinking);
         return new Result(catalog, render(result), providerReports, ordered, unknown, newerThanPinned, olderLeftOut, unserved, nonZdr,
-                previousSource, classifiedBy, classified, classifiedDropped, classifierFailure, noOption);
+                previousSource, classifiedBy, classified, classifiedDropped, classifierFailure, noOption, thinking);
     }
 
     /**
@@ -972,12 +989,65 @@ public final class CatalogDiscovery {
         ProbeOutcome outcome = pingWithRetry(provider, spec);
         if (outcome.getStatus() == ProbeOutcome.Status.OK) {
             apply(entry, discovered, outcome);
+            learnThinkingMode(provider, spec, entry, discovered);
             return new Pinged(outcome, Verdict.REACHABLE);
         }
         if (outcome.getErrorMessage() != null && outcome.getErrorMessage().contains(ZERO_RETENTION_REFUSAL)) {
             return new Pinged(outcome, Verdict.NON_ZDR);
         }
         return new Pinged(outcome, transientFailure(outcome) ? Verdict.UNVERIFIED : Verdict.UNREACHABLE);
+    }
+
+    /**
+     * Sets a pinged entry's thinking mode to what its provider says or shows, because the mode
+     * it arrived with is an older model's or the classifier's guess, and the ping, which runs
+     * with thinking off, answers alike whatever the mode. Where the listing states the mode,
+     * that is the entry's. Otherwise an entry written {@code ADAPTIVE} or {@code EXTENDED},
+     * the two modes that send nothing at the ping's depth, is asked to think as written
+     * ({@link CatalogPing#thinkingPing}): an answer confirms the mode; a refusal that names
+     * thinking moves on to the other of the two, and to {@code NONE} when the model refuses
+     * both. A failure that is transient, or that does not name thinking, teaches nothing and
+     * the entry keeps its mode, the report saying it was not checked. A
+     * {@code REASONING_EFFORT} entry needs no second call: it reasons at the ping's depth
+     * too, so the ping has already sent its mode. An entry written {@code NONE} is not asked,
+     * since a model that ignores a request to think would read as accepting it.
+     */
+    private void learnThinkingMode(ClientProvider<?> provider, ModelSpec spec, ObjectNode entry, DiscoveredModel discovered) {
+        if (spec.isEmbeddings() || spec.isDecision()) {
+            return;
+        }
+        ThinkingMode written = spec.getThinkingMode();
+        if (discovered != null && discovered.thinkingMode() != null) {
+            if (discovered.thinkingMode() != written) {
+                entry.put("thinking_mode", discovered.thinkingMode().name());
+                thinkingModes.put(spec.getId(), String.format("%-28s", spec.getId()) + "  " + written + " -> " + discovered.thinkingMode() + " (stated by the provider's listing)");
+            }
+            return;
+        }
+        if (thinkingPing == null || (written != ThinkingMode.ADAPTIVE && written != ThinkingMode.EXTENDED)) {
+            return;
+        }
+        ThinkingMode other = written == ThinkingMode.ADAPTIVE ? ThinkingMode.EXTENDED : ThinkingMode.ADAPTIVE;
+        for (ThinkingMode candidate : List.of(written, other)) {
+            ObjectNode trial = entry.deepCopy();
+            trial.put("thinking_mode", candidate.name());
+            ProbeOutcome outcome = thinkingPing.apply(provider, seed.specOf(trial));
+            if (outcome.getStatus() == ProbeOutcome.Status.OK) {
+                if (candidate != written) {
+                    entry.put("thinking_mode", candidate.name());
+                    thinkingModes.put(spec.getId(), String.format("%-28s", spec.getId()) + "  " + written + " -> " + candidate + " (the model refused " + written + " and accepted " + candidate + ")");
+                }
+                return;
+            }
+            String why = outcome.getErrorMessage();
+            if (transientFailure(outcome) || why == null || !why.toLowerCase(Locale.ROOT).contains("thinking")) {
+                thinkingModes.put(spec.getId(), String.format("%-28s", spec.getId()) + "  " + written + " NOT CHECKED: the call asking it to think as " + candidate
+                        + " failed for another reason: " + oneLine(why));
+                return;
+            }
+        }
+        entry.put("thinking_mode", ThinkingMode.NONE.name());
+        thinkingModes.put(spec.getId(), String.format("%-28s", spec.getId()) + "  " + written + " -> NONE (the model refused every request to think)");
     }
 
     private ProbeOutcome pingWithRetry(ClientProvider<?> provider, ModelSpec spec) {
@@ -1569,6 +1639,12 @@ public final class CatalogDiscovery {
                             e == null ? "NOT IN THE CATALOG" : e.verdict() + (e.kept() ? "" : " (left out)")));
                 }
             });
+        }
+        if (!result.thinkingModes().isEmpty()) {
+            sb.append("THINKING MODES (set from what the provider states or the model accepted, in place of the mode inherited from an older model):\n");
+            for (String line : result.thinkingModes()) {
+                sb.append("  ").append(line).append('\n');
+            }
         }
         if (!result.pricesThatAreNoOption().isEmpty()) {
             sb.append("PRICES THAT ARE NONE OF THE LISTED ONES (the entries are unchanged; the provider prices the model per deployment type,"

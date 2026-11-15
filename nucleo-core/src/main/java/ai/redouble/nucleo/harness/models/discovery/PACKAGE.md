@@ -85,6 +85,19 @@ The deployment's file is the deployment's, and the discovery treats it that way:
   price list prices it, the prices are the list's and the note names the rest to verify. A
   new version of a family you disabled arrives disabled. A newer version of a pinned model is
   added and announced at the top of the report, and the pin stays where you put it.
+- **A new entry's thinking mode is learned from the provider.** A new model arrives with
+  the thinking mode of its older relative, and providers change how their models think from
+  one generation to the next, so the discovery checks it. Where the provider's listing
+  states how a model thinks, as Anthropic's does, that is the entry's mode. Otherwise an
+  entry that arrived as `ADAPTIVE` or `EXTENDED` gets one more call after its ping, asking
+  it to think as written: the model's answer confirms the mode, a refusal of the thinking
+  parameters moves the entry to the other of the two, and to `NONE` when it refuses both.
+  The report lists each corrected entry under `THINKING MODES` with the mode before and
+  after, and each entry whose thinking call failed for another reason as `NOT CHECKED`. A
+  `REASONING_EFFORT` entry needs no second call, because its ping already reasons. An entry
+  that arrived as `NONE` is not asked, since a model that ignores a request to think would
+  look as if it had accepted it; where the listing does not state the mode, check such an
+  entry yourself. An entry already in your file is not checked, like everything else in it.
 - **A run pays only for what is new**: the listings it has not seen, the classification of
   those that need one (below), and one call per new entry.
 

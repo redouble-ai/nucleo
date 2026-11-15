@@ -135,7 +135,7 @@ public final class BedrockDiscovery {
         if (summary == null) {
             BedrockPriceList.Pricing pricing = prices.pricesOf(wireId, null, null, false);
             return new DiscoveredModel(wireId, null, null, null, invokable, null, null, null, null,
-                    "a profile with no foundation model behind it in this region" + priceNote(pricing), pricing.prices(), pricing.listedRates(), null);
+                    "a profile with no foundation model behind it in this region" + priceNote(pricing), pricing.prices(), pricing.listedRates(), null, null);
         }
         List<String> inputs = summary.hasInputModalities() ? summary.inputModalitiesAsStrings() : null;
         List<String> outputs = summary.hasOutputModalities() ? summary.outputModalitiesAsStrings() : null;
@@ -150,7 +150,7 @@ public final class BedrockDiscovery {
                 + (summary.modelLifecycle() != null && summary.modelLifecycle().status() != null ? " [" + summary.modelLifecycle().statusAsString() + "]" : "")
                 + (quotas.failure() != null ? " (quotas unreadable: " + quotas.failure() + ")" : tpm == null ? " (no quota matched)" : "")
                 + priceNote(pricing);
-        return new DiscoveredModel(wireId, inputs, outputs, vision, invokable, retired, null, tpm, rpm, note, pricing.prices(), pricing.listedRates(), null);
+        return new DiscoveredModel(wireId, inputs, outputs, vision, invokable, retired, null, tpm, rpm, note, pricing.prices(), pricing.listedRates(), null, null);
     }
 
     /**
@@ -322,7 +322,7 @@ public final class BedrockDiscovery {
             BedrockPriceList.Pricing pricing = prices.pricesOf(id, summary != null ? summary.providerName() : null,
                     summary != null ? summary.modelName() : null, true);
             note = (note + priceNote(pricing)).trim();
-            models.add(new DiscoveredModel(id, null, null, null, null, null, requiresLax, null, null, note.isEmpty() ? null : note, pricing.prices(), pricing.listedRates(), null));
+            models.add(new DiscoveredModel(id, null, null, null, null, null, requiresLax, null, null, note.isEmpty() ? null : note, pricing.prices(), pricing.listedRates(), null, null));
         }
         return models;
     }

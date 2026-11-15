@@ -5,6 +5,14 @@ group `ai.redouble`; a published version is never changed in place.
 
 ## Unreleased
 
+- The discovery learns a new entry's thinking mode from the provider. A new model was
+  written with the mode of its older relative and pinged with thinking off, so
+  `claude-haiku-5-5` inherited `EXTENDED`, was reported reachable, and refused the first
+  call that asked it to think. The mode is now the one the provider's listing states
+  (Anthropic's does), else the one the model accepts on a call that asks it to think; the
+  report lists each correction under `THINKING MODES`. Breaking: `DiscoveredModel` gains
+  the component `thinkingMode` and `CatalogDiscovery.Result` the component `thinkingModes`
+  ([#28](https://github.com/redouble-ai/nucleo/issues/28)).
 - A model's spec computes what a call on it costs: `ModelSpec.cost(TokenLedger)`, a default
   method holding the rule every shipped spec prices by. A spec class of your own overrides
   it to price a model its provider bills by another rule (a long-context rate, a deployment

@@ -36,12 +36,13 @@ import java.util.*;
  * @param prices           what the provider's published price list charges for a call on this id, null when the provider publishes no list or the list has no readable row for the id, which the note then says
  * @param listedRates      every rate per token the provider's published price list states for this model, the rows {@code prices} was read from and the ones it leaves out, null when the provider publishes no list or the list has no row for the model
  * @param priceOptions     the standard prices the provider's price list states for this model where the listing cannot say which of them the id is billed at (Azure prices a model per deployment type and lists a deployment without its type), null when {@code prices} is stated or the list states none; the discovery writes none of them and reports an entry whose typed prices are none of them
+ * @param thinkingMode     how the model thinks, as the listing states it (Anthropic's lists each model's thinking types), null when the listing does not say and the discovery has to ask the model itself
  * @author Andrey Santrosyan
  * @since 0.1 (2026-09-12)
  */
 public record DiscoveredModel(String wireModelId, List<String> inputModalities, List<String> outputModalities, Boolean supportsVision,
                               Boolean onDemand, Boolean retired, Boolean requiresLax, Integer tpm, Integer rpm, String note, Prices prices,
-                              ListedRates listedRates, List<PriceOption> priceOptions) {
+                              ListedRates listedRates, List<PriceOption> priceOptions, ThinkingMode thinkingMode) {
     /** The modality word every LLM client speaks, as providers spell it. */
     public static final String TEXT = "TEXT";
     /** The modality word of an embeddings model's output, as providers spell it. */
@@ -118,12 +119,17 @@ public record DiscoveredModel(String wireModelId, List<String> inputModalities, 
 
     /** A listing that carried nothing but the id. */
     public static DiscoveredModel of(String wireModelId) {
-        return new DiscoveredModel(wireModelId, null, null, null, null, null, null, null, null, null, null, null, null);
+        return new DiscoveredModel(wireModelId, null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     /** A listing that carried the id and a note. */
     public static DiscoveredModel of(String wireModelId, String note) {
-        return new DiscoveredModel(wireModelId, null, null, null, null, null, null, null, null, note, null, null, null);
+        return new DiscoveredModel(wireModelId, null, null, null, null, null, null, null, null, note, null, null, null, null);
+    }
+
+    /** A listing that carried the id, a note and how the model thinks. */
+    public static DiscoveredModel of(String wireModelId, String note, ThinkingMode thinkingMode) {
+        return new DiscoveredModel(wireModelId, null, null, null, null, null, null, null, null, note, null, null, null, thinkingMode);
     }
 
     /**

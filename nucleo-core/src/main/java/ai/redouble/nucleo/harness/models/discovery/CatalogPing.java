@@ -60,6 +60,23 @@ public final class CatalogPing {
         return ping(provider, spec, PING_CAP);
     }
 
+    /**
+     * The ping asked to think: the same one-word call at {@code Depth.QUICK}, where a chat
+     * entry's thinking mode is sent as an application's call would send it. The plain ping
+     * runs with thinking off, so it answers alike whatever mode the entry states; this one is
+     * refused by a model that does not think the way the entry says. Never throws.
+     */
+    public static ProbeOutcome thinkingPing(ClientProvider<?> provider, ModelSpec spec) {
+        ProbeOutcome outcome = new ProbeOutcome();
+        outcome.setSpecId(spec.getId());
+        outcome.setProvider(spec.getProviderKey());
+        outcome.setProbedAt(Instant.now());
+        long start = System.currentTimeMillis();
+        pingModel(provider, spec, outcome, PING_CAP, Depth.QUICK);
+        outcome.setLatencyMs(System.currentTimeMillis() - start);
+        return outcome;
+    }
+
     /** The ping under a cap of the caller's. Package-private so a test can observe the timeout without waiting two minutes. */
     static ProbeOutcome ping(ClientProvider<?> provider, ModelSpec spec, Duration cap) {
         ProbeOutcome outcome = new ProbeOutcome();
@@ -71,16 +88,16 @@ public final class CatalogPing {
             pingClient(provider, spec, outcome, cap);
         }
         else {
-            pingModel(provider, spec, outcome, cap);
+            pingModel(provider, spec, outcome, cap, Depth.IMMEDIATE);
         }
         outcome.setLatencyMs(System.currentTimeMillis() - start);
         return outcome;
     }
 
     /** A chat entry's ping: one {@link ProbeCall}, its answer harvested or its failure classified. */
-    private static void pingModel(ClientProvider<?> provider, ModelSpec spec, ProbeOutcome outcome, Duration cap) {
+    private static void pingModel(ClientProvider<?> provider, ModelSpec spec, ProbeOutcome outcome, Duration cap, Depth depth) {
         ProbeCall call = new ProbeCall(Job.workflow("catalog-discovery", "catalog-ping"), provider, spec,
-                Depth.IMMEDIATE, PING_OUTPUT_BUDGET, PING_PROMPT, cap);
+                depth, PING_OUTPUT_BUDGET, PING_PROMPT, cap);
         JobHandle<String> handle = JobDispatcher.getInstance().submit(call);
         try {
             handle.get();

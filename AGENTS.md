@@ -137,6 +137,11 @@ report begins at the line `Catalog discovery <timestamp>` and has these sections
   as a new one's; `(list, unchanged)` confirms them. Bedrock and Azure AI Foundry entries
   also gain `listed_rates`, every rate the provider's public price list states for the model;
   nothing prices a call from them and they need no checking.
+- `THINKING MODES` names the new entries whose thinking mode the run corrected, from the
+  provider's listing or from the model's own answer to a request to think, with the mode
+  before and after; nothing to do for those. A line reading `NOT CHECKED` is an entry whose
+  thinking call failed for another reason: tell the person, its mode is still the one
+  inherited from an older model.
 - `PRICES THAT ARE NONE OF THE LISTED ONES` names Azure AI Foundry entries whose typed price
   is the standard price of no deployment type. The run changed none of them. Show the person
   each line: the type of the deployment (Global or Data Zone, on the deployment's page in

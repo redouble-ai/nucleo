@@ -130,7 +130,7 @@ final class AzureFoundryDeployments extends AbstractApiClient {
             }
             AzurePriceList.Rates rates = priceList.ratesOf(model);
             models.add(new DiscoveredModel(deployment.get("id").asText(), null, null, null, null, null, null, null, null,
-                    "deployment of " + model + (rates.note() != null ? " (" + rates.note() + ")" : ""), null, rates.listedRates(), rates.priceOptions()));
+                    "deployment of " + model + (rates.note() != null ? " (" + rates.note() + ")" : ""), null, rates.listedRates(), rates.priceOptions(), null));
         }
         return models;
     }
