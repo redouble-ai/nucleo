@@ -358,6 +358,11 @@ public abstract class ReactiveThinker<A extends ChatAnswer> extends AbstractThin
         log.warn("No final answer even after the forced closing call");
         context.publishUserNotification(UserNotificationEvent.Severity.ERROR, "No Answer Produced",
                 "The investigation ran out of budget and the closing call still produced no answer. Please re-ask, more narrowly.");
+        // An exchange with no answer is a failed exchange and ends as one: the caller rolls the
+        // conversation back to the person's message. Returning from here would save it as it
+        // stands, ending in the closing call's tool calls with no results, which a provider
+        // refuses on every later turn.
+        throw new UncorrectableRuntimeLLMException("The investigation ran out of budget and the closing call still produced no answer");
     }
 
     /**

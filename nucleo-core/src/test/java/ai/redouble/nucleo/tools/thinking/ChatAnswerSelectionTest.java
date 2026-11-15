@@ -53,6 +53,29 @@ public class ChatAnswerSelectionTest {
         assertEquals(List.of(chat.refs.get(1)), chat.delivered.getArtifactRefs());
     }
 
+    /**
+     * An exchange whose closing call still asks for tools has no answer and fails: the turn
+     * ends in the failure, and the conversation is rolled back to the person's message, so
+     * the closing call's tool calls, which have no results, reach neither the store nor the
+     * next request. Saved as it stood, the conversation would be refused by a provider on
+     * every later turn.
+     */
+    @Test
+    void aClosingCallThatStillAsksForTools_failsTheExchangeAndLeavesNoUnansweredToolCall() {
+        Identifiable workflow = Job.workflow("chat-closing-call", "chat-closing-call");
+        SelectingChat<ChatAnswer> chat = new SelectingChat<>(workflow, ChatAnswer.class,
+                refs -> "{\"final_answer\": false, \"tool_calls\": [{\"tool_name\": \"no_such_tool\", \"input\": {}}]}", null);
+        chat.setMaxIterationsPerMessage(1);
+        assertTrue(chat.addMessage("the question"));
+        ExecutionException failed = assertThrows(ExecutionException.class, () -> JobDispatcher.getInstance().submit(chat).get(30, TimeUnit.SECONDS),
+                "a turn whose exchange produced no answer ends as a failure");
+        assertTrue(String.valueOf(failed.getCause().getMessage()).contains("closing call still produced no answer"), String.valueOf(failed.getCause()));
+        assertTrue(chat.calls.get() >= 2, "the budgeted call and the closing call were both made: " + chat.calls.get());
+        List<Message> messages = chat.conversation.getMessages();
+        assertTrue(messages.get(messages.size() - 1) instanceof OutgoingMessage, "the conversation ends at the person's turn, no assistant turn after it");
+        assertTrue(messages.stream().noneMatch(m -> m instanceof IncomingMessage), "no reply of the failed exchange is kept, the closing call's tool calls least of all");
+    }
+
     @Test
     void anAnswerThatNamesNoArtifact_publishesNone() throws Exception {
         SelectingChat<ChatAnswer> chat = answered(ChatAnswer.class,

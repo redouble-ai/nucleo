@@ -5,6 +5,19 @@ group `ai.redouble`; a published version is never changed in place.
 
 ## Unreleased
 
+- A chat exchange whose closing call still asks for tools fails the turn. When a chat
+  spent its tool budget and the one call instructed to answer returned tool calls again,
+  the exchange was saved as a success, ending in tool calls with no results, and the
+  provider refused every later turn of that conversation. The exchange now ends as any
+  failed exchange does: the conversation is rolled back to the person's message
+  ([#22](https://github.com/redouble-ai/nucleo/issues/22)).
+- A cancel reaches a job that is starting, and a chat holds its sub-agents to its own
+  depth: `JobDispatcher.cancel` missed a job handed to the executor and not yet running
+  ([#24](https://github.com/redouble-ai/nucleo/issues/24)), and the depth limit of a
+  sub-agent was skipped when the caller was a chat
+  ([#21](https://github.com/redouble-ai/nucleo/issues/21)). A role whose entry is of
+  another kind, or on no rung, is served from the role's grade
+  ([#20](https://github.com/redouble-ai/nucleo/issues/20)).
 - The spec classes choose a catalog entry's class, and the catalog names none. An entry is
   loaded into every spec class on the classpath, each answers `match()` (0 for an entry that
   is not its own, a higher number for a narrower fit, `AbstractModelSpec.DEFINITELY_MINE`
