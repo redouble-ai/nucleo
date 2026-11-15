@@ -30,7 +30,8 @@ group `ai.redouble`; a published version is never changed in place.
   it as an unread property; `ClientProvider.specTypes()`, `ClientProviders.specClass` and
   `AnthropicModelSpec` are removed, the Anthropic entries being standard ones; a subclass
   of `AbstractModelSpec` has to implement `match()`; an entry with no platform on record
-  loads whatever its catalog said of its class.
+  loads whatever its catalog said of its class
+  ([#30](https://github.com/redouble-ai/nucleo/issues/30)).
 
 - An artifact a thinker's answer refers to in a text field is selected for every answer
   class. The references in the text were looked for in the answer's `toString()`, which for
@@ -103,7 +104,8 @@ group `ai.redouble`; a published version is never changed in place.
   delivering text stays unretried through a tool's broad catch. The three failures now name
   the job whose retries were spent. Behaviour change: code that wraps a retry signal in an
   LLM-readable exception of its own ends that call's retry, and a parent that wants to retry
-  a failed child says so in its own retry policy.
+  a failed child says so in its own retry policy
+  ([#29](https://github.com/redouble-ai/nucleo/issues/29)).
 
 - A failed model call states the request id the provider gave it, the id the provider's
   support asks for. When an error response carries one, the exception a client builds from
@@ -117,7 +119,8 @@ group `ai.redouble`; a published version is never changed in place.
   `TokenEstimateExceedsLimitException`. **Breaking** for a class that implements `Client`,
   `LLMClient`, `EmbeddingsClient` or `DecisionClient` directly: it implements
   `providerRequestId(Exception)`, returning null when it reads no id. A client that extends
-  one of the abstract clients needs no change.
+  one of the abstract clients needs no change
+  ([#29](https://github.com/redouble-ai/nucleo/issues/29)).
 - Cancelling a job no longer fails when another job starts or ends at the same moment.
   `JobDispatcher.cancel` walked the running jobs without their lock, so under load it threw
   `ConcurrentModificationException` and left the job it was asked to stop running.
