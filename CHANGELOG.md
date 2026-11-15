@@ -11,6 +11,15 @@ group `ai.redouble`; a published version is never changed in place.
   provider refused every later turn of that conversation. The exchange now ends as any
   failed exchange does: the conversation is rolled back to the person's message
   ([#22](https://github.com/redouble-ai/nucleo/issues/22)).
+- A turn no model answers is sent as its content alone. Every turn restored from a stored
+  conversation and every compaction summary carried the plain-text response handler, so
+  each was sent with `Response must be a string` after it. A restored turn that was
+  answered before the save and a summary carry no handler; the summary that replaces the
+  turn about to be answered takes that turn's handler and output budget
+  ([#22](https://github.com/redouble-ai/nucleo/issues/22)).
+- Deprecated, to be removed no later than 1.0: `MessageSnapshot.setEnableCache(boolean)`
+  and the reading of a plain-string answer in `ChatAnswer.stored`. Both read conversations
+  stored by a release before 0.1.3.
 - A cancel reaches a job that is starting, and a chat holds its sub-agents to its own
   depth: `JobDispatcher.cancel` missed a job handed to the executor and not yet running
   ([#24](https://github.com/redouble-ai/nucleo/issues/24)), and the depth limit of a
