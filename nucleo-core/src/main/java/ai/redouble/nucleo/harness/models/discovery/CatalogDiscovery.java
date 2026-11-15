@@ -477,6 +477,15 @@ public final class CatalogDiscovery {
                     if (gone) {
                         entry.put("status", ModelStatus.UNLISTED.name());
                     }
+                    if (!gone) {
+                        // beside its price, the one fact of a kept entry a run checks: the mode was
+                        // inherited from an older model when the entry was added, and a model that
+                        // refuses it fails every call that asks it to think
+                        ModelSpec kept = previous.specOf(entry);
+                        if (envelope.permits(kept) && !(kept.requiresLax() && Settings.get(ModelSettings.class).mantleLaxProject == null)) {
+                            learnThinkingMode(provider, kept, entry, listed != null ? listed.get(wireBefore) : null);
+                        }
+                    }
                     entryReports.put(id, gone
                             ? new EntryReport(id, key, Verdict.NOT_LISTED, true, true,
                                     null, tpmBefore, tpmBefore, rpmBefore, rpmBefore, priceChange(inputBefore, outputBefore, entry, priced), wireBefore, wireBefore,
@@ -1011,6 +1020,10 @@ public final class CatalogDiscovery {
      * {@code REASONING_EFFORT} entry needs no second call: it reasons at the ping's depth
      * too, so the ping has already sent its mode. An entry written {@code NONE} is not asked,
      * since a model that ignores a request to think would read as accepting it.
+     *
+     * <p>An open entry the deployment's file already holds is checked the same way on every
+     * run, without a ping: its mode was inherited when it was added, and nothing else in the
+     * run would ever test it.
      */
     private void learnThinkingMode(ClientProvider<?> provider, ModelSpec spec, ObjectNode entry, DiscoveredModel discovered) {
         if (spec.isEmbeddings() || spec.isDecision()) {
@@ -1031,7 +1044,9 @@ public final class CatalogDiscovery {
         for (ThinkingMode candidate : List.of(written, other)) {
             ObjectNode trial = entry.deepCopy();
             trial.put("thinking_mode", candidate.name());
-            ProbeOutcome outcome = thinkingPing.apply(provider, seed.specOf(trial));
+            // read under the defaults of the file the entry came from, as its own spec was
+            JsonModelsBackend backend = previous != null && previous.rawEntries().containsKey(spec.getId()) ? previous : seed;
+            ProbeOutcome outcome = thinkingPing.apply(provider, backend.specOf(trial));
             if (outcome.getStatus() == ProbeOutcome.Status.OK) {
                 if (candidate != written) {
                     entry.put("thinking_mode", candidate.name());

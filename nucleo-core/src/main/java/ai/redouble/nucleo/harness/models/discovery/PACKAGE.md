@@ -38,9 +38,11 @@ validated before it is written, so a file the discovery writes always loads.
 
 The deployment's file is the deployment's, and the discovery treats it that way:
 
-- **Nothing you wrote is re-checked or rewritten, except a price the provider publishes.**
-  An entry already in the file keeps its facts exactly as they are and is not called again.
-  Your pins are kept and never moved. The one exception is a price: on Bedrock the discovery
+- **Nothing you wrote is re-checked or rewritten, except a price the provider publishes and
+  a thinking mode the model refuses.**
+  An entry already in the file keeps its facts exactly as they are and is not pinged again.
+  Your pins are kept and never moved. The thinking mode is described below. The other
+  exception is a price: on Bedrock the discovery
   reads the AWS price list, the public files AWS publishes per region, and every entry it
   prices takes the listed rates, the regional ones for a `us.` or `eu.` profile and the global
   ones for a `global.` profile, because that is what the account is billed and a typed price
@@ -97,7 +99,9 @@ The deployment's file is the deployment's, and the discovery treats it that way:
   `REASONING_EFFORT` entry needs no second call, because its ping already reasons. An entry
   that arrived as `NONE` is not asked, since a model that ignores a request to think would
   look as if it had accepted it; where the listing does not state the mode, check such an
-  entry yourself. An entry already in your file is not checked, like everything else in it.
+  entry yourself. An open entry already in your file is checked the same way on every run,
+  without a ping and with nothing else of it touched: its mode was inherited when it was
+  added, and a model that refuses it fails every call that asks it to think.
 - **A run pays only for what is new**: the listings it has not seen, the classification of
   those that need one (below), and one call per new entry.
 

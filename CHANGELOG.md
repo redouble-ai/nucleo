@@ -10,7 +10,8 @@ group `ai.redouble`; a published version is never changed in place.
   `claude-haiku-5-5` inherited `EXTENDED`, was reported reachable, and refused the first
   call that asked it to think. The mode is now the one the provider's listing states
   (Anthropic's does), else the one the model accepts on a call that asks it to think; the
-  report lists each correction under `THINKING MODES`. Breaking: `DiscoveredModel` gains
+  report lists each correction under `THINKING MODES`. An open entry already in the
+  deployment's file is checked the same way on every run. Breaking: `DiscoveredModel` gains
   the component `thinkingMode` and `CatalogDiscovery.Result` the component `thinkingModes`
   ([#28](https://github.com/redouble-ai/nucleo/issues/28)).
 - A model's spec computes what a call on it costs: `ModelSpec.cost(TokenLedger)`, a default

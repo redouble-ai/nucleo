@@ -1382,6 +1382,36 @@ class CatalogDiscoveryTest {
         assertTrue(result.thinkingModes().get(0).endsWith("EXTENDED -> ADAPTIVE (stated by the provider's listing)"), result.thinkingModes().get(0));
     }
 
+    /**
+     * An open entry the deployment's file already holds is asked to think as written on every
+     * run, though it is not pinged and nothing else of it is touched: a mode the model refuses
+     * is corrected and reported, and a closed entry is left alone.
+     */
+    @Test
+    void anEntryAlreadyInTheFileHasItsThinkingModeCheckedWithoutAPing() {
+        String open = thinking("a-kept", "wire-kept", "EXTENDED");
+        String closed = thinking("a-closed", "wire-closed", "EXTENDED").replace("\"grade\"", "\"status\": \"DISABLED\", \"grade\"");
+        JsonModelsBackend seed = pricedCatalog(true, open, closed);
+        JsonModelsBackend previous = pricedCatalog(false, open, closed);
+        List<String> pinged = new ArrayList<>();
+        List<String> asked = new ArrayList<>();
+        CatalogDiscovery discovery = new CatalogDiscovery(seed, previous, Map.of("alpha", Scripted.listing("alpha", "wire-kept", "wire-closed")), (p, s) -> {
+            pinged.add(s.getId());
+            return ok(s, 55000);
+        });
+        discovery.thinkingPing = (p, s) -> {
+            asked.add(s.getId() + " " + s.getThinkingMode());
+            return s.getThinkingMode() == ThinkingMode.ADAPTIVE ? ok(s, 55000) : refused(s, "400: \"thinking.type.enabled\" is not supported for this model");
+        };
+        CatalogDiscovery.Result result = discovery.discover();
+        assertTrue(pinged.isEmpty(), "an entry already in the file is not pinged: " + pinged);
+        assertEquals(List.of("a-kept EXTENDED", "a-kept ADAPTIVE"), asked, "the open entry is asked to think, the closed one is not");
+        assertEquals("ADAPTIVE", written(result, "a-kept").get("thinking_mode").asText());
+        assertEquals("EXTENDED", written(result, "a-closed").get("thinking_mode").asText(), "a closed entry is left as it is");
+        assertEquals(1000, written(result, "a-kept").get("tpm").intValue(), "nothing else of the kept entry is touched");
+        assertTrue(result.thinkingModes().get(0).startsWith("a-kept"), result.thinkingModes().toString());
+    }
+
     private static CatalogDiscovery.Verdict verdict(CatalogDiscovery.Result result, String id) {
         return result.entries().stream().filter(e -> e.id().equals(id)).findFirst().orElseThrow().verdict();
     }
