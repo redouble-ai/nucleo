@@ -17,7 +17,7 @@ import java.util.*;
  * <ul>
  *   <li>Artifacts have been replaced with @ref placeholders</li>
  *   <li>Content has been formatted appropriately</li>
- *   <li>Response instructions have been appended</li>
+ *   <li>The handler's reply instructions follow the content of a turn that asks for a reply</li>
  * </ul>
  *
  * <p>LLM clients should use this data to build provider-specific requests

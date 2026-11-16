@@ -29,4 +29,12 @@ public interface ContextEstimator {
      * the call books. Pure: the conversation is read, never changed.
      */
     TokenLedger estimate(ConversationContext conversation, ModelSpec spec);
+
+    /**
+     * The rendering {@link #estimate} counts: the conversation as this provider's client
+     * would send it to the model now, system content and turns. Pure, as the estimate is. A
+     * reader that needs to see what fills a window reads this, because part of the system
+     * content, the reply format definitions, exists in a rendering alone.
+     */
+    PreparedConversation rendering(ConversationContext conversation, ModelSpec spec);
 }

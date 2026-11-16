@@ -142,6 +142,29 @@ class OpenAIResponsesDialectTest {
     }
 
     @Test
+    void aRequestBoundToAJsonObjectNamesJsonInTheTurnBeingAnswered() {
+        // The API refuses text.format json_object unless an input message contains the word
+        // "json", and the instructions parameter is not an input message. The reply format's
+        // definition is system content, so the word has to come from the line that follows the
+        // turn being answered, whatever the turn itself says.
+        ConversationContext conversation = TestModels.conversation(model());
+        conversation.setDepth(Depth.IMMEDIATE);
+        conversation.setOutputDeclaration(OutputDeclaration.of(1000));
+        OutgoingMessage<Map> ask = new OutgoingMessage<>(new PojoResponseHandler<>(Map.class));
+        ask.setRole("user");
+        ask.addText("what changed on the ring?");
+        conversation.getMessages().add(ask);
+        ObjectNode request = build(conversation);
+        assertEquals("json_object", request.get("text").get("format").get("type").asText());
+        JsonNode input = request.get("input");
+        JsonNode turn = input.get(input.size() - 1);
+        assertEquals("user", turn.get("role").asText());
+        assertTrue(turn.get("content").toString().contains("Reply in the JSON format Map, defined above."),
+                "the turn being answered ends with the line naming the format, which carries the word: " + turn);
+        assertFalse(turn.get("content").toString().contains("@type"), "and holds no definition: " + turn);
+    }
+
+    @Test
     void theOutputItemsBecomeBlocksAndTheUsageAndStopReasonAreRead() {
         LLMResponse<String> response = read("""
                 {"id":"resp_1","model":"gpt-5.6-sol-2026-07-09","status":"completed",

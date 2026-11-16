@@ -139,15 +139,22 @@ public class ConversationPersistenceSnapshot  {
                     }
                 }
             }
-            // A response handler belongs to a turn a model answers: it says how the answer is
-            // parsed, and its reply instructions are rendered after the turn's content. A
-            // restored turn that was answered long ago carries none, so it renders as its
-            // content alone. Only a last turn still waiting for its answer takes the handler;
-            // an answer keeps it, since it is what the answer is read with.
+            // A response handler says how the answer to a turn is parsed. Only a last turn
+            // still waiting for its answer takes the handler the restore is given, and an
+            // answer keeps it, since it is what the answer is read with. A turn followed by
+            // the model's answer was asked for a reply and is restored as one: nothing is
+            // parsed with it again, so it carries no handler, and it renders with the reply
+            // line of the handler the conversation is asked with now, as it did before the
+            // save. A turn followed by another turn (a summary, a message added while the
+            // model worked) was never the one asked.
             for (int i = 0; i < messages.size(); i++) {
                 MessageSnapshot msgSnapshot = messages.get(i);
-                boolean answeredTurn = "outgoing".equals(msgSnapshot.getMessageType()) && i < messages.size() - 1;
-                context.addMessage(msgSnapshot.toMessage(answeredTurn ? null : responseHandler, requestedToolUseIds));
+                boolean earlierTurn = "outgoing".equals(msgSnapshot.getMessageType()) && i < messages.size() - 1;
+                Message message = msgSnapshot.toMessage(earlierTurn ? null : responseHandler, requestedToolUseIds);
+                if (earlierTurn && "incoming".equals(messages.get(i + 1).getMessageType())) {
+                    ((OutgoingMessage<?>) message).setAnsweredBeforeRestore(true);
+                }
+                context.addMessage(message);
             }
         }
         // Restore the objective. The persisted state is the truth for this conversation's

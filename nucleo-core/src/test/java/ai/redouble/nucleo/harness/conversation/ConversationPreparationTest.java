@@ -24,7 +24,7 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * <p>Also pins the objective-map contract: the objective is a map of named slots rendered
  * in insertion order, the schema-notation legend follows the response contract (a handler
- * declaring {@code usesSchemaNotation()}) and never a plain-prose conversation, declared
+ * that names a reply format) and never a plain-prose conversation, declared
  * tools convert at first render (head) or are announced after it as blocks of the turn about
  * to be sent, so that turn stays the one message the model answers, and the
  * head freezes at first render - divergent mutations are loudly logged no-ops. A pure render

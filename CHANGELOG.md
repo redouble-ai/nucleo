@@ -3,6 +3,39 @@
 Every release of Nucleo, newest first. Released artifacts are on Maven Central under the
 group `ai.redouble`; a published version is never changed in place.
 
+## Unreleased
+
+- A reply format is sent once per request. The format of a structured reply, a sentence and
+  the reply's schema, was appended to every turn that asked for a reply, on every render, so
+  a conversation carried one copy per model call it had made: 35 copies in one measured
+  request, half of its input. The format is now defined once, in the system content, under a
+  name built from its classes (`OrderAnswer` for a one-object reply,
+  `ThinkingResponse_of_OrderAnswer` for a thinker's), and each asking turn ends with one line,
+  `Reply in the JSON format <name>, defined above.` A thinker with tools says in that line
+  that the reply is a tool call or the final answer. The definition is written at each render
+  for the model the render is for and is stored nowhere, so the same conversation sent to a
+  model with other capabilities carries that model's definition, and a request never holds
+  two definitions of one name. A one-call structured reply moves the same way: its format is
+  in the system content and its user turn ends with the line.
+- Breaking: `ResponseHandler` states its reply format through `formatName()`,
+  `formatDefinition(ResponseRequirements)` and `replyInstructions(ResponseRequirements)`.
+  `responseInstructions()`, `responseInstructions(boolean, boolean)` and
+  `usesSchemaNotation()` are removed. A handler of your own returns its format's name (null
+  for a plain-text reply, which is what `usesSchemaNotation()` returning false meant), the
+  text that defined the reply as its definition, and the line to put after a turn;
+  `ResponseRequirements` carries the two flags the old overload took, and a later provider
+  requirement becomes a component of it. Two reply classes with the same simple name asked
+  for in one conversation share a format name, and the first one's definition stands: give
+  them different names.
+- A restored conversation renders the turns the model had answered as it did before the
+  save: each ends with the reply line again, taken from the handler the conversation is
+  asked with now. Since 0.1.3 such a turn rendered as its content alone, so a thinker's
+  first turn, which holds nothing but that line, was empty after a restore and the request
+  started with the model's turn, which a provider refuses.
+- `ContextEstimator.rendering(conversation, spec)` returns the rendering an estimate counts.
+  An estimator of your own that extends `AbstractContextEstimator` has it; one that
+  implements the interface directly adds it.
+
 ## 0.1.3 (2026-11-14)
 
 - Security: the BOM pins three dependencies past a published advisory.

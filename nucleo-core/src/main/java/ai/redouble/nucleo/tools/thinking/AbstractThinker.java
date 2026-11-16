@@ -990,6 +990,10 @@ public abstract class AbstractThinker<I extends ThinkerInput, O extends ThinkerO
     private void dumpContextForDiagnosis(ConversationContext conversation, ModelSpec accountingSpec) {
         log.debug("=== CONTEXT OVERFLOW DUMP START ===");
         log.debug("ESTIMATE by part: {}", accountingSpec.estimate(conversation).inputByPart());
+        // The system content as the model reads it: the stored objective below lacks the reply
+        // format definitions, which a rendering writes
+        String systemText = accountingSpec.contextEstimator().rendering(conversation, accountingSpec).systemText();
+        log.debug("SYSTEM_CONTENT ({} chars): {}", systemText.length(), systemText);
         for (var block : conversation.getMainObjectiveBlocks()) {
             if (block instanceof TextBlock(String text)) {
                 log.debug("MAIN_OBJECTIVE TextBlock ({} chars): {}", text.length(), text);

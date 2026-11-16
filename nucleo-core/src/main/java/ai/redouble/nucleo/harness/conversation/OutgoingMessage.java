@@ -37,6 +37,8 @@ public class OutgoingMessage<T> implements Message, Serializable {
     private Integer requestedOutputTokens;
     private boolean compactable = true;  // Whether this message can be compacted
     private boolean appAuthored = false;  // Application-injected context on the user channel, not a human utterance
+    // A turn a model answered before the conversation was saved: restored without its handler, it is still a turn that asked for a reply
+    private boolean answeredBeforeRestore = false;
 
     public OutgoingMessage(ResponseHandler<T> responseHandler) {
         this.responseHandler = responseHandler;
@@ -83,6 +85,19 @@ public class OutgoingMessage<T> implements Message, Serializable {
     /** The handler the answer to this turn is parsed with; the last one set is the one that parses. */
     public void setResponseHandler(ResponseHandler<T> handler) {
         this.responseHandler = handler;
+    }
+
+    /**
+     * True for a restored turn that a model had answered before the save. Its handler is not
+     * restored, since nothing is parsed with it again, and it is rendered as the asking turn
+     * it was: with the reply line of the handler the conversation is asked with now.
+     */
+    public boolean isAnsweredBeforeRestore() {
+        return answeredBeforeRestore;
+    }
+
+    public void setAnsweredBeforeRestore(boolean answeredBeforeRestore) {
+        this.answeredBeforeRestore = answeredBeforeRestore;
     }
 
     /**

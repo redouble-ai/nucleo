@@ -26,8 +26,8 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * What {@link ModelSpec#estimate} counts: the conversation as the client sends it. The
  * objective, every message and the registry section each count the moment they exist; a tool
- * result counts by its payload and a tool call by its input, not by a placeholder; the
- * response instructions the answer handler appends count, because the wire carries them; the
+ * result counts by its payload and a tool call by its input, not by a placeholder; a
+ * reply format counts once, in the objective, however many turns ask for it; the
  * output side is the call's reserve. The rendering the estimate counts is the rendering the
  * next real render sends, with the head unfrozen and with it frozen, and estimating changes
  * nothing the model will see. The estimate renders with the thinking decision the client will
@@ -177,18 +177,18 @@ class ContextEstimatorContractTest {
         }
 
         @Override
-        public boolean usesSchemaNotation() {
-            return false;
+        public String formatName() {
+            return "ThinkingAware";
         }
 
         @Override
-        public String responseInstructions() {
-            return responseInstructions(false, false);
+        public String formatDefinition(ResponseRequirements requirements) {
+            return requirements.nativeThinking() ? "Answer." : "Reason step by step before you answer, in prose. ".repeat(20);
         }
 
         @Override
-        public String responseInstructions(boolean nativeToolsAvailable, boolean thinkingActive) {
-            return thinkingActive ? "Answer." : "Reason step by step before you answer, in prose. ".repeat(20);
+        public String replyInstructions(ResponseRequirements requirements) {
+            return NAMED_REPLY_INSTRUCTIONS.formatted(formatName());
         }
     };
 
@@ -214,10 +214,10 @@ class ContextEstimatorContractTest {
         thinking.setMaxContextTokens(200_000);
         thinking.setMaxOutputTokens(64_000);
         thinking.setThinkingMode(ThinkingMode.EXTENDED);
-        int thinkingOn = thinking.estimate(thinkingAwareAsk(thinking, Depth.STANDARD)).inputByPart().get(ContextPart.MESSAGES);
-        int thinkingOff = thinking.estimate(thinkingAwareAsk(thinking, Depth.IMMEDIATE)).inputByPart().get(ContextPart.MESSAGES);
-        assertTrue(thinkingOn < thinkingOff, "a depth that turns native thinking on renders the shorter instructions the client will send: " + thinkingOn + " vs " + thinkingOff);
-        assertEquals(thinkingOff, thinking.estimate(thinkingAwareAsk(thinking, null)).inputByPart().get(ContextPart.MESSAGES),
+        int thinkingOn = thinking.estimate(thinkingAwareAsk(thinking, Depth.STANDARD)).inputByPart().get(ContextPart.OBJECTIVE);
+        int thinkingOff = thinking.estimate(thinkingAwareAsk(thinking, Depth.IMMEDIATE)).inputByPart().get(ContextPart.OBJECTIVE);
+        assertTrue(thinkingOn < thinkingOff, "a depth that turns native thinking on renders the shorter format definition the client will send: " + thinkingOn + " vs " + thinkingOff);
+        assertEquals(thinkingOff, thinking.estimate(thinkingAwareAsk(thinking, null)).inputByPart().get(ContextPart.OBJECTIVE),
                 "a conversation that declares no depth renders with thinking off");
         StandardModelSpec plain = new StandardModelSpec();
         plain.setId("plain");
@@ -226,22 +226,34 @@ class ContextEstimatorContractTest {
         plain.setWireModelId("plain");
         plain.setMaxContextTokens(200_000);
         plain.setMaxOutputTokens(64_000);
-        assertEquals(thinkingOff, plain.estimate(thinkingAwareAsk(plain, Depth.STANDARD)).inputByPart().get(ContextPart.MESSAGES),
+        assertEquals(thinkingOff, plain.estimate(thinkingAwareAsk(plain, Depth.STANDARD)).inputByPart().get(ContextPart.OBJECTIVE),
                 "on a model with no native thinking the same depth renders with thinking off");
     }
 
-    @Test
-    void theResponseInstructionsCount_becauseTheWireCarriesThem() {
-        ConversationContext prose = conversation();
-        prose.addMessage(userText("summarize the incident"));
-        ConversationContext structured = conversation();
+    private static OutgoingMessage<ConversationPreparationTest.ProbeAnswer> structuredAsk(String text) {
         OutgoingMessage<ConversationPreparationTest.ProbeAnswer> ask =
                 new OutgoingMessage<>(new PojoResponseHandler<>(ConversationPreparationTest.ProbeAnswer.class));
         ask.setRole("user");
-        ask.addText("summarize the incident");
-        structured.addMessage(ask);
-        assertTrue(input(structured) > input(prose),
-                "a structured answer's schema instructions are sent with the message, so they are counted");
+        ask.addText(text);
+        return ask;
+    }
+
+    @Test
+    void theReplyFormatCounts_onceInTheObjective_howeverManyTurnsAskForIt() {
+        ConversationContext prose = conversation();
+        prose.addMessage(userText("summarize the incident"));
+        ConversationContext structured = conversation();
+        structured.addMessage(structuredAsk("summarize the incident"));
+        assertTrue(MODEL.estimate(structured).inputByPart().get(ContextPart.OBJECTIVE) > MODEL.estimate(prose).inputByPart().get(ContextPart.OBJECTIVE),
+                "a structured reply's format is defined in the system content the wire carries, so it is counted there");
+        int objectiveOfOneAsk = MODEL.estimate(structured).inputByPart().get(ContextPart.OBJECTIVE);
+        int messagesOfOneAsk = MODEL.estimate(structured).inputByPart().get(ContextPart.MESSAGES);
+        structured.addMessage(structuredAsk("summarize the incident"));
+        structured.addMessage(structuredAsk("summarize the incident"));
+        assertEquals(objectiveOfOneAsk, MODEL.estimate(structured).inputByPart().get(ContextPart.OBJECTIVE),
+                "three turns asking for one format carry one definition of it");
+        assertEquals(3 * messagesOfOneAsk, MODEL.estimate(structured).inputByPart().get(ContextPart.MESSAGES),
+                "each asking turn costs its text and the line naming the format, nothing that grows with the format");
     }
 
     @Test

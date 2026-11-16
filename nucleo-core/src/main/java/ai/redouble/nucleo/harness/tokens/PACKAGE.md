@@ -66,10 +66,12 @@ involved, which is what lets the reservation run before any client is acquired.
 A `ContextEstimator` renders the conversation exactly as the provider's client will send it
 (`ConversationContext.render`, the pure rendering the client's own preparation also uses,
 with the provider's formatter) and counts that rendering: the system text, every tool
-definition, every turn with the response instructions its answer handler appends, the
-registry section. Whether the model's native thinking is on changes those instructions, so the
-estimate renders with the same decision the client will make, from the depth the conversation
-declares; a conversation that declares no depth yet renders with thinking off.
+definition, every turn with the reply instructions after it, the registry section. A reply
+format is defined once, in the system text, so it counts once, under the objective, however
+many turns ask for it. Whether the model's native thinking is on changes that definition, so
+the estimate renders with the same decision the client will make, from the depth the
+conversation declares; a conversation that declares no depth yet renders with thinking off.
+`ContextEstimator.rendering` returns the rendering an estimate counts.
 `AbstractContextEstimator` is the walk every provider extends; `DefaultContextEstimator` is
 that walk with the generic text formatter and the neutral counter. A provider overrides
 `countBlock` for the block kinds it encodes or bills differently. What each shipped provider

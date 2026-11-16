@@ -274,7 +274,7 @@ public final class LiveCacheProbe {
 
     /**
      * The shape of a thinker's loop: every call ends on a turn of tool results, with the
-     * response instructions after them. The history is written by hand, so no call depends
+     * handler's reply instructions after them. The history is written by hand, so no call depends
      * on the model choosing to call the tool.
      */
     private void toolLoop() throws Exception {

@@ -24,8 +24,10 @@ import java.util.function.*;
  *
  * <p>The walk renders through {@link ConversationContext#render}, the pure rendering the
  * client's own preparation also uses, so the count is of the payload the wire carries:
- * system text, tool definitions, every turn with its response instructions, the registry
- * section. The output side is the conversation's reserve for the next call, the declared
+ * system text, which holds each reply format's definition once, tool definitions, every turn
+ * with the reply instructions after it, the registry section. The definition is the one for
+ * the model the estimate is for, at the depth the conversation declares; a call whose depth
+ * is resolved only at the seat can differ from its estimate by that one definition's variant. The output side is the conversation's reserve for the next call, the declared
  * answer plus the depth's thinking budget clamped at the model's ceiling, exactly what the
  * wire will ask for; the ledger resolves it when a reader asks for it, so counting the input
  * alone asks nothing of the seat's declarations.
@@ -61,14 +63,19 @@ public abstract class AbstractContextEstimator implements ContextEstimator {
     }
 
     @Override
-    public TokenLedger estimate(ConversationContext conversation, ModelSpec spec) {
-        // Whether a native thinking block is active changes the answer instructions the handler
-        // renders, so the estimate renders with the same decision the client will make. A
-        // conversation with no seat yet declares no depth and books no reasoning; its input is
-        // counted as the call a seat books none would send.
+    public PreparedConversation rendering(ConversationContext conversation, ModelSpec spec) {
+        // Whether a native thinking block is active changes the reply format definition the
+        // system content carries, so the rendering is made with the same decision the client
+        // will make. A conversation with no seat yet declares no depth and books no reasoning;
+        // it is rendered as the call a seat books none would send.
         Depth depth = conversation.declaredDepth();
         boolean thinkingActive = depth != null && ThinkingMode.thinkingActive(spec, depth);
-        PreparedConversation prepared = conversation.render(formatter, thinkingActive);
+        return conversation.render(formatter, thinkingActive);
+    }
+
+    @Override
+    public TokenLedger estimate(ConversationContext conversation, ModelSpec spec) {
+        PreparedConversation prepared = rendering(conversation, spec);
         EnumMap<ContextPart, Integer> parts = new EnumMap<>(ContextPart.class);
         parts.put(ContextPart.OBJECTIVE, counter.countTokens(prepared.systemText()));
         int definitions = 0;

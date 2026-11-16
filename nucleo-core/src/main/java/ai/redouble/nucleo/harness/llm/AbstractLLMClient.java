@@ -459,7 +459,7 @@ public abstract class AbstractLLMClient<B> extends AbstractRateLimitedClient imp
      * <ul>
      *   <li>Artifacts are replaced with @ref placeholders</li>
      *   <li>Content is properly formatted for the target dialect</li>
-     *   <li>Response instructions are appended</li>
+     *   <li>Each reply format is defined once in the system content, and each turn that asks for a reply names it</li>
      *   <li>The artifact registry is included at the end</li>
      * </ul>
      *

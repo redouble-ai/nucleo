@@ -81,10 +81,10 @@ class ConversationRestoreContractTest {
     }
 
     /**
-     * A response handler's reply instructions are rendered after its turn's content. A
-     * restored turn that was answered before the save carries no handler, so it renders as
-     * its content alone; the last turn, still waiting for its answer, takes the handler the
-     * restore was given.
+     * A response handler says how the answer to a turn is parsed, so of the restored turns
+     * only the last, still waiting for its answer, takes the handler the restore was given.
+     * A turn the model answered before the save is restored as the asking turn it was, and a
+     * turn followed by another turn never was one.
      */
     @Test
     void aRestoredTurnThatWasAnsweredCarriesNoResponseHandler_onlyTheLastTurnTakesIt() {
@@ -92,9 +92,13 @@ class ConversationRestoreContractTest {
                 .toConversation(StringResponseHandler.instance);
         List<Message> messages = restored.getMessages();
         assertNull(((OutgoingMessage<?>) messages.get(0)).getResponseHandler(),
-                "the question was answered before the save: no reply instructions are rendered after it again");
+                "the question was answered before the save: nothing is parsed with it again");
+        assertTrue(((OutgoingMessage<?>) messages.get(0)).isAnsweredBeforeRestore(),
+                "and it is restored as a turn that asked for a reply");
         assertNull(((OutgoingMessage<?>) messages.get(2)).getResponseHandler(),
                 "a turn followed by another turn is history as well");
+        assertFalse(((OutgoingMessage<?>) messages.get(2)).isAnsweredBeforeRestore(),
+                "and it was never the turn the model was asked to answer");
         assertSame(StringResponseHandler.instance, ((OutgoingMessage<?>) messages.getLast()).getResponseHandler(),
                 "the last turn still waits for its answer and takes the handler it is parsed with");
         assertSame(StringResponseHandler.instance, ((IncomingMessage<?>) messages.get(1)).getResponseHandler(),

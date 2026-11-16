@@ -48,8 +48,14 @@ import java.util.function.*;
 public class ConversationContext implements Serializable {
     private static final Logger log = LoggerFactory.getLogger(ConversationContext.class);
 
-    /** Objective-map key of the schema-notation legend, placed at render when the request's handler declares {@code usesSchemaNotation()}. */
+    /** Objective-map key of the schema-notation legend, placed at render when a turn's handler names a reply format ({@link ResponseHandler#formatName}). */
     public static final String KEY_LEGEND = "legend";
+    /**
+     * The line that opens a reply format's definition in the system content, naming the
+     * format. Every turn that asks for a reply in the format names it the same way
+     * ({@link ResponseHandler#replyInstructions}).
+     */
+    public static final String REPLY_FORMAT_HEADER = "Reply format %s:\n";
     /** Objective-map key of the tool-annotation guidance, put when declared tools first render. */
     public static final String KEY_TOOL_WEIGHTS = "toolWeights";
     /** Objective-map key prefix under which a rendered tool definition lives in the head. */
@@ -60,8 +66,8 @@ public class ConversationContext implements Serializable {
      * {@code ai.redouble.nucleo.harness.schema.PojoDefinition} renders into response contracts.
      * The legend follows the contract - the notation's only producer, tool schemas are
      * standard JSON Schema - not the conversation: {@link #placeLegend} places it
-     * under {@link #KEY_LEGEND} exactly when an outgoing message's handler declares
-     * {@code usesSchemaNotation()}, and a plain-prose conversation never carries it. A
+     * under {@link #KEY_LEGEND} exactly when an outgoing message's handler names a reply
+     * format, and a plain-prose conversation never carries it. A
      * reader given the notation without the legend takes the schema literally -
      * returning the descriptor shape instead of an instance of it - and never produces
      * a recognizable final answer.
@@ -120,8 +126,20 @@ public class ConversationContext implements Serializable {
      * conversation starts unfrozen, so composition (and the use-time refresh of framework
      * slots) is legal again until its own first render - correctly free, because a fresh
      * instance has no warm provider cache to lose.
+     *
+     * <p>What freezes is the stored head: the authored slots and the framework's stored
+     * ones. The system content a request carries is that head plus the reply format
+     * definitions, which are written at every render and stored nowhere
+     * ({@link #replyFormatDefinitions}).
      */
     private transient boolean frozen;
+    /**
+     * The reply format definitions written so far, by what the model required of a reply and
+     * then by format name. A definition is the same text for the same name and requirements,
+     * so it is written once and read at every later render. In memory only, never persisted:
+     * it holds nothing a render cannot write again.
+     */
+    private transient Map<ResponseRequirements, Map<String, String>> writtenFormatDefinitions;
     private final List<ai.redouble.nucleo.prompt.skill.Skill> loadedSkills = new java.util.concurrent.CopyOnWriteArrayList<>();
     /**
      * The deferred model binding: minted by the job's {@code requireModel} declaration,
@@ -597,8 +615,8 @@ public class ConversationContext implements Serializable {
     /**
      * Ensures the schema-notation legend accompanies a conversation whose request
      * describes structure in the framework's {@code @}-notation. The trigger is the
-     * response contract - an outgoing message whose handler declares
-     * {@code usesSchemaNotation()} - never the conversation itself or its tools (tool
+     * response contract - an outgoing message whose handler names a reply format
+     * ({@link ResponseHandler#formatName}) - never the conversation itself or its tools (tool
      * schemas are standard JSON Schema): a plain-prose conversation carries no legend.
      * Pre-freeze the legend is a head slot, re-put fresh so a restored conversation
      * self-heals to the current text; if the notation first appears after the freeze,
@@ -612,7 +630,7 @@ public class ConversationContext implements Serializable {
         for (Message message : messages) {
             if (message instanceof OutgoingMessage<?> outgoing
                 && outgoing.getResponseHandler() != null
-                && outgoing.getResponseHandler().usesSchemaNotation()) {
+                && outgoing.getResponseHandler().formatName() != null) {
                 needed = true;
                 break;
             }
@@ -736,6 +754,10 @@ public class ConversationContext implements Serializable {
      * a new key - is refused as a loudly logged no-op, because it would silently
      * invalidate the cached prefix. A mid-conversation instruction change belongs in the
      * message stream, where the model consciously receives it.
+     *
+     * <p>The freeze is of the slots put here. The reply format definitions a request
+     * carries in its system content are no slot: each render writes them
+     * ({@link #replyFormatDefinitions}).
      */
     public void putMainObjective(String key, Object pojo) {
         if (pojo != null) {
@@ -1106,7 +1128,8 @@ public class ConversationContext implements Serializable {
      * <ul>
      *   <li>Artifacts in POJOs are replaced with @ref placeholders</li>
      *   <li>Content is properly formatted</li>
-     *   <li>Response instructions are appended where needed</li>
+     *   <li>Every reply format a turn asks for is defined once, in the system content</li>
+     *   <li>Each turn that asks for a reply ends with its handler's reply instructions</li>
      *   <li>The artifact registry is appended at the end</li>
      * </ul>
      *
@@ -1127,7 +1150,7 @@ public class ConversationContext implements Serializable {
      *
      * @param formatter the content formatter for the target LLM dialect
      * @param thinkingActive true if a native thinking block is guaranteed for this call, in which
-     *                       case the handler omits the envelope's prose reasoning field from the schema
+     *                       case a reply format is defined without the prose reasoning field
      * @return the prepared conversation: system content and turns, ready for LLM encoding
      */
     public PreparedConversation prepareMessagesForLLM(ContentFormatter formatter, boolean thinkingActive) {
@@ -1150,6 +1173,11 @@ public class ConversationContext implements Serializable {
      * one, so an estimate of this rendering is an estimate of the payload the next call carries.
      * This is what a {@link ModelSpec#estimate} counts.
      *
+     * <p>The system content is the head with the reply format definitions in it, written
+     * for the model this rendering is for ({@link #replyFormatDefinitions}). A
+     * conversation rendered for another kind of model carries that model's definitions, and
+     * neither rendering changes the conversation.
+     *
      * @param formatter      the formatter of the client that will send the conversation
      * @param thinkingActive whether a native thinking block is guaranteed for the next call
      */
@@ -1159,6 +1187,8 @@ public class ConversationContext implements Serializable {
         placeFrameworkVoice(head, stream, false);
         ContentProcessor processor = createContentProcessor();
         List<ContentBlock> objectiveBlocks = new ArrayList<>(head.values());
+        ResponseRequirements requirements = new ResponseRequirements(formatter.supportsNativeToolCalling(), thinkingActive);
+        objectiveBlocks.addAll(replyFormatPosition(head, objectiveBlocks), replyFormatDefinitions(stream, requirements));
         String systemText = objectiveBlocks.isEmpty()
             ? ""
             : processor.buildTextContent(objectiveBlocks, formatter);
@@ -1169,9 +1199,17 @@ public class ConversationContext implements Serializable {
             .filter(ToolDefinitionBlock.class::isInstance)
             .map(ToolDefinitionBlock.class::cast)
             .toList();
+        // the handler the conversation is asked with now: the one a restored turn that was
+        // answered before the save takes its reply line from
+        ResponseHandler<?> currentAsk = null;
+        for (Message message : stream) {
+            if (message instanceof OutgoingMessage<?> outgoing && outgoing.getResponseHandler() != null) {
+                currentAsk = outgoing.getResponseHandler();
+            }
+        }
         List<ProcessedMessageData> result = new ArrayList<>();
         for (Message message : stream) {
-            result.add(renderTurn(message, processor, formatter, thinkingActive));
+            result.add(renderTurn(message, processor, requirements, currentAsk));
         }
         // Append artifact registry at the end if not empty
         String registrySection = processor.buildArtifactRegistrySection();
@@ -1184,8 +1222,69 @@ public class ConversationContext implements Serializable {
         return new PreparedConversation(systemText, cacheMainObjective, palette, result, registrySection.isEmpty() ? null : registrySection);
     }
 
-    /** One message as a wire turn: artifacts lowered to refs, the response instructions appended. */
-    private ProcessedMessageData renderTurn(Message message, ContentProcessor processor, ContentFormatter formatter, boolean thinkingActive) {
+    /**
+     * The definitions of the reply formats this stream's turns ask for, one per format name
+     * in the order the names first appear, each written for a model with the given
+     * requirements: {@link #REPLY_FORMAT_HEADER} naming the format, then the handler's
+     * {@link ResponseHandler#formatDefinition}. A format's name is its identity, so the first
+     * handler that carries a name writes its definition and later handlers of that name add
+     * nothing, however many turns ask under it.
+     *
+     * <p>Nothing here is stored in the head or in a message: a definition exists in a
+     * rendering alone. The text is kept per requirements and name
+     * ({@link #writtenFormatDefinitions}), so a conversation answered by one kind of model
+     * writes each definition once.
+     */
+    private List<ContentBlock> replyFormatDefinitions(List<Message> stream, ResponseRequirements requirements) {
+        if (writtenFormatDefinitions == null) {
+            writtenFormatDefinitions = new java.util.concurrent.ConcurrentHashMap<>();
+        }
+        Map<String, String> written = writtenFormatDefinitions.computeIfAbsent(requirements, r -> new java.util.concurrent.ConcurrentHashMap<>());
+        Map<String, ContentBlock> definitions = new LinkedHashMap<>();
+        for (Message message : stream) {
+            if (message instanceof OutgoingMessage<?> outgoing && outgoing.getResponseHandler() != null) {
+                ResponseHandler<?> handler = outgoing.getResponseHandler();
+                String name = handler.formatName();
+                if (name != null && !definitions.containsKey(name)) {
+                    definitions.put(name, new TextBlock(written.computeIfAbsent(name,
+                            n -> REPLY_FORMAT_HEADER.formatted(n) + handler.formatDefinition(requirements))));
+                }
+            }
+        }
+        return new ArrayList<>(definitions.values());
+    }
+
+    /**
+     * Where the reply format definitions go among the system content's blocks: after the
+     * schema-notation legend, which explains the notation they are written in. When the head
+     * holds no legend (the notation first appeared after the first render, so the legend went
+     * into a turn), they go before the tool guidance, and with no tools either, at the end.
+     */
+    private int replyFormatPosition(Map<String, ContentBlock> head, List<ContentBlock> objectiveBlocks) {
+        int position = 0;
+        for (String key : head.keySet()) {
+            if (KEY_LEGEND.equals(key)) {
+                return position + 1;
+            }
+            position++;
+        }
+        position = 0;
+        for (String key : head.keySet()) {
+            if (KEY_TOOL_WEIGHTS.equals(key) || key.startsWith(TOOL_KEY_PREFIX)) {
+                return position;
+            }
+            position++;
+        }
+        return objectiveBlocks.size();
+    }
+
+    /**
+     * One message as a wire turn: artifacts lowered to refs, the handler's reply instructions
+     * after the content of a turn that asks for a reply. A restored turn that was answered
+     * before the save asks through {@code currentAsk}, the handler the conversation is asked
+     * with now, so it renders as it did while the conversation was live.
+     */
+    private ProcessedMessageData renderTurn(Message message, ContentProcessor processor, ResponseRequirements requirements, ResponseHandler<?> currentAsk) {
         if (message instanceof OutgoingMessage<?> outgoing) {
             List<ContentBlock> blocks = outgoing.getContentBlocks();
             List<ContentBlock> processedBlocks;
@@ -1198,12 +1297,9 @@ public class ConversationContext implements Serializable {
                     ? new ArrayList<>(List.of(new TextBlock(rawContent)))
                     : new ArrayList<>();
             }
-            ResponseHandler<?> handler = outgoing.getResponseHandler();
+            ResponseHandler<?> handler = outgoing.isAnsweredBeforeRestore() ? currentAsk : outgoing.getResponseHandler();
             if (handler != null) {
-                String instructions = handler.responseInstructions(formatter.supportsNativeToolCalling(), thinkingActive);
-                if (instructions != null && !instructions.isEmpty()) {
-                    processedBlocks.add(new TextBlock(instructions));
-                }
+                processedBlocks.add(new TextBlock(handler.replyInstructions(requirements)));
             }
             return new ProcessedMessageData(TurnRole.of(message.getRole()), processedBlocks, cacheabilityOf(message));
         }

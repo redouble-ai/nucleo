@@ -43,14 +43,25 @@ How tools reach the model depends on the provider's `ContentFormatter.supportsNa
 
 **Text-based** (Bedrock Converse): `ToolDefinitionBlock`s render as text where they sit in the conversation, via the default `ToolDefinitionBlockEncoder`. The `ThinkingResponse` schema includes `tool_calls`, and a call parsed out of the text gets an id minted by the runtime from the tool's name and its place in the turn, so its result can be recorded against it.
 
-### Schema stripping
+### The reply format
 
-`ResponseHandler.responseInstructions(nativeToolsAvailable, thinkingActive)` omits fields the model should not fill:
+A handler whose reply has a schema names its format (`ResponseHandler.formatName()`): the response class's simple name for a one-object reply (`OrderAnswer`), and for a thinker the envelope's class, `_of_`, the answer's class (`ThinkingResponse_of_OrderAnswer`). A plain-text handler has no name. The name is the format's identity in a conversation, and a class with no simple name that is an identifier (an anonymous class, an array type) is refused when the name is asked for.
 
-- `tool_calls` is dropped when native tool calling is available (the model uses native `ToolUseBlock`s).
-- `reasoning` is dropped when `thinkingActive` is true - a native thinking block is guaranteed for the call, so the envelope's prose reasoning would be redundant output the model is asked to write and `ThinkingResponseHandler.resolveReasoning()` then discards. The typed answer POJO's own nested `reasoning` is dropped with it: asking a natively thinking model to narrate its thinking again is what a reasoning-extraction classifier refuses (see [tools/PACKAGE.md](../../tools/PACKAGE.md)).
+A rendering states a format in two places:
 
-`ConversationContext.prepareMessagesForLLM(formatter, thinkingActive)` passes both signals to the response handler, keeping the thinker unaware of the encoding. The `thinkingActive` flag is computed by the client from its own model via `ThinkingMode.thinkingActive(model, depth)` - the same predicate that gates the request-time thinking config - so the schema strip and the request agree on whether a thinking block is coming back.
+- **Once in the system content.** For every format name the conversation's asking turns carry, in the order the names first appear, the rendering writes `Reply format <name>:` followed by `ResponseHandler.formatDefinition(requirements)`: what to reply with, then the schema, whose root `@type` is the name. The definitions sit after the schema-notation legend; when the head holds no legend, before the tool guidance, and with no tools, at the end.
+- **One line after every asking turn.** `ResponseHandler.replyInstructions(requirements)`, for a named format `Reply in the JSON format <name>, defined above.` The line names JSON because a provider's JSON mode refuses a request whose messages do not. A plain-text handler's line is its own. A thinker with tools names both of its moves, because a line that says only "reply" is read by a weaker model as an order to answer at once, without calling a tool: `Call a tool, or reply in the JSON format <name>, defined above.` where the model calls tools natively, and `Reply in the JSON format <name>, defined above: either call tools through it, or give your final answer in it.` where a tool call is a field of the format (`ThinkingResponseHandlerToolUseTest`). A restored turn that the model answered before the save carries no handler (`OutgoingMessage.isAnsweredBeforeRestore()`) and takes the line of the handler the conversation is asked with now, so a restored conversation renders turn for turn as the live one did and a thinker's first turn, which holds only the line, is never empty (`ReplyFormatPlacementTest`).
+
+However many turns ask for a format, a request carries one definition of it (`ReplyFormatPlacementTest`).
+
+A definition is written for the model the rendering is for. `ResponseRequirements` says what that model requires of a reply, today two things, and `formatDefinition` omits the fields the model's own channels carry:
+
+- `tool_calls` is dropped when `nativeToolCalling` is true and the thinker has tools (the model uses native `ToolUseBlock`s).
+- `reasoning` is dropped when `nativeThinking` is true - a native thinking block is guaranteed for the call, so the envelope's prose reasoning would be redundant output the model is asked to write and `ThinkingResponseHandler.resolveReasoning()` then discards. The typed answer POJO's own nested `reasoning` is dropped with it: asking a natively thinking model to narrate its thinking again is what a reasoning-extraction classifier refuses (see [tools/PACKAGE.md](../../tools/PACKAGE.md)).
+
+`ConversationContext.render(formatter, thinkingActive)` builds the requirements from the formatter (`supportsNativeToolCalling()`) and the thinking flag, keeping the thinker unaware of the encoding. The flag is computed by the client from its own model via `ThinkingMode.thinkingActive(model, depth)` - the same predicate that gates the request-time thinking config - so the definition and the request agree on whether a thinking block is coming back.
+
+A definition is stored nowhere: not in the objective map, not in a message, not in a saved conversation. The conversation keeps the written text in memory per requirements and name, so a conversation answered by one kind of model has each definition written once, and the same conversation rendered for another kind of model carries that model's definition while the stored conversation stays as it was. A request never holds two definitions of one name.
 
 ### The channel contract
 
@@ -109,7 +120,7 @@ re-seeds itself.
 Two slots are the framework's own, and both are derived companions, not seeded state.
 The schema-notation legend follows the response contract - the `@`-notation's only
 producer (tool schemas are standard JSON Schema): at render, a conversation whose
-outgoing message carries a handler with `usesSchemaNotation()` gets the legend under
+outgoing message carries a handler that names a reply format gets the legend under
 `legend` - a thinker's or a bare `LLMCall`'s alike - and a plain-prose conversation
 never carries it. The tool-weight guidance lands under `toolWeights` when declared
 tools first render, and never for a tool-less conversation - a dangling "Available
@@ -127,6 +138,19 @@ it. The freeze is instance-lifetime and never persists: a restored
 conversation has not rendered, has no warm provider cache to lose, and composes freely
 until its own first render - which is also how the framework slots of a restored
 conversation self-heal to the current constants.
+
+What freezes is the stored head. The system content a request carries is that head with
+the reply format definitions in it, and those are written at every render (see The reply
+format). So the system content of a conversation changes in three cases after the first
+render, and each rewrites the stored prompt prefix once:
+
+- A format name first asked for after the first render, when one conversation is handed to
+  a thinker with another answer class: its definition joins the system content
+- A compaction or a restore that removes the last turn asking under a name: its definition
+  leaves. Both rewrite the conversation anyway
+- A model that requires something else of a reply: it gets its own definition. It could
+  not read the first model's stored prefix, and when the first model answers again its
+  system content is the text it was
 
 #### What belongs in the objective, and what does not
 
@@ -388,8 +412,8 @@ estimate, `ModelSpec.estimate(conversation)`, a `TokenLedger` the model's provid
 rendering the conversation exactly as its client will send it and counting that rendering
 ([Tokens](../tokens/PACKAGE.md)). The rendering is `render(formatter, thinkingActive)`: the
 same pipeline `prepareMessagesForLLM` runs, PojoBlocks lowered through
-`ContentProcessor.processForLLM`, the response instructions appended to every outgoing turn
-whose answer handler states any, the registry section from `buildArtifactRegistrySection`
+`ContentProcessor.processForLLM`, each reply format defined once in the system content, the
+handler's reply instructions after every turn that asks for a reply, the registry section from `buildArtifactRegistrySection`
 (the `registrySection` component of the result, null when the conversation holds no artifacts,
 otherwise also the last turn), with one difference: it commits
 nothing. The legend and the definitions of tools declared since the last render are rendered

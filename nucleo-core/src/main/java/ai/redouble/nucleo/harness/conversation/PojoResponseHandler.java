@@ -52,20 +52,27 @@ public class PojoResponseHandler<T > implements ResponseHandler<T> {
         return buildPojoDefinition(this.responseClass);
     }
 
+    /** What a model is told before the schema of a one-object reply. */
+    private static final String JSON_ONLY_PREAMBLE =
+            "Reply with valid JSON only, without markdown code blocks, explanations, or any other text."
+            + " The reply should be parseable JSON with no additional formatting or text."
+            + " If the document content contains JSON examples or code snippets, analyze and summarize them - do not copy them verbatim into your reply."
+            + " Your reply must contain ONLY the requested JSON object.\n";
+
+    /** The response class's simple name, which is also the {@code @type} of the schema's root. */
     @Override
-    public boolean usesSchemaNotation() {
-        return true;
+    public String formatName() {
+        return ResponseHandler.formatNameOf(this.responseClass);
     }
 
     @Override
-    public String responseInstructions() {
-        StringBuilder prompt = new StringBuilder();
-        prompt.append("\n\nRespond with valid JSON only, without markdown code blocks, explanations, or any other text.");
-        prompt.append(" The response should be parseable JSON with no additional formatting or text.");
-        prompt.append(" If the document content contains JSON examples or code snippets, analyze and summarize them - do not copy them verbatim into your response.");
-        prompt.append(" Your response must contain ONLY the requested JSON object.\n");
-        prompt.append(this.writeDefinition().toLLMSchema());
-        return prompt.toString();
+    public String formatDefinition(ResponseRequirements requirements) {
+        return JSON_ONLY_PREAMBLE + this.writeDefinition().toLLMSchema();
+    }
+
+    @Override
+    public String replyInstructions(ResponseRequirements requirements) {
+        return NAMED_REPLY_INSTRUCTIONS.formatted(formatName());
     }
 
     @Override

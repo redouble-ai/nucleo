@@ -83,6 +83,13 @@ public class OpenAIRequestShapeTest {
         ObjectNode request = client.buildRequestJson(new LLMRequest<>(conversation), LlmTestDoors.prepare(client, conversation));
         assertEquals("json_object", request.get("response_format").get("type").asText(),
                 "a handler that describes its answer as a schema asks for one JSON object, and the dialect holds the model to it");
+        JsonNode messages = request.get("messages");
+        JsonNode turn = messages.get(messages.size() - 1);
+        assertEquals("user", turn.get("role").asText());
+        assertTrue(turn.toString().contains("Reply in the JSON format Map, defined above."),
+                "JSON mode needs the word in a message, and the line after the turn being answered carries it: " + turn);
+        assertEquals("system", messages.get(0).get("role").asText());
+        assertTrue(messages.get(0).toString().contains("Reply format Map:"), "the format itself is defined once, in the system content");
     }
 
     @Test

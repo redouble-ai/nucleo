@@ -236,6 +236,56 @@ public class AnthropicRequestShapeTest {
         assertTrue(blocks.getLast().asToolResult().cacheControl().isPresent(), "and the tool result carries the breakpoint");
     }
 
+    /**
+     * A thinker's conversation as it stands mid-run: the task is the objective, so the first
+     * turn holds nothing but its ask; the model called a tool; the turn returning the result
+     * waits for its reply.
+     */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static ConversationContext thinkerConversationWaitingOnAToolResult(ModelSpec model, ResponseHandler<?> handler) {
+        ConversationContext conversation = TestModels.conversation(model);
+        conversation.setDepth(Depth.IMMEDIATE);
+        conversation.setOutputDeclaration(OutputDeclaration.of(TEST_DEFAULT));
+        conversation.putMainObjective("task", OBJECTIVE);
+        OutgoingMessage first = new OutgoingMessage<>(handler);
+        first.setRole("user");
+        conversation.getMessages().add(first);
+        IncomingMessage call = new IncomingMessage<>(handler);
+        call.setContentBlocks(List.of(new ai.redouble.nucleo.harness.conversation.ContentBlocks.ToolUseBlock("toolu_1", TOOL_NAME, "{}")));
+        conversation.getMessages().add(call);
+        OutgoingMessage results = new OutgoingMessage<>(handler);
+        results.setRole("user");
+        results.addToolResult("toolu_1", "RESULT-MARKER", false);
+        conversation.getMessages().add(results);
+        return conversation;
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private static ResponseHandler<?> thinkerHandler() {
+        return new ai.redouble.nucleo.tools.thinking.ThinkingResponseHandler<>(new ai.redouble.nucleo.tools.registry.ToolRegistry(),
+                new PojoResponseHandler((Class) ai.redouble.nucleo.tools.thinking.ThinkingResponse.class), StringResponseHandler.instance);
+    }
+
+    @Test
+    void aThinkersConversationStartsWithAUserTurn_liveAndRestored() {
+        ModelSpec model = entryWithCacheBreakpoints(0);
+        ResponseHandler<?> handler = thinkerHandler();
+        BuilderOnlyClient client = new BuilderOnlyClient();
+        client.setModel(model);
+        ConversationContext live = thinkerConversationWaitingOnAToolResult(model, handler);
+        MessageCreateParams sent = client.buildMessageCreateParams(live, LlmTestDoors.prepare(client, live));
+        assertEquals(MessageParam.Role.USER, sent.messages().getFirst().role(),
+                "a first turn that holds only its ask is sent as the line naming the reply format");
+        assertTrue(sent.messages().getFirst().toString().contains("Reply in the JSON format ThinkingResponse_of_String, defined above."));
+        ConversationContext restored = live.toSnapshot().toConversation(handler);
+        restored.setModelBinding(ModelBinding.preResolved(model));
+        restored.setDepth(Depth.IMMEDIATE);
+        restored.setOutputDeclaration(OutputDeclaration.of(TEST_DEFAULT));
+        MessageCreateParams resent = client.buildMessageCreateParams(restored, LlmTestDoors.prepare(client, restored));
+        assertEquals(MessageParam.Role.USER, resent.messages().getFirst().role(),
+                "the same conversation saved and restored still starts with a user turn: the API refuses one that starts with the model's");
+    }
+
     /** Adds {@code count} user turns, each stating nothing about the cache, marked CACHE-TURN-0; onwards. */
     private static void addTurns(ConversationContext conversation, int count) {
         for (int i = 0; i < count; i++) {

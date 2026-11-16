@@ -69,6 +69,28 @@ public class ThinkingResponseHandlerToolUseTest {
                 StringResponseHandler.instance);
     }
 
+    /**
+     * A line that says only "reply" is read by a weaker model as an order to answer at once,
+     * so a thinker with tools names both moves, in the wording of the channel the tool call
+     * travels by; a thinker without tools has one move.
+     */
+    @Test
+    void theLineAfterATurnNamesBothMovesOfAThinkerWithTools() {
+        ToolRegistry registry = new ToolRegistry();
+        registry.register(KnownTool.class);
+        assertEquals("\n\nCall a tool, or reply in the JSON format ThinkingResponse_of_String, defined above.",
+                handler(registry).replyInstructions(new ResponseRequirements(true, false)),
+                "where the model calls tools natively, the tool call is outside the format");
+        assertEquals("\n\nReply in the JSON format ThinkingResponse_of_String, defined above: either call tools through it, or give your final answer in it.",
+                handler(registry).replyInstructions(new ResponseRequirements(false, false)),
+                "where a tool call is a field of the format, both moves go through it");
+        for (boolean nativeTools : new boolean[]{true, false}) {
+            assertEquals("\n\nReply in the JSON format ThinkingResponse_of_String, defined above.",
+                    handler(new ToolRegistry()).replyInstructions(new ResponseRequirements(nativeTools, false)),
+                    "a thinker without tools has no tool call to name");
+        }
+    }
+
     @Test
     void unregisteredToolUseStillBecomesAToolCallInsteadOfAbortingTheBatch() throws Exception {
         ToolRegistry registry = new ToolRegistry();

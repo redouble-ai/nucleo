@@ -431,34 +431,68 @@ public class ThinkingResponseHandler<O> implements ResponseHandler<ThinkingRespo
     // Both name the shape - one JSON object matching the schema - because "valid JSON" is also
     // satisfied by a bare string, which a model told elsewhere to answer tersely will produce
     private static final String JSON_ONLY_PREAMBLE =
-            "\n\nRespond with one JSON object only, matching the schema below, without markdown code blocks, explanations, or any other text."
-            + " The response should be that parseable JSON object with no additional formatting or text.\n";
+            "Reply with one JSON object only, matching the schema below, without markdown code blocks, explanations, or any other text."
+            + " The reply should be that parseable JSON object with no additional formatting or text.\n";
     private static final String NATIVE_TOOLS_PREAMBLE =
-            "\n\nWhen you need more information, use the available tools. When you have enough information to provide a final answer,"
-            + " respond with one JSON object only, matching the schema below, without markdown code blocks or any other text.\n";
+            "When you need more information, use the available tools. When you have enough information to provide a final answer,"
+            + " reply with one JSON object only, matching the schema below, without markdown code blocks or any other text.\n";
 
+    /**
+     * The envelope's class, {@code _of_}, the answer's class: {@code ThinkingResponse_of_OrderAnswer}.
+     * The answer's part is its class and never its handler's own format name, because a
+     * thinker that answers in plain text has an answer class and no format name.
+     */
     @Override
-    public boolean usesSchemaNotation() {
-        return true;
+    public String formatName() {
+        return baseHandler.formatName() + "_of_" + ResponseHandler.formatNameOf(answerHandler.getResponseClass());
     }
 
-    @Override
-    public String responseInstructions() {
-        return JSON_ONLY_PREAMBLE + this.writeDefinition().toLLMSchema();
-    }
+    /**
+     * The line after a turn of a thinker whose tools are called natively. There a tool call
+     * travels outside the reply and the format describes the final reply alone, so the line
+     * names both moves: a line that says only "reply" is read by a weaker model as an order
+     * to give the final reply at once.
+     */
+    public static final String NATIVE_TOOLS_REPLY_INSTRUCTIONS =
+            "\n\nCall a tool, or reply in the JSON format %s, defined above.";
 
+    /**
+     * The line after a turn of a thinker whose tool calls are a field of the format. It names
+     * both moves the format carries, for the same reason as
+     * {@link #NATIVE_TOOLS_REPLY_INSTRUCTIONS}.
+     */
+    public static final String TOOLS_IN_FORMAT_REPLY_INSTRUCTIONS =
+            "\n\nReply in the JSON format %s, defined above: either call tools through it, or give your final answer in it.";
+
+    /**
+     * A thinker with tools names both moves: {@link #NATIVE_TOOLS_REPLY_INSTRUCTIONS} when the
+     * model calls tools natively, {@link #TOOLS_IN_FORMAT_REPLY_INSTRUCTIONS} when a tool call
+     * is a field of the format. A thinker without tools has one move and says the line of any
+     * named format.
+     */
     @Override
-    public String responseInstructions(boolean nativeToolsAvailable, boolean thinkingActive) {
-        boolean nativeTools = nativeToolsAvailable && !toolRegistry.getAllProviders().isEmpty();
-        if (!nativeTools && !thinkingActive) {
-            return responseInstructions();
+    public String replyInstructions(ResponseRequirements requirements) {
+        if (toolRegistry.getAllProviders().isEmpty()) {
+            return NAMED_REPLY_INSTRUCTIONS.formatted(formatName());
         }
+        return (requirements.nativeToolCalling() ? NATIVE_TOOLS_REPLY_INSTRUCTIONS : TOOLS_IN_FORMAT_REPLY_INSTRUCTIONS).formatted(formatName());
+    }
+
+    /**
+     * The envelope's schema under the format's name, without the fields the model's own
+     * channels carry: {@code tool_calls} for a model that calls tools natively, when this
+     * thinker has tools, and {@code reasoning} for a model whose thinking is native.
+     */
+    @Override
+    public String formatDefinition(ResponseRequirements requirements) {
+        boolean nativeTools = requirements.nativeToolCalling() && !toolRegistry.getAllProviders().isEmpty();
         PojoDefinition def = writeDefinition();
+        def.setClassName(formatName());
         if (nativeTools) {
             // Native tool calling: the model emits tool_use blocks, so tool_calls is not in the schema.
             def.getFields().remove("tool_calls");
         }
-        if (thinkingActive) {
+        if (requirements.nativeThinking()) {
             // The native thinking block carries the envelope's reasoning, so omit the prose
             // reasoning field rather than spend output tokens on a value resolveReasoning discards
             // - the envelope's own and the answer type's, which a ReasonablePojo answer carries

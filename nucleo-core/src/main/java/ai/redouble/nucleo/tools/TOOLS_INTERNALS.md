@@ -295,7 +295,8 @@ the plan.
 1. Thinker puts its task into the objective (`putMainObjective("task", ...)`) and declares
    its tools (`addTools`). The framework guidance derives at render from what the
    conversation carries: the `@`-notation legend follows the response contract (the
-   thinker's envelope handler declares `usesSchemaNotation()`), and the tool-weight
+   thinker's envelope handler names a reply format, `ThinkingResponse_of_<answer class>`,
+   which the conversation defines once in the system content), and the tool-weight
    guidance renders when declared tools first do - the thinker composes only what it
    authored. The objective is the conversation's system content; see
    [Conversations](../harness/conversation/PACKAGE.md) for the channel contract and the

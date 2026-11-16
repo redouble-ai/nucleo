@@ -54,8 +54,11 @@ user and assistant alternation gets exactly that. Once the model has answered, t
 opens the next turn.
 
 `setResponseHandler` names the handler the answer is parsed with, which is also the
-contract whose instructions the runtime appends to the turn; the last one set is the one
-that parses, and a turn with none is refused before anything is sent.
+contract of the reply's format. The runtime defines that format once, in the system content,
+under a name built from the handler's classes (`OverdueReport` here,
+`ThinkingResponse_of_OverdueReport` in a thinker), and ends every turn that asks for a reply
+with one line naming it, so a conversation of many turns carries one definition. The last
+handler set is the one that parses, and a turn with none is refused before anything is sent.
 `setRequestedOutputTokens` caps this one call's answer. `addUtterance` adds a person's own
 words: a turn carrying them is kept verbatim through compaction, whatever else it carries.
 `setCacheTurns(true)` has the conversation cache its turns: a message that states no
@@ -237,9 +240,12 @@ every call names the user acting, and a conversation belongs to its user. The se
 at each boundary of the exchange: a user message in, an answer out, or an exchange that
 ended abnormally. A restored conversation brings back its messages, objective, tools,
 artifacts and declarations; the thinker that resumes it supplies the rest, and the next
-call picks its model again. A restored turn that was answered before the save carries no
-response handler, so it renders as its content alone, with no reply instructions after it;
-only a last turn still waiting for its answer takes the handler the restore is given.
+call picks its model again. Only a last turn still waiting for its answer takes the
+response handler the restore is given. A restored turn that the model answered before the
+save carries none, and renders as it did while the conversation was live: its content, then
+the reply line of the handler the conversation is asked with now. A turn followed by
+another turn, a summary or a message added while the model worked, renders as its content
+alone.
 
 ## Reading a conversation as text
 

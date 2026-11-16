@@ -15,9 +15,9 @@ import java.io.*;
 import java.util.*;
 
 /**
- * The typed contract of one outgoing message: how the model is told what shape to answer
- * in ({@link #responseInstructions}), and how its reply parses back into {@code T}
- * ({@link #parse}). An {@link OutgoingMessage} carries one; the matching
+ * The typed contract of one outgoing message: the format the model is asked to reply in
+ * ({@link #formatName}, {@link #formatDefinition}, {@link #replyInstructions}), and how its
+ * reply parses back into {@code T} ({@link #parse}). An {@link OutgoingMessage} carries one; the matching
  * {@link IncomingMessage} uses the same handler to produce the typed response. Handlers
  * are stateless after construction and transient through persistence - a restored message
  * is dehydrated until {@code rehydrate} hands it a handler again.
@@ -66,29 +66,62 @@ public interface ResponseHandler<T> extends Serializable {
     PojoDefinition writeDefinition();
 
     /**
-     * Whether this handler's rendered contract describes the response structure in the
-     * framework's {@code @}-notation. The conversation reads this to decide whether the
-     * schema-notation legend must accompany the request - the legend follows the
-     * contract, the notation's only producer, not the conversation. A handler whose
-     * instructions are plain prose answers false. No default: every handler decides.
+     * The name the reply format is known by in a conversation, or null when the reply has no
+     * format to define: plain text. The name is the format's identity. The conversation
+     * defines it once in the system content, under this name, and every turn that asks for a
+     * reply names it ({@link #replyInstructions}); a handler with a name describes its reply
+     * in the framework's {@code @}-notation, which is what brings the schema-notation legend
+     * into the request. The name is built from classes ({@link #formatNameOf}), so it can be
+     * found in the code. No default: every handler decides.
+     *
+     * @throws IllegalStateException when a class the name is built from has no simple name
+     *         that is an identifier, as an anonymous class or an array type has none
      */
-    boolean usesSchemaNotation();
-
-    String responseInstructions();
+    String formatName();
 
     /**
-     * Returns response instructions adapted for the call's capabilities.
-     * When nativeToolsAvailable is true, the handler may exclude tool-calling fields
-     * from the response schema since the model will use native tool_use blocks instead.
-     * When thinkingActive is true, the handler may exclude the prose reasoning field
-     * since a native thinking block will carry the reasoning instead.
+     * The definition of the reply format {@link #formatName} names, written for a model with
+     * the given requirements: what to reply with, then the schema of the reply, whose root
+     * {@code @type} is the format name. Asked only of a handler that has a name. The text is
+     * the same for the same name and requirements, and a conversation relies on that: it
+     * writes a definition once per name and requirements and reuses it.
      *
-     * @param nativeToolsAvailable true if the LLM client supports native tool calling
-     * @param thinkingActive       true if a native thinking block is guaranteed for this call
-     * @return response instructions string
+     * @param requirements what the model about to answer requires of a reply
      */
-    default String responseInstructions(boolean nativeToolsAvailable, boolean thinkingActive) {
-        return responseInstructions();
+    String formatDefinition(ResponseRequirements requirements);
+
+    /**
+     * The text rendered after every turn this handler is asked to answer. For a named format
+     * it is one line that names it ({@link #NAMED_REPLY_INSTRUCTIONS}); the definition is in
+     * the system content and is not repeated. The text is the same for the same requirements.
+     *
+     * @param requirements what the model about to answer requires of a reply
+     */
+    String replyInstructions(ResponseRequirements requirements);
+
+    /**
+     * The line after a turn that asks for a reply in a named format. It names JSON because a
+     * provider's JSON mode refuses a request whose messages do not. A handler whose reply may
+     * also be a tool call says so in a line of its own.
+     */
+    String NAMED_REPLY_INSTRUCTIONS = "\n\nReply in the JSON format %s, defined above.";
+
+    /**
+     * The part of a format name a class contributes: its simple name.
+     *
+     * @throws IllegalStateException when the simple name is not an identifier
+     */
+    static String formatNameOf(Class<?> type) {
+        String name = type.getSimpleName();
+        boolean identifier = !name.isEmpty() && Character.isJavaIdentifierStart(name.charAt(0));
+        for (int i = 1; identifier && i < name.length(); i++) {
+            identifier = Character.isJavaIdentifierPart(name.charAt(i));
+        }
+        if (!identifier) {
+            throw new IllegalStateException("A reply format is named after its class, and " + type.getName()
+                    + " has no simple name that is an identifier; make it a named class");
+        }
+        return name;
     }
 
 }

@@ -127,7 +127,7 @@ public abstract class AbstractOpenAIChatClient extends AbstractLLMClient<ObjectN
         // instruction alone is not enough here - a model whose system prompt asks for terse
         // answers replies with the bare value, which is valid JSON and not the object, and no
         // correction moves it. A handler that reads plain text gets no format and text comes back.
-        if (context.getLastOutgoingMessage().getResponseHandler().usesSchemaNotation()) {
+        if (context.getLastOutgoingMessage().getResponseHandler().formatName() != null) {
             requestJson.putObject("response_format").put("type", "json_object");
         }
         // This provider has no separate system channel: system content is expressed as
@@ -481,7 +481,7 @@ public abstract class AbstractOpenAIChatClient extends AbstractLLMClient<ObjectN
             requestJson.putObject("reasoning").put("effort", reasoningEffortFor(context.resolveDepth()));
             requestJson.putArray("include").add("reasoning.encrypted_content");
         }
-        if (context.getLastOutgoingMessage().getResponseHandler().usesSchemaNotation()) {
+        if (context.getLastOutgoingMessage().getResponseHandler().formatName() != null) {
             requestJson.putObject("text").putObject("format").put("type", "json_object");
         }
         StringBuilder instructions = new StringBuilder();

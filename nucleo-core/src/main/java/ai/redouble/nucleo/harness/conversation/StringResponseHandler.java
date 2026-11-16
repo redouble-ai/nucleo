@@ -50,13 +50,19 @@ public class StringResponseHandler implements ResponseHandler<String> {
         return new PojoDefinition("String", "Plain text response");
     }
 
+    /** Plain text has no format to define. */
     @Override
-    public boolean usesSchemaNotation() {
-        return false;
+    public String formatName() {
+        return null;
     }
 
     @Override
-    public String responseInstructions() {
+    public String formatDefinition(ResponseRequirements requirements) {
+        throw new IllegalStateException("A plain-text reply has no format definition");
+    }
+
+    @Override
+    public String replyInstructions(ResponseRequirements requirements) {
         return "\nResponse must be a string";
     }
 }
