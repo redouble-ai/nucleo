@@ -3,7 +3,7 @@
 Every release of Nucleo, newest first. Released artifacts are on Maven Central under the
 group `ai.redouble`; a published version is never changed in place.
 
-## Unreleased
+## 0.1.4 (2026-11-19)
 
 - A thinker publishes no reasoning notification for a reply that carries no reasoning. A
   `SingleObjectiveThinker` published one titled "Reasoning" with a null message after every
