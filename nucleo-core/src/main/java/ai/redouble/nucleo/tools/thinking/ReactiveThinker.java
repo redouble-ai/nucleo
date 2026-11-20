@@ -316,7 +316,7 @@ public abstract class ReactiveThinker<A extends ChatAnswer> extends AbstractThin
                 throw new ExternalServiceException("LLM", "Failed to respond to message");
             }
 
-            publishReasoning(response, context);
+            publishReasoning(response, "Thinking", context);
 
             if (response.isFinalAnswer() && response.getAnswer() != null) {
                 // the model's reply is the exchange's record in the conversation, stored when it
@@ -398,18 +398,6 @@ public abstract class ReactiveThinker<A extends ChatAnswer> extends AbstractThin
     @Override
     public Depth getDepth() {
         return depth;
-    }
-
-    /**
-     * Publishes LLM reasoning to the user if available.
-     */
-    private void publishReasoning(ThinkingResponse<A> response, JobContext<VoidThinkerOutput> context) {
-        if (response.getReasoning() != null) {
-            String reasoning = response.getReasoning().getUserFriendlyDescription();
-            if (reasoning != null && !reasoning.isEmpty() && !reasoning.equals("No reasoning provided")) {
-                context.publishUserNotification(UserNotificationEvent.Severity.INFO, "Thinking", reasoning);
-            }
-        }
     }
 
     /**

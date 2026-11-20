@@ -196,7 +196,7 @@ public abstract class SingleObjectiveThinker<I extends ThinkerInput, O extends T
                 throw new ExternalServiceException("LLM", "Failed to respond - analysis incomplete");
             }
 
-            logReasoning(response, iteration, context);
+            publishReasoning(response, "Reasoning", context);
 
             if (response.isFinalAnswer()) {
                 context.publishUserProgress("Completed", "Analysis complete - preparing final answer", 95);
@@ -300,19 +300,6 @@ public abstract class SingleObjectiveThinker<I extends ThinkerInput, O extends T
         StreamChunk finalChunk = StreamChunk.done(answerText);
         ContentStreamEvent streamEvent = new ContentStreamEvent(context.getSnapshot(), finalChunk);
         context.publish(streamEvent);
-    }
-
-    /**
-     * Logs and streams the LLM's reasoning if available.
-     */
-    protected void logReasoning(ThinkingResponse<O> response, int iteration, JobContext<O> context) {
-        if (response.getReasoning() != null) {
-            String reasoningText = response.getReasoning().getUserFriendlyDescription();
-            log.debug("Iteration {} reasoning: {}", iteration, reasoningText);
-
-            // Publish the reasoning (clean format, no iteration prefix)
-            context.publishUserNotification(UserNotificationEvent.Severity.INFO, "Reasoning", reasoningText);
-        }
     }
 
     @Override

@@ -799,6 +799,26 @@ public abstract class AbstractThinker<I extends ThinkerInput, O extends ThinkerO
     }
 
     /**
+     * Tells whoever watches the run what a reply rests on: the reply's reasoning, published
+     * as an INFO notification under {@code title}. A reply that carries no reasoning - a
+     * model whose thinking is native wrote no thinking block, or the reply was its JSON and
+     * nothing else - publishes nothing, so a watcher never receives a notification with no
+     * message.
+     *
+     * @param response the model's reply
+     * @param title    the notification's title
+     * @param context  the job context
+     */
+    protected void publishReasoning(ThinkingResponse<?> response, String title, JobContext<?> context) {
+        String reasoning = response.getReasoning().getUserFriendlyDescription();
+        if (reasoning == null || reasoning.isEmpty()) {
+            return;
+        }
+        log.debug("{}: {}", title, reasoning);
+        context.publishUserNotification(UserNotificationEvent.Severity.INFO, title, reasoning);
+    }
+
+    /**
      * What a failed tool tells whoever watches the run. A correctable failure is the model's
      * input to fix on its next turn - a warning; anything else is a failure of the tool
      * itself - an error. Said once per failed call, whether the failure came at submission

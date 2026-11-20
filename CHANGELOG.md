@@ -5,6 +5,13 @@ group `ai.redouble`; a published version is never changed in place.
 
 ## Unreleased
 
+- A thinker publishes no reasoning notification for a reply that carries no reasoning. A
+  `SingleObjectiveThinker` published one titled "Reasoning" with a null message after every
+  such reply: a model whose thinking is native that wrote no thinking block, or a reply that
+  was its JSON and nothing else.
+- Breaking: `SingleObjectiveThinker.logReasoning` is gone. Both thinkers publish through
+  `AbstractThinker.publishReasoning(response, title, context)`; a subclass that overrode
+  `logReasoning` overrides that method.
 - Security: `nucleo-bom` manages `httpcore5-h2` at the version it manages `httpcore5`. An
   application on Spring Boot 4.0 that imported the BOM first resolved `httpcore5` 5.4.4 beside
   `httpcore5-h2` 5.3.6, the version CVE-2026-54428 names.
