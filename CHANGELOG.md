@@ -5,6 +5,15 @@ group `ai.redouble`; a published version is never changed in place.
 
 ## Unreleased
 
+- Security: `nucleo-bom` manages `httpcore5-h2` at the version it manages `httpcore5`. An
+  application on Spring Boot 4.0 that imported the BOM first resolved `httpcore5` 5.4.4 beside
+  `httpcore5-h2` 5.3.6, the version CVE-2026-54428 names.
+- Security: the two demo hosts move past ten published advisories. Spring Boot goes from
+  4.1.1 to 4.1.2, which takes the Spring Boot demo to Tomcat 11.0.27 (CVE-2026-65182,
+  CVE-2026-65637, CVE-2026-65905, CVE-2026-68525) and Jackson 3.1.7 (CVE-2026-68497,
+  CVE-2026-91776, CVE-2026-91777, CVE-2026-89407, CVE-2026-89425). The Quarkus demo manages
+  `log4j-api` at 2.26.1 (CVE-2026-49844). The demos are run from a checkout and are not
+  published; no artifact on Maven Central carried any of the three libraries.
 - A reply format is sent once per request. The format of a structured reply, a sentence and
   the reply's schema, was appended to every turn that asked for a reply, on every render, so
   a conversation carried one copy per model call it had made: 35 copies in one measured

@@ -25,10 +25,19 @@
     <properties>
         <!-- The demo, run from the checkout: never published to Maven Central -->
         <skipPublishing>true</skipPublishing>
+        <!-- The Quarkus platform manages log4j-api at 2.26.0, which CVE-2026-49844 names -->
+        <log4j-api.version>2.26.1</log4j-api.version>
     </properties>
 
     <dependencyManagement>
         <dependencies>
+            <!-- Reaches this host through the POI reader. A version stated here stands over
+                 the one an imported BOM manages -->
+            <dependency>
+                <groupId>org.apache.logging.log4j</groupId>
+                <artifactId>log4j-api</artifactId>
+                <version>${log4j-api.version}</version>
+            </dependency>
             <!-- The runtime's pins come first: Quarkus manages Jackson too, and the first
                  import to name an artifact wins, so the runtime keeps the line it is built on -->
             <dependency>
