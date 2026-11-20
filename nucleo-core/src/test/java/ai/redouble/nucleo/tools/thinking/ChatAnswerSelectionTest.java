@@ -102,10 +102,24 @@ public class ChatAnswerSelectionTest {
     }
 
     @Test
-    void aReferenceTheRegistryDoesNotHold_isSkipped() throws Exception {
+    void anAnswerThatNamesAReferenceTheRegistryDoesNotHold_isRefusedAndAskedAgain() throws Exception {
         SelectingChat<ChatAnswer> chat = answered(ChatAnswer.class,
-                refs -> "{\"final_answer\": true, \"answer\": {\"message_text\": \"Two named.\", \"artifact_refs\": [\"" + refs.get(0) + "\", \"«artifact:link~nowhere»\"]}}");
-        assertEquals(Set.of(chat.refs.get(0)), chat.published.getArtifacts().keySet(), "the held artifact is published, the unknown reference is skipped");
+                refs -> "{\"final_answer\": true, \"answer\": {\"message_text\": \"One named.\", \"artifact_refs\": [\"" + refs.get(0) + "\"]}}",
+                "{\"final_answer\": true, \"answer\": {\"message_text\": \"One invented.\", \"artifact_refs\": [\"«artifact:link~nowhere»\"]}}");
+        assertTrue(chat.calls.get() > 1, "the answer with the unknown reference was refused and the model was asked again");
+        assertEquals("One named.", chat.delivered.getMessageText(), "the answer that left is the corrected one");
+        assertEquals(Set.of(chat.refs.get(0)), chat.published.getArtifacts().keySet(), "with the artifact its reference names");
+    }
+
+    @Test
+    void aStoredAnswerThatNamesAReferenceItsRegistryDoesNotHold_readsWithTheArtifactsItsOtherReferencesSelect() throws Exception {
+        ArtifactRegistry registry = new ArtifactRegistry();
+        LinkArtifact link = new LinkArtifact();
+        String ref = ArtifactRegistry.normalizeToKey(registry.register(link));
+        ChatAnswer replayed = ChatAnswer.stored("{\"final_answer\": true, \"answer\": {\"message_text\": \"Two named.\", \"artifact_refs\": [\"" + ref
+                + "\", \"«artifact:link~nowhere»\"]}}", ChatAnswer.class, registry);
+        assertEquals(Set.of(link), replayed.getArtifacts(), "an answer stored before such a reference was refused replays as it was shown");
+        assertEquals(List.of(ref, "«artifact:link~nowhere»"), replayed.getArtifactRefs(), "and its list is what was stored");
     }
 
     @Test

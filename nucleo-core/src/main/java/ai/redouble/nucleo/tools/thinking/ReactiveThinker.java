@@ -323,9 +323,8 @@ public abstract class ReactiveThinker<A extends ChatAnswer> extends AbstractThin
                 // arrived; a second assistant turn holding the answer's text would be replayed
                 // after it on every later call, for the model to imitate.
                 // The answer's selection is all that leaves with it: the artifacts it names,
-                // never the registry
+                // resolved by the reply gate, never the registry
                 A answer = response.getAnswer();
-                answer.resolveArtifacts(conversation.getArtifactRegistry());
                 streamResponse(answer, context);
                 return;
             }

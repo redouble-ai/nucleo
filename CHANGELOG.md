@@ -3,6 +3,24 @@
 Every release of Nucleo, newest first. Released artifacts are on Maven Central under the
 group `ai.redouble`; a published version is never changed in place.
 
+## Unreleased
+
+- The artifacts a called thinker selects reach the thinker that called it. A thinker that ran
+  as another thinker's tool answered with references the calling model could read and its
+  registry did not hold: an artifact tool given one answered that the artifact was not found,
+  and a calling answer that named one left without it. The called thinker's answer is now
+  written for the calling model with the selected objects in the place of `artifact_refs`,
+  each as `{"@ref": ...}`, and that write registers them in the calling conversation.
+- An answer that names a reference its registry does not hold is refused. Such a reference
+  was logged and skipped, and the answer left with fewer artifacts than it named. The model
+  is now told which reference names nothing and asked again, under the same budget as a
+  missing required field; past the budget the call fails with `ResponseValidationException`.
+  `ChatAnswer.stored` still reads an answer an earlier release stored with such a reference.
+- Breaking: `ThinkerOutput.resolveArtifacts(registry)` is
+  `resolveArtifacts(registry, violations)` and is called by the reply gate,
+  `ThinkingResponseHandler.heldArtifacts`. A thinker of your own that extends
+  `AbstractThinker` and called it after reading the answer drops the call.
+
 ## 0.1.4 (2026-11-19)
 
 - A thinker publishes no reasoning notification for a reply that carries no reasoning. A

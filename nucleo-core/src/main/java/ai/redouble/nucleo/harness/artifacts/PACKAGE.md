@@ -106,8 +106,9 @@ field's name does not:
 
 **5. The caller receives both.** The answer's own fields are the model's words; `getArtifacts()`
 on the answer returns the artifacts it selected, the objects the tool built, looked up in the
-registry when the agent finished. A reference that names no artifact in the registry is logged
-and skipped.
+registry when the model's reply was accepted. A reference that names no artifact in the
+registry is refused with the reply's other validation errors: the model is told which
+reference it is and asked again, so an answer never leaves with one.
 
 ## A model never authors an artifact
 
@@ -144,8 +145,11 @@ An agent calling another agent hands it artifacts the same way. The caller's mod
 references in the called agent's input, `artifactRefs` on `ThinkerInput`, and the called agent
 starts with exactly those artifacts in its registry and nothing else of its caller's
 ([Tools, thinkers and doers](../../tools/PACKAGE.md)). The artifacts the called agent selects
-for its answer reach its caller as objects, and the caller can select them again for its own
-caller. However many agents stand between the tool and your code, the record your code gets is
+for its answer reach its caller as objects: when the answer is written for the caller's model,
+its `artifact_refs` is written from those objects, each as `{"@ref": ...}`, and that write
+registers each one in the caller's registry. The caller's model reads the same references the
+called agent named, its artifact tools find them, and the caller can select them again for its
+own caller. However many agents stand between the tool and your code, the record your code gets is
 the tool's.
 
 This also keeps agents specialized: an agent that reasons over a record needs neither the tool

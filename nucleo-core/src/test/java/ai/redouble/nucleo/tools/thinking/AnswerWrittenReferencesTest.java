@@ -23,10 +23,12 @@ import static org.junit.jupiter.api.Assertions.*;
  * the model wrote it, before it becomes an object of that class, so a reference counts in a
  * top-level field and in a field of a nested object alike, a reference that stands only in a
  * field's name counts for nothing, and one that is both declared and written is selected once.
+ * A reference that names no artifact of the registry, declared or written, is a violation
+ * the reply gate reports, with the reference in its line.
  *
  * <p>Each case runs the reply through the thinking loop's own two steps: the response
- * handler's parse, whose gate fills {@code artifact_refs}, and the resolution against the
- * registry that the loop performs on the final answer.
+ * handler's parse, whose gate fills {@code artifact_refs}, and its reply gate
+ * ({@code heldArtifacts}), which resolves them against the registry.
  *
  * @author Andrey Santrosyan
  * @since 0.1.3 (2026-11-14)
@@ -78,19 +80,45 @@ public class AnswerWrittenReferencesTest {
         Findings answer = new Findings();
         answer.setSummary("As " + firstRef + " shows.");
         answer.addArtifactRef(secondRef);
-        answer.resolveArtifacts(registry);
+        List<String> violations = new ArrayList<>();
+        answer.resolveArtifacts(registry, violations);
         assertEquals(Set.of(second), answer.getArtifacts(), "off the parse path the list is the selection; the text of a field is read by the parse gate alone");
+        assertEquals(List.of(), violations, "every reference of the list names an artifact");
     }
 
-    /** Parses the model's reply as the thinking loop does, then resolves the answer as the loop does. */
-    @SuppressWarnings({"unchecked", "rawtypes"})
+    @Test
+    void aDeclaredReferenceThatNamesNoArtifact_isAViolationThatNamesIt_andSelectsNothing() throws Exception {
+        List<String> violations = new ArrayList<>();
+        Findings answer = gated("{\"summary\": \"Two named.\", \"artifact_refs\": [\"" + firstRef + "\", \"«artifact:link~nowhere»\"]}", violations);
+        assertEquals(1, violations.size(), "one line for the one reference the registry does not hold: " + violations);
+        assertTrue(violations.get(0).contains("«artifact:link~nowhere»"), "the line names the reference, so the model knows which to correct: " + violations);
+        assertFalse(violations.get(0).contains(firstRef), "and no reference that does name an artifact: " + violations);
+        assertEquals(Set.of(first), answer.getArtifacts(), "the reference that names an artifact still selects it");
+    }
+
+    @Test
+    void aReferenceWrittenInTextThatNamesNoArtifact_isAViolationToo() throws Exception {
+        List<String> violations = new ArrayList<>();
+        gated("{\"summary\": \"As «artifact:link~invented» shows.\"}", violations);
+        assertEquals(1, violations.size(), "a reference in a text field is selected, so it must name an artifact: " + violations);
+        assertTrue(violations.get(0).contains("«artifact:link~invented»"), violations.toString());
+    }
+
+    /** Runs the reply through the parse and the reply gate, as the thinking loop does, and expects the gate to accept it. */
     private Findings answered(String answerJson) throws Exception {
+        List<String> violations = new ArrayList<>();
+        Findings answer = gated(answerJson, violations);
+        assertEquals(List.of(), violations, "the reply gate accepts the answer");
+        return answer;
+    }
+
+    /** The parse, whose gate fills {@code artifact_refs}, then the reply gate, which resolves them against the registry. */
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    private Findings gated(String answerJson, List<String> violations) throws Exception {
         ThinkingResponseHandler<Findings> handler = new ThinkingResponseHandler<>(new ToolRegistry(),
                 new PojoResponseHandler<ThinkingResponse<Findings>>((Class)ThinkingResponse.class),
                 new PojoResponseHandler<>(Findings.class));
-        Findings answer = handler.parse("{\"final_answer\": true, \"answer\": " + answerJson + "}").getAnswer();
-        answer.resolveArtifacts(registry);
-        return answer;
+        return handler.heldArtifacts(handler.parse("{\"final_answer\": true, \"answer\": " + answerJson + "}"), registry, violations).getAnswer();
     }
 
     /** An application's answer class: text at the top level, in nested objects and in a map, and no toString of its own. */

@@ -88,7 +88,8 @@ to the person, and `artifact_refs`, the references of the artifacts that support
 model selects the artifacts that leave the chat with an answer, by naming them in
 `artifact_refs` or by writing a reference in a field of the answer. Those are taken from the
 conversation's registry; an artifact the answer did not select stays in the conversation. A
-reference the registry does not hold is logged and skipped. A subclass adds fields the way
+reference the registry does not hold is refused: the model is told which one and asked
+again, as for a missing required field. A subclass adds fields the way
 any answer class does, typed artifact fields included, and a front end that knows only the
 two fields above ignores the rest.
 
@@ -103,7 +104,8 @@ stored for an answer. `ChatAnswer.stored(rawContent, answerClass, registry)` rea
 back out of a stored assistant message with its selected artifacts taken from the stored
 conversation's registry, so a replay shows what the live exchange showed. It returns null for
 a message that is not an answer, and an answer stored as a plain string reads as its text
-with no artifacts.
+with no artifacts. A stored answer that names a reference the stored registry does not hold
+reads with the artifacts its other references select.
 
 What a chat does differently from an agent working toward one answer:
 

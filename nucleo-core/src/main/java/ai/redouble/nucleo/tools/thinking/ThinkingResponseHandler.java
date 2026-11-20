@@ -385,7 +385,10 @@ public class ThinkingResponseHandler<O> implements ResponseHandler<ThinkingRespo
     }
 
     /**
-     * The answer's artifacts and each tool call's are taken from the registry. A violation
+     * The answer's artifacts and each tool call's are taken from the registry, and a
+     * {@link ThinkerOutput} answer has the artifacts its references select resolved here
+     * ({@link ThinkerOutput#resolveArtifacts}); a reference that names no artifact of the
+     * registry is a violation. A violation
      * in the answer is the reply's, reported with its other validation errors. A violation
      * in a tool call's input is that call's: the call is kept and carries the refusal, so
      * its tool_use is answered with the reason and the model can correct that one call.
@@ -396,6 +399,9 @@ public class ThinkingResponseHandler<O> implements ResponseHandler<ThinkingRespo
             return null;
         }
         parsed.setAnswer(registry.held(parsed.getAnswer(), violations));
+        if (parsed.getAnswer() instanceof ThinkerOutput<?> output) {
+            output.resolveArtifacts(registry, violations);
+        }
         if (parsed.getToolCalls() != null) {
             for (ToolCall toolCall : parsed.getToolCalls()) {
                 if (toolCall.getParseError() != null) {

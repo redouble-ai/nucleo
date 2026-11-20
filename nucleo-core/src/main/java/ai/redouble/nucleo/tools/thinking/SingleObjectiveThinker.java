@@ -203,8 +203,7 @@ public abstract class SingleObjectiveThinker<I extends ThinkerInput, O extends T
 
                 finalAnswer = response.getAnswer();
                 if (finalAnswer != null) {
-                    // The answer's selection becomes the objects the caller receives
-                    finalAnswer.resolveArtifacts(conversation.getArtifactRegistry());
+                    // The answer carries the objects it selected: the reply gate resolved them
                     if (!acceptAnswer(finalAnswer, conversation, context)) {
                         finalAnswer = null;
                         continue;

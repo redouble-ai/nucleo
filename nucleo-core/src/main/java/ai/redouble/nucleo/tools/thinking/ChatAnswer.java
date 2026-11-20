@@ -10,6 +10,7 @@ import ai.redouble.nucleo.harness.artifacts.*;
 import ai.redouble.nucleo.harness.schema.*;
 import com.fasterxml.jackson.databind.*;
 import com.fasterxml.jackson.databind.annotation.*;
+import org.slf4j.*;
 
 import java.io.*;
 import java.util.*;
@@ -36,6 +37,7 @@ import java.util.*;
 @LLMDescription("The reply to the person. artifact_refs names the artifacts that support the reply; they are shown to the person with it, and no other artifact is.")
 @JsonNaming(PropertyNamingStrategies.SnakeCaseStrategy.class)
 public class ChatAnswer extends ThinkerOutput<SimpleReasoning> {
+    private static final Logger log = LoggerFactory.getLogger(ChatAnswer.class);
     @LLMRequired
     @LLMDescription("The reply shown to the person, as markdown")
     private String messageText;
@@ -58,6 +60,10 @@ public class ChatAnswer extends ThinkerOutput<SimpleReasoning> {
      * reads as an answer with that string as its {@code message_text} and no artifacts. That
      * reading is deprecated: it serves conversations a release before 0.1.3 stored, and is
      * removed no later than 1.0, after which a plain-string answer is refused as unreadable.
+     * A stored answer that names a reference its conversation's registry does not hold reads
+     * with the artifacts its other references select, and the reference is logged. That
+     * reading is deprecated the same way: it serves answers a release before 0.1.5 stored,
+     * when a live answer could leave with such a reference.
      *
      * @param rawContent the stored assistant message, as the model wrote it
      * @param answerClass the chat's answer class
@@ -92,7 +98,14 @@ public class ChatAnswer extends ThinkerOutput<SimpleReasoning> {
                 throw new IOException("The stored answer refers to an artifact its conversation does not hold: " + String.join("; ", violations));
             }
             answer.canonicalizeArtifactRefs(ArtifactRegistry.refsWrittenIn(written));
-            answer.resolveArtifacts(registry);
+            // deprecated, removed no later than 1.0: a release before 0.1.5 let an answer leave
+            // with a reference that named no artifact, and showed the person the artifacts the
+            // other references selected. Such a stored answer replays as it was shown
+            List<String> unresolved = new ArrayList<>();
+            answer.resolveArtifacts(registry, unresolved);
+            for (String line : unresolved) {
+                log.warn("A stored answer selects less than it names: {}", line);
+            }
         }
         return answer;
     }

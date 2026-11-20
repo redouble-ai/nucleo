@@ -130,6 +130,21 @@ public abstract class ArtifactResponse<R extends Reasoning> extends ReasonablePo
     }
 
     /**
+     * The objects behind the references, for a response that holds them; null for one that
+     * holds references alone, which is every response but a thinker's resolved answer. When a
+     * response that holds its objects is written for a model
+     * ({@code NucleoJsonSerializer.writeSummarizedWithRefs}), {@code artifact_refs} is
+     * written from the objects, each as {@code {"@ref": ...}}, and the write registers each
+     * with the registry of the conversation that reads it. A reference in the list that none
+     * of the objects carries follows them as the string it is.
+     *
+     * @return the selected objects, or null when this response holds none
+     */
+    public Collection<Artifact> selectedArtifacts() {
+        return null;
+    }
+
+    /**
      * Checks if this response references any artifacts.
      *
      * @return true if artifactRefs contains at least one reference

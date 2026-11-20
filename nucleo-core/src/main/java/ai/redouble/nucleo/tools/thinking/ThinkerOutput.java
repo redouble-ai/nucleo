@@ -9,7 +9,6 @@ package ai.redouble.nucleo.tools.thinking;
 import ai.redouble.nucleo.harness.artifacts.*;
 import ai.redouble.nucleo.harness.schema.*;
 import com.fasterxml.jackson.annotation.*;
-import org.slf4j.*;
 
 import java.util.*;
 
@@ -22,7 +21,14 @@ import java.util.*;
  * <p>When a thinker completes, it populates the artifacts field with actual
  * Java objects resolved from its conversation's artifact registry based on
  * artifact_refs, which holds the references the answer declared and those it
- * wrote in its text fields.
+ * wrote in its text fields. A reference that names no artifact of the registry is
+ * refused at the reply gate, and the model is asked again.
+ *
+ * <p>The output of a thinker that ran as another thinker's tool is written for the calling
+ * model with the selected objects in the place of {@code artifact_refs}. The calling model
+ * reads the same references, and the write registers each object with the calling
+ * conversation, so a reference a called thinker returns is one the caller's artifact tools
+ * find and the caller's own answer can select.
  *
  * @param <R> the type of reasoning for this response
  *
@@ -30,7 +36,6 @@ import java.util.*;
  * @since 0.1 (2025-11-21)
  */
 public abstract class ThinkerOutput<R extends Reasoning> extends ArtifactResponse<R> {
-    private static final Logger log = LoggerFactory.getLogger(ThinkerOutput.class);
     @JsonIgnore  // Artifacts are resolved from registry, not deserialized from LLM JSON
     private Set<Artifact> artifacts;
 
@@ -66,14 +71,19 @@ public abstract class ThinkerOutput<R extends Reasoning> extends ArtifactRespons
      * {@code artifact_refs}. For a parsed answer that list already holds the references the
      * model wrote in its text fields beside the ones it declared: the parse gate
      * ({@link ArtifactResponse#canonicalizeArtifactRefs}) put them there, so nothing is read
-     * from the text here. A reference the registry does not hold is logged and skipped. The
-     * references are canonical after the parse gate; they are normalized again here because
-     * an output can also be built programmatically, off the thinking path, and such an
-     * output selects what its list names.
+     * from the text here. A reference the registry does not hold selects nothing and is
+     * described in {@code violations}, one line each, addressed to the model that wrote it:
+     * the reply gate ({@link ThinkingResponseHandler#heldArtifacts}) reports those lines with
+     * the reply's other validation errors, so the model is asked again and an answer leaves
+     * the thinking loop only when every reference it names is an artifact. The references
+     * are canonical after the parse gate; they are normalized again here because an output
+     * can also be built programmatically, off the thinking path, and such an output selects
+     * what its list names.
      *
      * @param registry the registry of the conversation the answer was given in
+     * @param violations receives one line per reference the registry does not hold
      */
-    public void resolveArtifacts(ArtifactRegistry registry) {
+    public void resolveArtifacts(ArtifactRegistry registry, List<String> violations) {
         Set<String> refsToResolve = new LinkedHashSet<>();
         if (hasArtifactRefs()) {
             for (String ref : getArtifactRefs()) {
@@ -86,9 +96,20 @@ public abstract class ThinkerOutput<R extends Reasoning> extends ArtifactRespons
                 addArtifact(artifact);
             }
             else {
-                log.warn("Could not resolve artifact reference: {}", ref);
+                violations.add("The reference " + ref + " names no artifact the registry lists: refer to an artifact only by a reference the registry shows");
             }
         }
+    }
+
+    /**
+     * The objects this answer selected. When the answer is written for a model, as the result
+     * of the tool call that ran this thinker, they are written in the place of
+     * {@code artifact_refs}, each as its reference, and that write registers each one with
+     * the conversation of the model that reads it.
+     */
+    @Override
+    public Collection<Artifact> selectedArtifacts() {
+        return artifacts;
     }
 
     /**

@@ -60,6 +60,8 @@ public class NucleoJsonSerializer {
     private static final Logger log = LoggerFactory.getLogger(NucleoJsonSerializer.class);
     /** The key under which an artifact is shown to a model in place of its content: {@code {"@ref": "..."}}. */
     public static final String ARTIFACT_REF_AS_SHOWN = "@ref";
+    /** The serialized name of {@link ArtifactResponse}'s list of references. */
+    static final String SELECTED_REFS_PROPERTY = "artifact_refs";
     static final String ATTR_MODE = "nucleo.mode";
     static final String ATTR_SUMMARIZER = "nucleo.summarizer";
     static final String ATTR_REGISTRY = "nucleo.registry";
@@ -420,6 +422,10 @@ public class NucleoJsonSerializer {
                     beanProperties.set(i, new ContextIgnorePropertyWriter(writer));
                     continue;
                 }
+                if (ArtifactResponse.class.isAssignableFrom(beanDesc.getBeanClass()) && SELECTED_REFS_PROPERTY.equals(writer.getName())) {
+                    beanProperties.set(i, new SelectedArtifactsPropertyWriter(writer));
+                    continue;
+                }
                 LLMSummarizable anno = writer.getAnnotation(LLMSummarizable.class);
                 if (anno != null && (anno.preSummarized() || writer.getType().getRawClass() == String.class)) {
                     beanProperties.set(i, new SummarizablePropertyWriter(writer, anno));
@@ -545,6 +551,49 @@ public class NucleoJsonSerializer {
                 return;
             }
             delegate.serializeAsField(bean, gen, provider);
+        }
+    }
+
+    /**
+     * Property writer for {@code artifact_refs} of an {@link ArtifactResponse}. In LLM_REF
+     * mode a response that holds the objects it selected
+     * ({@link ArtifactResponse#selectedArtifacts}) has the property written from them: each
+     * goes through {@link ArtifactRefSerializer}, which writes its reference and registers it
+     * with the registry of the conversation being written for. That is how the artifacts a
+     * called thinker selected reach the thinker that called it. A reference of the list that
+     * none of the objects carries follows them as a string. In every other mode, and for a
+     * response that holds no objects, the list of strings is written as it is.
+     */
+    static class SelectedArtifactsPropertyWriter extends BeanPropertyWriter {
+        private final BeanPropertyWriter delegate;
+
+        SelectedArtifactsPropertyWriter(BeanPropertyWriter delegate) {
+            super(delegate);
+            this.delegate = delegate;
+        }
+
+        @Override
+        public void serializeAsField(Object bean, JsonGenerator gen, SerializerProvider provider) throws Exception {
+            ArtifactResponse<?> response = (ArtifactResponse<?>) bean;
+            Collection<Artifact> selected = response.selectedArtifacts();
+            if (!MODE_LLM_REF.equals(provider.getAttribute(ATTR_MODE)) || selected == null || selected.isEmpty()) {
+                delegate.serializeAsField(bean, gen, provider);
+                return;
+            }
+            Set<String> written = new HashSet<>();
+            gen.writeArrayFieldStart(delegate.getName());
+            for (Artifact artifact : selected) {
+                provider.defaultSerializeValue(artifact, gen);
+                written.add(ArtifactRegistry.normalizeToKey(artifact.getArtifactRef()));
+            }
+            if (response.getArtifactRefs() != null) {
+                for (String ref : response.getArtifactRefs()) {
+                    if (!written.contains(ArtifactRegistry.normalizeToKey(ref))) {
+                        gen.writeString(ref);
+                    }
+                }
+            }
+            gen.writeEndArray();
         }
     }
 
