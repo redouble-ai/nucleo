@@ -20,6 +20,10 @@ group `ai.redouble`; a published version is never changed in place.
   `resolveArtifacts(registry, violations)` and is called by the reply gate,
   `ThinkingResponseHandler.heldArtifacts`. A thinker of your own that extends
   `AbstractThinker` and called it after reading the answer drops the call.
+- Security: `nucleo-demo-poi` declares `commons-lang3` 3.20.0 and `log4j-api` 2.26.1 as its
+  own dependencies. The module, and a host that included it without a platform BOM, took
+  3.16.0 (CVE-2025-48924) and 2.24.3 (CVE-2026-49844) from Apache POI 5.4.0. The two demo
+  hosts already resolved fixed versions of both, and the module is not published.
 
 ## 0.1.4 (2026-11-19)
 

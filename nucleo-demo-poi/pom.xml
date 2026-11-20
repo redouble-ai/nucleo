@@ -27,6 +27,8 @@
         <skipPublishing>true</skipPublishing>
         <poi.version>5.4.0</poi.version>
         <pdfbox.version>2.0.30</pdfbox.version>
+        <commons-lang3.version>3.20.0</commons-lang3.version>
+        <log4j-api.version>2.26.1</log4j-api.version>
     </properties>
 
     <dependencyManagement>
@@ -56,6 +58,20 @@
             <groupId>org.apache.pdfbox</groupId>
             <artifactId>pdfbox</artifactId>
             <version>${pdfbox.version}</version>
+        </dependency>
+        <!-- POI 5.4.0 asks for commons-lang3 3.16.0 (through commons-compress), which
+             CVE-2025-48924 names, and for log4j-api 2.24.3, which CVE-2026-49844 names.
+             Declared here, and not only managed, so that a host that depends on this module
+             resolves these versions too: a managed version stays in the module that manages it -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
+            <version>${commons-lang3.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-api</artifactId>
+            <version>${log4j-api.version}</version>
         </dependency>
     </dependencies>
 </project>
