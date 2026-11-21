@@ -2,7 +2,7 @@
 
 This page is for people working on the runtime itself: why retrieval goes through the
 registry, what conveyance guarantees, how the registry reaches a tool, and the classes of
-`ai.redouble.nucleo.harness.artifacts.tools`. The guide for the two tools is [Artifact
+`ai.redouble.nucleo.harness.artifacts.tools`. The guide for the tools is [Artifact
 tools](PACKAGE.md).
 
 ---
@@ -87,5 +87,8 @@ over.
 | `SearchArtifactContentInput` | Input: query, optional artifactType and artifactRef filters, maxResults, contextChars |
 | `SearchArtifactContentOutput` | Output: list of matches, totalMatches |
 | `SearchMatch` | Single match with snippet and position |
+| `ReadRowsTool` | Returns a run of the rows a held list already has |
+| `ReadRowsInput` | Input: list, optional fromRow and howMany |
+| `ReadRowsOutput` | Output: rowsInList, fromRow, the rows |
 | `ReflectiveFields` | Shared field lookup for LLM-supplied names: snake_case/camelCase resolution up the class hierarchy (`find`), and the addressable field-name surface (`fieldNames`) |
 | `KeyedRecord` | An artifact whose filterable fields are a dynamic name->value set rather than static Java fields - the bridge for record-shaped artifacts whose columns are decided at run time, so a list-processing predicate can address a data-defined field by the name the caller asked for |

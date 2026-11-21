@@ -276,6 +276,7 @@ public abstract class AbstractThinker<I extends ThinkerInput, O extends ThinkerO
         // Always register artifact access tools - lightweight, no-op if no artifacts exist
         this.toolRegistry.register(SearchArtifactContentTool.class);
         this.toolRegistry.register(GetArtifactFieldTool.class);
+        this.toolRegistry.register(ReadRowsTool.class);
         // Sub-agent spawning - any thinker can delegate sub-tasks
         this.toolRegistry.register(SubThinker.class);
     }

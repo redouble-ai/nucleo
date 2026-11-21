@@ -290,8 +290,8 @@ shows the shape of a thinker working toward one answer: extend
 body, so it cannot read fields your constructor sets. A palette that depends on the input
 belongs in `reconcileToolRegistry()` (below).
 
-Beside the tools you declare, every thinker is given two tools for reading its artifacts in
-full, `get_artifact_field` and `search_artifact_content` ([Artifact
+Beside the tools you declare, every thinker is given three tools for reading its artifacts in
+full, `get_artifact_field`, `search_artifact_content` and `read_rows` ([Artifact
 tools](../harness/artifacts/tools/PACKAGE.md)), `sub_thinker` for delegating part of the work
 (below), and any tool registered for all thinkers with
 `ToolHub.getInstance().registerSystemWideTool`. When it declares tools or skills the model

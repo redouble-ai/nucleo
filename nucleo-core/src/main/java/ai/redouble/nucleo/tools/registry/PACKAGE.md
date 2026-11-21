@@ -19,8 +19,8 @@ A thinker's palette starts with what it declares:
   it for a call. `addTool(provider)` adds one to a running thinker.
 
 To these every thinker adds the tools registered for all thinkers
-(`ToolHub.getInstance().registerSystemWideTool`), the two artifact tools
-`get_artifact_field` and `search_artifact_content`, and `sub_thinker` while it works at
+(`ToolHub.getInstance().registerSystemWideTool`), the three artifact tools
+`get_artifact_field`, `search_artifact_content` and `read_rows`, and `sub_thinker` while it works at
 `Depth.STANDARD` or deeper.
 
 ## Tools the model may ask for: `request_tools`

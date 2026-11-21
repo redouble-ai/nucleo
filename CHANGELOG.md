@@ -10,6 +10,10 @@ group `ai.redouble`; a published version is never changed in place.
   matching rows in the whole store, and one window of them as a `ListArtifact`. The model is
   shown the total and the list's digest whatever the size of the window, and every row is
   held under its own reference.
+- A model reads the rows of a list it holds. A list is shown to a model as its count and
+  first few rows, and until now the model had no way to see the others. Every thinker has a
+  new tool, `read_rows`: the model names the list, the first row and how many, ten by
+  default, and sees those rows in full from then on.
 - The artifacts a called thinker selects reach the thinker that called it. A thinker that ran
   as another thinker's tool answered with references the calling model could read and its
   registry did not hold: an artifact tool given one answered that the artifact was not found,

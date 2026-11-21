@@ -5,9 +5,10 @@ every artifact, but a long field - a chart note, a full specification, a web pag
 a summary of a few hundred tokens instead of several thousand ([Artifacts: data the model
 cannot alter](../PACKAGE.md)). That keeps the context affordable and keeps long artifacts
 usable at all, and it leaves the model holding a summary of a field it may need to read in
-full.
+full. A list is shortened the same way: the model sees how many rows it has and the first few,
+and the other rows are held unseen.
 
-The two tools of this package give it that access when it asks. Every thinker has both in its
+The three tools of this package give it that access when it asks. Every thinker has them in its
 palette without declaring them. Each takes a reference, looks it up in the registry of the
 agent's own conversation, and returns what is stored there. Reading changes nothing, and the
 content reaches the model as a tool's result, so the model still never carries the data
@@ -44,10 +45,26 @@ Neither has a ceiling. A `max_results` below 1 or a negative `context_chars` is 
 `InvalidInputException`. A search that finds nothing is an empty result, and so is a search
 limited to a reference that names no artifact.
 
+## `read_rows`: the rows of a list
+
+The model names a list by its reference, the first row to read (`from_row`, counted from 1,
+the first row unless it asks otherwise) and how many (`how_many`, 10 unless it asks for
+another number; there is no ceiling). The tool returns those rows with the number of rows the
+list holds, and the model sees them in full from then on, each under the reference it already
+had in the list. Nothing is fetched or searched again: the rows are the ones the list holds.
+A model that searched for twenty rows reads all twenty with one more call and copies no
+references to do it.
+
+A run that starts inside the list and reaches past its end returns the rows there are. A
+reference that names no artifact is refused with `ResourceNotFoundException`. A reference to
+something that is no list, a `from_row` or `how_many` below 1, and a `from_row` past the end
+of the list are refused with `InvalidInputException`; the last says how many rows the list
+holds.
+
 ## Where the registry comes from
 
-Both tools read the registry of the thinker that calls them, which the thinker hands them
-before each call. Run outside a thinker, with no registry to read, either fails with
+All three tools read the registry of the thinker that calls them, which the thinker hands them
+before each call. Run outside a thinker, with no registry to read, each fails with
 `SystemException`. An agent called by another agent reads its own registry, which holds only
 the artifacts it was handed ([Tools, thinkers and doers](../../../tools/PACKAGE.md)), so a
 sub-agent can reach what it was given and nothing else.

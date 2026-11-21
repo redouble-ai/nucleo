@@ -207,7 +207,8 @@ A field holding more than is worth showing a model in full - a page, a patent, a
 marked `@LLMSummarizable`, and the model sees a summary while the artifact keeps the whole
 value ([Answers as Java objects](../schema/PACKAGE.md)). Summaries are computed once and cached
 on the artifact. A model that needs the whole value asks for it with `get_artifact_field`, and
-`search_artifact_content` searches the text of every artifact ([Artifact
+`search_artifact_content` searches the text of every artifact; `read_rows` reads the rows of
+a list past the few its digest shows ([Artifact
 tools](tools/PACKAGE.md)).
 
 A registry belongs to one conversation and is not safe to share between threads.
