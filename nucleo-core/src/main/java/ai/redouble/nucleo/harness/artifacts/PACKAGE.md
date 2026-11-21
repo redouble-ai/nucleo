@@ -187,6 +187,7 @@ Nucleo ships these shapes, plain data classes to use or extend:
 | `CodeArtifact` | `code` | a piece of code with its language and file |
 | `PersonArtifact` | `person` | a person with affiliation, role and ORCID |
 | `ListArtifact<T>` | `list` | an ordered list of artifacts of one type, its iterands |
+| `SearchResultArtifact<T>` | `search_result` | the answer of a search: the total of matches and one window of them |
 
 `ListArtifact` carries bulk data. The model sees a list as a short digest - its reference, the
 type of its iterands, their count and the first few - however long it is, and every iterand is
@@ -194,6 +195,13 @@ registered under its own reference, so a tool can be handed any one of them. Bui
 completely before it is registered: its iterands are indexed at registration, and a list
 changed afterwards leaves the index behind. A list also records where it came from:
 `derivedFromRef`, `workerToolName` and `instruction`.
+
+`SearchResultArtifact` is what a tool that searches a store returns in place of a bare list.
+It tells the model how many rows match in the whole store, `total_matching`, beside the
+`offset` and `limit` of the one window it holds in `rows`, a `ListArtifact`. The limit decides
+how many rows are fetched and held; the model is shown `rows` as a list's digest whatever the
+limit, and every row is registered under its own reference. The tool sets all four fields
+from its query.
 
 A field holding more than is worth showing a model in full - a page, a patent, a sequence - is
 marked `@LLMSummarizable`, and the model sees a summary while the artifact keeps the whole

@@ -5,6 +5,11 @@ group `ai.redouble`; a published version is never changed in place.
 
 ## Unreleased
 
+- A search tool tells the model how much it found. `SearchResultArtifact`, alias
+  `search_result`, is a new artifact a tool returns in place of a bare list: the total of
+  matching rows in the whole store, and one window of them as a `ListArtifact`. The model is
+  shown the total and the list's digest whatever the size of the window, and every row is
+  held under its own reference.
 - The artifacts a called thinker selects reach the thinker that called it. A thinker that ran
   as another thinker's tool answered with references the calling model could read and its
   registry did not hold: an artifact tool given one answered that the artifact was not found,
