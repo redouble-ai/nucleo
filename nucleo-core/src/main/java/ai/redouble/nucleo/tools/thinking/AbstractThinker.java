@@ -1243,8 +1243,9 @@ public abstract class AbstractThinker<I extends ThinkerInput, O extends ThinkerO
 
     /**
      * Declares additional tools this thinker may use, subject to admission.
-     * The catalog (name + description) appears in the system prompt.
-     * The LLM activates specific tools on demand via request_tools.
+     * The catalog reaches the model only through the input of {@code request_tools}, which
+     * lists each tool's name and description as the values it accepts; it is never text in
+     * the prompt. The LLM activates specific tools on demand via {@code request_tools}.
      *
      * <p>Override to declare packages and/or individual tool classes:
      * <pre>
