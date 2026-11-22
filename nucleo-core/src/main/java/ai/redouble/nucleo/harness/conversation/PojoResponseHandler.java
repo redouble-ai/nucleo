@@ -6,6 +6,7 @@
 
 package ai.redouble.nucleo.harness.conversation;
 
+import ai.redouble.nucleo.harness.annotations.*;
 import ai.redouble.nucleo.harness.artifacts.*;
 import ai.redouble.nucleo.harness.schema.*;
 import com.fasterxml.jackson.annotation.*;
@@ -92,6 +93,17 @@ public class PojoResponseHandler<T > implements ResponseHandler<T> {
     }
 
     /**
+     * Every class the schema of a POJO class describes: the class itself and the type of
+     * each composite field, to any depth. These are the classes whose annotations the schema
+     * is written from.
+     */
+    public static List<Class<?>> describedClasses(Class<?> pojoClass) {
+        SchemaWalk walk = new SchemaWalk();
+        buildPojoDefinition(pojoClass, walk);
+        return new ArrayList<>(walk.named.values());
+    }
+
+    /**
      * The state of one walk: the types currently on the path, and the definitions of those
      * a cycle came back to.
      *
@@ -134,8 +146,9 @@ public class PojoResponseHandler<T > implements ResponseHandler<T> {
             throw new IllegalStateException("Two types named " + className + " in one schema: "
                     + sameName.getName() + " and " + pojoClass.getName() + "; rename one");
         }
-        LLMDescription classDesc = pojoClass.getAnnotation(LLMDescription.class);
-        String description = classDesc != null ? classDesc.value() : "Schema of " + className;
+        ResolvedAnnotation<LLMDescription> classDesc = Annotations.of(pojoClass, LLMDescription.class);
+        String classText = classDesc != null ? classDesc.text() : null;
+        String description = classText != null ? classText : "Schema of " + className;
 
         PojoDefinition definition = new PojoDefinition(className, description);
         walk.onPath.put(pojoClass, definition);
@@ -208,9 +221,10 @@ public class PojoResponseHandler<T > implements ResponseHandler<T> {
         StringBuilder descBuilder = new StringBuilder();
 
         // Add LLM description if present
-        LLMDescription desc = field.getAnnotation(LLMDescription.class);
+        ResolvedAnnotation<LLMDescription> resolvedDesc = Annotations.of(contextClass, field, LLMDescription.class);
+        String desc = resolvedDesc != null ? resolvedDesc.text() : null;
         if (desc != null) {
-            descBuilder.append(desc.value());
+            descBuilder.append(desc);
         }
 
         // Check if required. The flag is the structure; the token is prose for the model.
@@ -222,13 +236,14 @@ public class PojoResponseHandler<T > implements ResponseHandler<T> {
         }
 
         // Add examples if present
-        LLMExample example = field.getAnnotation(LLMExample.class);
-        if (example != null && example.value().length > 0) {
+        ResolvedAnnotation<LLMExample> example = Annotations.of(contextClass, field, LLMExample.class);
+        String[] examples = example != null ? example.texts() : null;
+        if (examples != null && examples.length > 0) {
             if (!descBuilder.isEmpty()) descBuilder.append(" ");
             descBuilder.append("[Examples: ");
-            descBuilder.append(String.join(", ", example.value()));
+            descBuilder.append(String.join(", ", examples));
             descBuilder.append("]");
-            descriptor.setExamples(List.of(example.value()));
+            descriptor.setExamples(List.of(examples));
         }
 
         // Log warnings for missing descriptions

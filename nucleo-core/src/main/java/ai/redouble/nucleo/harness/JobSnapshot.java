@@ -6,6 +6,7 @@
 
 package ai.redouble.nucleo.harness;
 
+import ai.redouble.nucleo.harness.annotations.*;
 import com.fasterxml.jackson.annotation.*;
 
 import java.io.*;
@@ -101,11 +102,9 @@ public class JobSnapshot implements Serializable, Identifiable {
         if (jobClass == null) {
             return null;
         }
-        DisplayName annotation = jobClass.getAnnotation(DisplayName.class);
-        if (annotation != null) {
-            return annotation.value();
-        }
-        return jobClass.getSimpleName();
+        ResolvedAnnotation<DisplayName> annotation = Annotations.of(jobClass, DisplayName.class);
+        String name = annotation != null ? annotation.string("value") : null;
+        return name != null ? name : jobClass.getSimpleName();
     }
 
     /**
@@ -116,11 +115,8 @@ public class JobSnapshot implements Serializable, Identifiable {
         if (jobClass == null) {
             return "";
         }
-        DisplayName annotation = jobClass.getAnnotation(DisplayName.class);
-        if (annotation != null && !annotation.action().isEmpty()) {
-            return annotation.action();
-        }
-        return "";
+        ResolvedAnnotation<DisplayName> annotation = Annotations.of(jobClass, DisplayName.class);
+        return annotation != null ? annotation.string("action") : "";
     }
 
     /**
@@ -136,18 +132,13 @@ public class JobSnapshot implements Serializable, Identifiable {
             @SuppressWarnings("unchecked")
             Class<? extends java.lang.annotation.Annotation> annClass =
                     (Class<? extends java.lang.annotation.Annotation>) Class.forName("ai.redouble.nucleo.tools.ToolDescription");
-            java.lang.annotation.Annotation annotation = jobClass.getAnnotation(annClass);
-            if (annotation != null) {
-                return (String) annClass.getMethod("value").invoke(annotation);
-            }
+            ResolvedAnnotation<? extends java.lang.annotation.Annotation> annotation = Annotations.of(jobClass, annClass);
+            return annotation != null ? annotation.string("value") : null;
         }
         catch (ClassNotFoundException ignored) {
             // ToolDescription not on classpath - Nucleo used standalone
+            return null;
         }
-        catch (Exception e) {
-            // Reflection failure - not critical for observability
-        }
-        return null;
     }
 
     // Getters for JobSnapshot fields

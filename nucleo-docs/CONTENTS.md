@@ -50,6 +50,7 @@ travels between agents unaltered.
   - [Artifact tools](../nucleo-core/src/main/java/ai/redouble/nucleo/harness/artifacts/tools/PACKAGE.md)
 - [Prompts](../nucleo-core/src/main/java/ai/redouble/nucleo/prompt/PACKAGE.md)
   - [Prompt sources](../nucleo-core/src/main/java/ai/redouble/nucleo/prompt/sources/PACKAGE.md)
+- [Descriptions kept outside the code](../nucleo-core/src/main/java/ai/redouble/nucleo/harness/annotations/PACKAGE.md)
   - [Skills and skilljars](../nucleo-core/src/main/java/ai/redouble/nucleo/prompt/skill/PACKAGE.md)
 - [Built-in tools](../nucleo-core/src/main/java/ai/redouble/nucleo/tools/builtin/PACKAGE.md)
 

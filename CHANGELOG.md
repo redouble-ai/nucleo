@@ -5,6 +5,16 @@ group `ai.redouble`; a published version is never changed in place.
 
 ## Unreleased
 
+- What a tool tells the model can be changed without a release. A deployment sets an
+  `AnnotationResolver` with `Annotations.setResolver`, and from then on the description of a
+  tool (`@ToolDescription`), of a class or field of its input and output (`@LLMDescription`,
+  `@LLMExample`), its display name and its weight are read from the deployment's store when
+  it holds something under the annotation's key, `<class name>@<Annotation>` or
+  `<class name>.<field>@<Annotation>`, and from the code otherwise. A stored override is the
+  annotation's `value` as text and, apart from it, a JSON object of its other attributes. A
+  tool served over MCP carries the stored text. `Annotations.changed()` tells Nucleo the
+  store changed, and `ClassToolProvider.annotationKeys()` lists what can be stored for a
+  tool. With no resolver set nothing changes.
 - A thinker finds the right tool in a catalog of hundreds. A thinker with more than 30 tools
   to ask for (`SommelierSettings.listedTools`) is no longer shown them: its `request_tools`
   names no tool, and it has a new tool, `find_tools`, to which its model states what it

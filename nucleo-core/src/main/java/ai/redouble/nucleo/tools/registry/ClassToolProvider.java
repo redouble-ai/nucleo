@@ -7,6 +7,7 @@
 package ai.redouble.nucleo.tools.registry;
 
 import ai.redouble.nucleo.harness.*;
+import ai.redouble.nucleo.harness.annotations.*;
 import ai.redouble.nucleo.harness.conversation.*;
 import ai.redouble.nucleo.harness.errors.*;
 import ai.redouble.nucleo.harness.schema.*;
@@ -23,7 +24,11 @@ import java.util.*;
 /**
  * {@link ToolProvider} that wraps a {@code Class<? extends Tool>}. Reads
  * {@link ToolName}, {@link ToolDescription}, {@link DisplayName}, {@link ToolWeight}
- * annotations. Schema is generated once via {@link PojoResponseHandler} and cached.
+ * annotations. Its name and its input and output types are the code's alone. Its
+ * description, its read-only flag, its display name, its weight and its schemas are read
+ * through {@link Annotations}, so a deployment's store can override them: they are generated
+ * once via {@link PojoResponseHandler} and kept until {@link Annotations#changed()} says the
+ * store changed.
  *
  * <p>Equality is by wrapped class identity, so registering the same class twice produces
  * the same provider key, supporting {@link ToolRegistry}'s upsert-on-same-identity policy.
@@ -36,15 +41,24 @@ public final class ClassToolProvider implements ToolProvider {
 
     private final Class<? extends Tool> toolClass;
     private final String name;
-    private final String description;
-    private final String displayName;
-    private final String actionVerb;
-    private final ToolWeight weight;
     private final Class<?> inputType;
-    private final String schemaJson;
     private final Class<?> outputType;
-    private final String outputSchemaJson;
-    private final boolean readOnly;
+    private volatile Described described;
+
+    /**
+     * Everything of the tool that is read from annotations a deployment can override, as it
+     * read under one {@link Annotations#generation() generation}.
+     */
+    private static final class Described {
+        private long generation;
+        private String description;
+        private boolean readOnly;
+        private String displayName;
+        private String actionVerb;
+        private ToolWeight weight;
+        private String schemaJson;
+        private String outputSchemaJson;
+    }
 
     private ClassToolProvider(Class<? extends Tool> toolClass) {
         this.toolClass = toolClass;
@@ -54,16 +68,37 @@ public final class ClassToolProvider implements ToolProvider {
                     "Tool class " + toolClass.getName() + " is missing @ToolName annotation");
         }
         this.name = nameAnn.value();
-        ToolDescription descAnn = toolClass.getAnnotation(ToolDescription.class);
-        this.description = descAnn != null ? descAnn.value() : "Tool: " + name;
-        this.readOnly = descAnn != null && descAnn.readOnly();
-        DisplayName displayAnn = toolClass.getAnnotation(DisplayName.class);
-        this.displayName = displayAnn != null ? displayAnn.value() : toolClass.getSimpleName();
-        this.actionVerb = displayAnn != null ? displayAnn.action() : "";
-        this.weight = resolveWeight(toolClass);
         this.inputType = resolveInputType(toolClass);
-        this.schemaJson = refine(toolClass, this.inputType, generateSchemaJson(this.inputType, name));
         this.outputType = resolveTypeArgument(toolClass, 1);
+        // Described here and not at the first question, so that a tool that cannot be
+        // described is refused where it is registered
+        this.described = describe(Annotations.generation());
+    }
+
+    /** The tool as it reads now: described again when the deployment's store has changed. */
+    private Described described() {
+        Described held = described;
+        long generation = Annotations.generation();
+        if (held.generation != generation) {
+            held = describe(generation);
+            described = held;
+        }
+        return held;
+    }
+
+    private Described describe(long generation) {
+        Described fresh = new Described();
+        fresh.generation = generation;
+        ResolvedAnnotation<ToolDescription> descAnn = Annotations.of(toolClass, ToolDescription.class);
+        String text = descAnn != null ? descAnn.text() : null;
+        fresh.description = text != null ? text : "Tool: " + name;
+        fresh.readOnly = descAnn != null && descAnn.bool("readOnly");
+        ResolvedAnnotation<DisplayName> displayAnn = Annotations.of(toolClass, DisplayName.class);
+        String shown = displayAnn != null ? displayAnn.string("value") : null;
+        fresh.displayName = shown != null ? shown : toolClass.getSimpleName();
+        fresh.actionVerb = displayAnn != null ? displayAnn.string("action") : "";
+        fresh.weight = resolveWeight(toolClass);
+        fresh.schemaJson = refine(toolClass, this.inputType, generateSchemaJson(this.inputType, name));
         // Only a composite has a schema worth publishing. The generator describes POJOs and
         // writes "type": "object" for whatever it is handed, so asking it about a String
         // would produce an object schema for a bare string - a claim no result can meet.
@@ -72,10 +107,31 @@ public final class ClassToolProvider implements ToolProvider {
         // its schema degrades to a string while the wire ships the full bean, and a published
         // schema the result cannot validate against fails every call at the SDK. Until the
         // walker resolves type arguments, such an output ships as text content only.
-        this.outputSchemaJson = NucleoJsonSerializer.isComposite(this.outputType)
+        fresh.outputSchemaJson = NucleoJsonSerializer.isComposite(this.outputType)
                         && describableForWire(this.outputType, new java.util.HashSet<>())
                 ? generateSchemaJson(this.outputType, name)
                 : null;
+        return fresh;
+    }
+
+    /**
+     * Every annotation of this tool a deployment can override, with what the code declares:
+     * those of the tool class and of every class its input and output are described by.
+     */
+    public List<AnnotationKey> annotationKeys() {
+        Map<String, AnnotationKey> keys = new LinkedHashMap<>();
+        Set<Class<?>> classes = new LinkedHashSet<>();
+        classes.add(toolClass);
+        classes.addAll(PojoResponseHandler.describedClasses(inputType));
+        if (NucleoJsonSerializer.isComposite(outputType)) {
+            classes.addAll(PojoResponseHandler.describedClasses(outputType));
+        }
+        for (Class<?> described : classes) {
+            for (AnnotationKey key : Annotations.keysOf(described)) {
+                keys.putIfAbsent(key.key(), key);
+            }
+        }
+        return new ArrayList<>(keys.values());
     }
 
     /**
@@ -114,14 +170,54 @@ public final class ClassToolProvider implements ToolProvider {
     }
 
     private static ToolWeight resolveWeight(Class<? extends Tool> cls) {
-        ToolWeight ann = cls.getAnnotation(ToolWeight.class);
+        ResolvedAnnotation<ToolWeight> ann = Annotations.of(cls, ToolWeight.class);
         if (ann != null) {
-            return ann;
+            return ann.overridden() ? new StoredToolWeight(ann) : ann.declared();
         }
         if (Thinker.class.isAssignableFrom(cls)) {
             return DefaultToolWeights.THINKER_DEFAULT;
         }
         return DefaultToolWeights.API_CALL_DEFAULT;
+    }
+
+    /** A weight whose attributes the deployment's store had a say in, read once. */
+    private static final class StoredToolWeight implements ToolWeight {
+        private final ToolType type;
+        private final int level;
+        private final int min;
+        private final int max;
+
+        private StoredToolWeight(ResolvedAnnotation<ToolWeight> resolved) {
+            this.type = resolved.enumValue("type", ToolType.class);
+            this.level = resolved.integer("level");
+            this.min = resolved.integer("min");
+            this.max = resolved.integer("max");
+        }
+
+        @Override
+        public ToolType type() {
+            return type;
+        }
+
+        @Override
+        public int level() {
+            return level;
+        }
+
+        @Override
+        public int min() {
+            return min;
+        }
+
+        @Override
+        public int max() {
+            return max;
+        }
+
+        @Override
+        public Class<? extends java.lang.annotation.Annotation> annotationType() {
+            return ToolWeight.class;
+        }
     }
 
     private static Class<?> resolveInputType(Class<? extends Tool> cls) {
@@ -248,6 +344,11 @@ public final class ClassToolProvider implements ToolProvider {
         catch (OutOfMemoryError e) {
             throw e;
         }
+        // Nor is a stored override its annotation cannot take: that is the deployment's
+        // store to correct, and a schema quietly missing would hide which row is wrong.
+        catch (AnnotationOverrideException e) {
+            throw e;
+        }
         catch (Throwable t) {
             log.error("Failed to generate schema for tool {}; it is published without one", toolName, t);
             return null;
@@ -261,32 +362,32 @@ public final class ClassToolProvider implements ToolProvider {
 
     @Override
     public String description() {
-        return description;
+        return described().description;
     }
 
     @Override
     public String schemaJson() {
-        return schemaJson;
+        return described().schemaJson;
     }
 
     @Override
     public ToolWeight weight() {
-        return weight;
+        return described().weight;
     }
 
     @Override
     public String displayName() {
-        return displayName;
+        return described().displayName;
     }
 
     @Override
     public String actionVerb() {
-        return actionVerb;
+        return described().actionVerb;
     }
 
     @Override
     public boolean readOnly() {
-        return readOnly;
+        return described().readOnly;
     }
 
     @Override
@@ -301,7 +402,7 @@ public final class ClassToolProvider implements ToolProvider {
 
     @Override
     public String outputSchemaJson() {
-        return outputSchemaJson;
+        return described().outputSchemaJson;
     }
 
     @Override

@@ -90,6 +90,10 @@ in `execute`. Every tool needs a public constructor taking the parent,
 instance through it, with the calling agent as the parent, so each call has an instance of
 its own.
 
+What `@ToolDescription` says is the default. A deployment can keep its own wording of a
+tool's description, and of its input's and output's fields, outside the code:
+[Descriptions kept outside the code](../harness/annotations/PACKAGE.md).
+
 ### Saying that a tool changes nothing
 
 `@ToolDescription` has a `readOnly` flag, `false` unless you set it. `OrderStatusTool`

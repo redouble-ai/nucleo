@@ -47,6 +47,9 @@ you want:
 Field names reach the model in snake_case, `ordersLookedUp` as `orders_looked_up`. A field
 marked `@JsonIgnore` is not shown to the model at all.
 
+A deployment can reword a description without touching the class: see
+[Descriptions kept outside the code](../annotations/PACKAGE.md).
+
 An agent's answer extends `ThinkerOutput`, which adds two things to the fields you declare:
 the artifacts the agent selected, handed to your code exactly as the tools produced them
 ([Artifacts: data the model cannot alter](../artifacts/PACKAGE.md)), and the model's
