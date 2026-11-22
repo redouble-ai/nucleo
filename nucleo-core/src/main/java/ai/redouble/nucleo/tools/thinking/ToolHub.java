@@ -199,7 +199,8 @@ public class ToolHub {
     /**
      * Register an admission rule keyed by an exact provider name or a glob pattern
      * ({@code *} wildcard at any position). Useful for MCP namespaces, e.g.
-     * {@code "github.*"} matches every tool from the GitHub MCP connector.
+     * {@code "github_*"} matches every tool of an MCP server registered as {@code github},
+     * whose tools are named {@code github_<tool>}.
      */
     public void registerAdmission(
             Class<? extends Thinker> thinkerClass,

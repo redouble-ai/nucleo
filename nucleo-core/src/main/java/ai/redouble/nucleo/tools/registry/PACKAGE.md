@@ -67,11 +67,11 @@ admitted.
 A tool in the catalog is not yet granted. When the model asks for it, `ToolHub` runs the
 admission guardrails that apply, and the tool joins the palette only when every one of them
 passes. Rules are registered on the hub for a thinker class (or `null` for every thinker) and
-match the requested tool by its class, by its name or a glob of names such as `"github.*"`, or
+match the requested tool by its class, by its name or a glob of names such as `"github_*"`, or
 by a predicate over its provider:
 
 ```java
-ToolHub.getInstance().registerAdmission(ResearchCoordinator.class, "github.*", CodeAccessGuardrail::new);
+ToolHub.getInstance().registerAdmission(ResearchCoordinator.class, "github_*", CodeAccessGuardrail::new);
 ```
 
 `ResearchCoordinator` and `CodeAccessGuardrail` stand for your own thinker and admission
