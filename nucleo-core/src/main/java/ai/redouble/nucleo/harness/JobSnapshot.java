@@ -103,8 +103,7 @@ public class JobSnapshot implements Serializable, Identifiable {
             return null;
         }
         ResolvedAnnotation<DisplayName> annotation = Annotations.of(jobClass, DisplayName.class);
-        String name = annotation != null ? annotation.string("value") : null;
-        return name != null ? name : jobClass.getSimpleName();
+        return annotation != null ? annotation.string("value") : jobClass.getSimpleName();
     }
 
     /**

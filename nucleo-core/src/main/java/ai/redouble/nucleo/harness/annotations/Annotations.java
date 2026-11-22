@@ -24,6 +24,11 @@ import java.util.concurrent.atomic.*;
  * <p>Whatever describes a tool or a type to a model is read through here, so one stored row
  * changes what a thinker, a tool lookup and an MCP client are told, and no class is edited.
  *
+ * <p>The code decides what exists and the store only restates it. An annotation the code
+ * does not carry is not there, whatever a store holds under its key: the store is not asked
+ * for it and cannot add it, so nothing outside the code can describe a class into a tool or
+ * give an element an annotation its author did not.
+ *
  * <p>What a resolver answered is kept, per class, until {@link #changed()} is called. A
  * deployment calls it when its store changes; everything built from an annotation carries
  * the {@link #generation()} it was built under and is built again after that.
@@ -108,8 +113,7 @@ public final class Annotations {
     /**
      * An annotation of a class.
      *
-     * @return the annotation as it reads, or null when the code carries none there and
-     * nothing is stored for it
+     * @return the annotation as it reads, or null when the code carries none there
      * @throws AnnotationOverrideException when what is stored cannot be taken by the annotation
      */
     public static <A extends Annotation> ResolvedAnnotation<A> of(Class<?> owner, Class<A> type) {
@@ -124,8 +128,7 @@ public final class Annotations {
      * where needed. The first key that holds something supplies the whole override.
      *
      * @param builtFor the class being described, which declares or inherits the field
-     * @return the annotation as it reads, or null when the code carries none there and
-     * nothing is stored for it
+     * @return the annotation as it reads, or null when the code carries none there
      * @throws AnnotationOverrideException when what is stored cannot be taken by the annotation
      */
     public static <A extends Annotation> ResolvedAnnotation<A> of(Class<?> builtFor, Field field, Class<A> type) {
@@ -140,10 +143,9 @@ public final class Annotations {
 
     /**
      * Every annotation of a class and of its fields that a deployment can override, with
-     * what the code declares: the listing an editing screen shows. A field is listed under
-     * the class that declares it. {@code @LLMDescription} is listed for the class and for
-     * every field whether or not the code carries one, since a description is what a store
-     * most often adds; any other annotation is listed where the code carries it.
+     * what the code declares: the listing an editing screen shows. Only an annotation the
+     * code carries is listed, since only that can be overridden. A field is listed under the
+     * class that declares it.
      */
     public static List<AnnotationKey> keysOf(Class<?> owner) {
         List<Class<? extends Annotation>> types = new ArrayList<>(KNOWN);
@@ -151,14 +153,14 @@ public final class Annotations {
         List<AnnotationKey> keys = new ArrayList<>();
         for (Class<? extends Annotation> type : types) {
             Annotation declared = owner.getAnnotation(type);
-            if (declared != null || type == LLMDescription.class) {
+            if (declared != null) {
                 keys.add(listed(keyOf(owner, type), type, declared));
             }
         }
         for (Field field : fieldsOf(owner)) {
             for (Class<? extends Annotation> type : types) {
                 Annotation declared = field.getAnnotation(type);
-                if (declared != null || type == LLMDescription.class) {
+                if (declared != null) {
                     keys.add(listed(keyOf(field.getDeclaringClass(), field.getName(), type), type, declared));
                 }
             }
@@ -167,16 +169,20 @@ public final class Annotations {
     }
 
     private static <A extends Annotation> ResolvedAnnotation<A> resolved(Class<?> builtFor, List<String> keys, Class<A> type, A declared) {
+        // What the code does not carry is not there: the store is not asked and cannot add it
+        if (declared == null) {
+            return null;
+        }
         AnnotationResolver current = resolver;
         if (current == null) {
-            return declared == null ? null : new ResolvedAnnotation<>(keys.getFirst(), type, declared, null);
+            return new ResolvedAnnotation<>(keys.getFirst(), type, declared, null);
         }
         long generation = GENERATION.get();
         Held held = HELD.compute(builtFor, (owner, existing) -> existing != null && existing.generation == generation ? existing : new Held(generation));
         synchronized (held) {
             if (!held.asked.containsAll(keys)) {
-                // One question per class: everything the class and its fields could be asked
-                // for goes with the keys wanted now, so a schema of fifty fields is one read
+                // One question per class: every annotation the class and its fields carry goes
+                // with the keys wanted now, so a schema of fifty fields is one read
                 Set<String> wanted = candidateKeys(builtFor);
                 wanted.addAll(keys);
                 wanted.removeAll(held.asked);
@@ -199,30 +205,26 @@ public final class Annotations {
                 }
             }
         }
-        return declared == null ? null : new ResolvedAnnotation<>(keys.getFirst(), type, declared, null);
+        return new ResolvedAnnotation<>(keys.getFirst(), type, declared, null);
     }
 
+    /** The keys of every annotation the class and its fields carry, both keys of an inherited field. */
     private static Set<String> candidateKeys(Class<?> owner) {
         Set<String> keys = new LinkedHashSet<>();
         for (Class<? extends Annotation> type : KNOWN) {
-            if (admits(type, ElementType.TYPE)) {
+            if (owner.isAnnotationPresent(type)) {
                 keys.add(keyOf(owner, type));
             }
         }
         for (Field field : fieldsOf(owner)) {
             for (Class<? extends Annotation> type : KNOWN) {
-                if (admits(type, ElementType.FIELD)) {
+                if (field.isAnnotationPresent(type)) {
                     keys.add(keyOf(owner, field.getName(), type));
                     keys.add(keyOf(field.getDeclaringClass(), field.getName(), type));
                 }
             }
         }
         return keys;
-    }
-
-    private static boolean admits(Class<? extends Annotation> type, ElementType element) {
-        Target target = type.getAnnotation(Target.class);
-        return target == null || Arrays.asList(target.value()).contains(element);
     }
 
     /** The instance fields of a class and of its superclasses, the class's own first. */
@@ -239,9 +241,6 @@ public final class Annotations {
     }
 
     private static AnnotationKey listed(String key, Class<? extends Annotation> type, Annotation declared) {
-        if (declared == null) {
-            return new AnnotationKey(key, null, null);
-        }
         String value = null;
         ObjectNode attributes = JsonNodeFactory.instance.objectNode();
         for (Method method : type.getDeclaredMethods()) {

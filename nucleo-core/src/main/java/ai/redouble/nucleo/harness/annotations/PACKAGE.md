@@ -70,9 +70,19 @@ An `AnnotationOverride` has two parts, and either may be left null:
   `{"readOnly": true}` for a `@ToolDescription` or `{"action": "Searching cases"}` for a
   `@DisplayName`
 
-Whatever an override leaves out is the code's. When the code carries no such annotation
-there, it is the annotation's own default, and an attribute that has no default must then be
-stored: a `@ToolWeight` given to a tool that declares none has to state its `type`.
+Whatever an override leaves out is the code's.
+
+## The code decides what exists
+
+A store restates an annotation the code carries. It cannot add one. A key for an annotation
+the code does not have, on a class of the process or on a class that is not there at all, is
+never asked for and has no effect, the same way an annotation on a class outside the
+classpath has none.
+
+So nothing outside the code can describe a class into a tool, or give a description, a
+display name or a weight to something that declares none. To let a deployment
+describe a field, put an `@LLMDescription` on it, with whatever default wording the code can
+offer.
 
 ## Which annotations
 
@@ -83,9 +93,6 @@ stored: a `@ToolWeight` given to a tool that declares none has to state its `typ
 | `@ToolWeight` | `type`, `level`, `min`, `max` | `ClassToolProvider` |
 | `@LLMDescription` | the description of a class or of a field | the schema of every input, output and artifact |
 | `@LLMExample` | the examples of a field | the same |
-
-A tool, a class or a field that carries no description in the code can be given one by the
-store.
 
 `@ToolName` and `@TypeAlias` are not read through here: they are the identifiers a model
 sends back and a stored record refers to. `@LLMRequired`, `@LLMSummarizable`,
@@ -106,8 +113,6 @@ annotation accepts and repeats nothing that was stored:
 - `value` placed among the attributes
 - attributes that are not a JSON object
 - a `value` for an annotation that has none, such as `@ToolWeight`
-- an override that leaves out an attribute with no default, when the code carries no such
-  annotation
 - text a baseline prompt guardrail refuses. A stored description is text a model reads, so it
   passes the same baseline guardrails as a substituted prompt before it is put in a tool's
   definition
@@ -120,8 +125,8 @@ deserves the same care as the code.
 
 ## When a change is seen
 
-The resolver is asked once per class, for every key the class and its fields could have, so
-a schema of fifty fields is one read of the store. What it answered is kept.
+The resolver is asked once per class, for the key of every annotation the class and its
+fields carry, so a schema of fifty fields is one read of the store. What it answered is kept.
 
 A deployment calls `Annotations.changed()` when its store changes. Everything kept is
 dropped, and a tool's description and schemas are built again the next time they are asked
@@ -139,9 +144,7 @@ for it: the keys of the tool class and of every class its input and output are d
 `Annotations.keysOf(Class)` does the same for one class. An editing screen over a store shows
 this listing with the stored wording beside it.
 
-- An annotation is listed where the code carries it
-- `@LLMDescription` is listed for every class and every field whether or not the code
-  carries one, with a null value where it does not
+- An annotation is listed where the code carries it, and nowhere else
 - A field is listed under the class that declares it
 
 ## The classes

@@ -90,12 +90,10 @@ public final class ClassToolProvider implements ToolProvider {
         Described fresh = new Described();
         fresh.generation = generation;
         ResolvedAnnotation<ToolDescription> descAnn = Annotations.of(toolClass, ToolDescription.class);
-        String text = descAnn != null ? descAnn.text() : null;
-        fresh.description = text != null ? text : "Tool: " + name;
+        fresh.description = descAnn != null ? descAnn.text() : "Tool: " + name;
         fresh.readOnly = descAnn != null && descAnn.bool("readOnly");
         ResolvedAnnotation<DisplayName> displayAnn = Annotations.of(toolClass, DisplayName.class);
-        String shown = displayAnn != null ? displayAnn.string("value") : null;
-        fresh.displayName = shown != null ? shown : toolClass.getSimpleName();
+        fresh.displayName = displayAnn != null ? displayAnn.string("value") : toolClass.getSimpleName();
         fresh.actionVerb = displayAnn != null ? displayAnn.string("action") : "";
         fresh.weight = resolveWeight(toolClass);
         fresh.schemaJson = refine(toolClass, this.inputType, generateSchemaJson(this.inputType, name));

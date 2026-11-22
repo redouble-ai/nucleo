@@ -28,7 +28,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * {@link AnnotationResolver} holds something for an annotation, and when it holds nothing.
  * A stored {@code value} replaces the code's text, stored attributes replace the code's
  * attributes one by one, whatever is not stored is the code's, and what the annotation
- * cannot take is refused by key. A map stands where a deployment's store would.
+ * cannot take is refused by key. The store restates only what the code carries: an
+ * annotation the code does not have is not asked for and is not added. A map stands where a
+ * deployment's store would.
  *
  * @author Andrey Santrosyan
  * @since 0.1.5 (2026-11-22)
@@ -95,6 +97,7 @@ public class AnnotationsTest {
     @ToolName("search_cases")
     @ToolDescription(value = "Search the support cases", readOnly = true)
     @ai.redouble.nucleo.harness.DisplayName(value = "Case Search", action = "Searching cases")
+    @ToolWeight(type = ToolType.API_CALL, min = 5, max = 15)
     public static class CaseSearchTool extends AbstractTool<CaseSearchInput, CaseSearchResult> {
         public CaseSearchTool(Identifiable parent) {
             super(parent);
@@ -235,30 +238,30 @@ public class AnnotationsTest {
     }
 
     @Test
-    void aToolTheCodeDoesNotDescribeTakesAStoredDescription() throws Exception {
-        store.text(BareTool.class.getName() + "@ToolDescription", "Does the bare thing");
-        store.attributes(BareTool.class.getName() + "@ToolDescription", "{\"readOnly\": true}");
+    void anAnnotationTheCodeDoesNotCarryIsNotAddedByTheStore() throws Exception {
+        String bare = BareTool.class.getName();
+        store.text(bare + "@ToolDescription", "Does the bare thing");
+        store.attributes(bare + "@ToolDescription", "{\"readOnly\": true}");
+        store.text(bare + "@DisplayName", "Bare");
+        store.attributes(bare + "@ToolWeight", "{\"type\": \"THINKER\", \"min\": 30, \"max\": 60}");
         ClassToolProvider provider = ClassToolProvider.of(BareTool.class);
-        assertEquals("Does the bare thing", provider.description());
-        assertTrue(provider.readOnly());
+        assertEquals("Tool: bare_tool", provider.description());
+        assertFalse(provider.readOnly(), "the tool carries no @ToolDescription, so the stored one is not there");
+        assertEquals("BareTool", provider.displayName());
+        assertSame(DefaultToolWeights.API_CALL_DEFAULT, provider.weight());
+        for (Collection<String> keys : store.asked) {
+            assertFalse(keys.stream().anyMatch(key -> key.startsWith(bare + "@")), "the store is not asked for what the code does not carry: " + keys);
+        }
     }
 
     @Test
-    void aStoredWeightReplacesTheDefaultOne() throws Exception {
-        store.attributes(TOOL + "@ToolWeight", "{\"type\": \"THINKER\", \"min\": 30, \"max\": 60}");
+    void aStoredWeightReplacesTheCodesAttributeByAttribute() throws Exception {
+        store.attributes(TOOL + "@ToolWeight", "{\"type\": \"THINKER\", \"min\": 30}");
         ToolWeight weight = ClassToolProvider.of(CaseSearchTool.class).weight();
         assertEquals(ToolType.THINKER, weight.type());
         assertEquals(30, weight.min());
-        assertEquals(60, weight.max());
-        assertEquals(0, weight.level(), "level is not stored and the code declares no weight, so it is the annotation's default");
-    }
-
-    @Test
-    void aStoredWeightThatLeavesOutWhatHasNoDefaultIsRefused() throws Exception {
-        store.attributes(TOOL + "@ToolWeight", "{\"min\": 30}");
-        AnnotationOverrideException refused = assertThrows(AnnotationOverrideException.class, () -> ClassToolProvider.of(CaseSearchTool.class));
-        assertEquals(TOOL + "@ToolWeight", refused.getKey());
-        assertTrue(refused.getMessage().contains("type"), refused.getMessage());
+        assertEquals(15, weight.max(), "max is not stored, so it is the code's");
+        assertEquals(0, weight.level());
     }
 
     @Test
@@ -275,12 +278,15 @@ public class AnnotationsTest {
     }
 
     @Test
-    void aFieldTheCodeDoesNotDescribeTakesAStoredDescription() throws Exception {
-        ClassToolProvider undescribed = ClassToolProvider.of(CaseSearchTool.class);
-        assertEquals("Field status", fieldText(undescribed, "status"));
+    void aFieldOrClassTheCodeDoesNotDescribeIsNotDescribedByTheStore() throws Exception {
         store.text(INPUT + ".status@LLMDescription", "The status the agent last set");
-        Annotations.changed();
-        assertEquals("The status the agent last set", fieldText(undescribed, "status"));
+        store.text(INPUT + ".status@LLMExample", "open\nclosed");
+        store.text(OUTPUT + "@LLMDescription", "What a search of cases found");
+        store.text("some.random.Clazz@LLMDescription", "Not a class of this process");
+        ClassToolProvider provider = ClassToolProvider.of(CaseSearchTool.class);
+        assertEquals("Field status", fieldText(provider, "status"));
+        assertNull(inputSchema(provider).get("properties").get("status").get("examples"));
+        assertEquals("Schema of CaseSearchResult", NucleoJsonSerializer.readTree(provider.outputSchemaJson()).get("description").asText());
     }
 
     @Test
@@ -379,7 +385,7 @@ public class AnnotationsTest {
         assertEquals(afterFirst, store.asked.size(), "a second provider asks nothing: what was answered is held");
         Collection<String> forInput = store.asked.stream().filter(keys -> keys.contains(INPUT + ".title@LLMDescription")).findFirst().orElseThrow();
         assertTrue(forInput.contains(INPUT + ".title@LLMExample"));
-        assertTrue(forInput.contains(INPUT + ".status@LLMDescription"));
+        assertFalse(forInput.contains(INPUT + ".status@LLMDescription"), "status carries no description in the code, so none is asked for");
         assertTrue(forInput.contains(INPUT + ".limit@LLMDescription"));
         assertTrue(forInput.contains(BASE + ".limit@LLMDescription"));
         assertTrue(forInput.contains(INPUT + "@LLMDescription"));
@@ -413,14 +419,14 @@ public class AnnotationsTest {
         assertEquals("Words to look for in the case title", keys.get(INPUT + ".title@LLMDescription").value());
         assertEquals("refund\nlate delivery", keys.get(INPUT + ".title@LLMExample").value());
         assertNull(keys.get(INPUT + ".title@LLMDescription").attributes());
-        assertTrue(keys.containsKey(INPUT + ".status@LLMDescription"), "a field the code does not describe is listed, to be described");
-        assertNull(keys.get(INPUT + ".status@LLMDescription").value());
-        assertFalse(keys.containsKey(INPUT + ".status@LLMExample"), "an annotation the code does not carry is listed for a description only");
+        assertFalse(keys.containsKey(INPUT + ".status@LLMDescription"), "what the code does not carry cannot be overridden, so it is not listed");
         assertEquals("The largest number of rows to return", keys.get(BASE + ".limit@LLMDescription").value());
         assertFalse(keys.containsKey(INPUT + ".limit@LLMDescription"), "an inherited field is listed under the class that declares it");
         assertEquals("How many cases matched", keys.get(OUTPUT + ".total@LLMDescription").value());
-        assertTrue(keys.containsKey(OUTPUT + "@LLMDescription"));
-        assertFalse(keys.containsKey(TOOL + "@ToolWeight"));
+        assertFalse(keys.containsKey(OUTPUT + "@LLMDescription"));
+        assertEquals("API_CALL", keys.get(TOOL + "@ToolWeight").attributes().get("type").asText());
+        assertEquals(15, keys.get(TOOL + "@ToolWeight").attributes().get("max").intValue());
+        assertNull(keys.get(TOOL + "@ToolWeight").value());
     }
 
     @Test

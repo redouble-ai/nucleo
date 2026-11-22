@@ -15,9 +15,9 @@ import java.lang.reflect.*;
 import java.util.*;
 
 /**
- * An annotation as it reads once the deployment's store has been consulted: each attribute
- * is the stored one when the store holds it, the code's otherwise, and the annotation's own
- * default when the code carries no such annotation.
+ * An annotation the code carries, as it reads once the deployment's store has been
+ * consulted: each attribute is the stored one when the store holds it and the code's
+ * otherwise.
  *
  * <p>Attributes are read by name, since what is stored cannot be an instance of the
  * annotation. The stored override was checked against the annotation when this was made, so
@@ -55,15 +55,12 @@ public final class ResolvedAnnotation<A extends Annotation> {
         return override != null;
     }
 
-    /** The annotation as the code declares it, null when the code carries none. */
+    /** The annotation as the code declares it. */
     public A declared() {
         return declared;
     }
 
-    /**
-     * A text attribute. For {@code value} the stored text wins; null when nothing is stored,
-     * the code carries no annotation and the attribute has no default.
-     */
+    /** A text attribute. For {@code value} the stored text wins. */
     public String string(String attribute) {
         if (VALUE.equals(attribute)) {
             if (override != null && override.getValue() != null) {
@@ -127,17 +124,17 @@ public final class ResolvedAnnotation<A extends Annotation> {
 
     public boolean bool(String attribute) {
         JsonNode stored = stored(attribute);
-        return stored != null ? stored.booleanValue() : (Boolean)required(attribute);
+        return stored != null ? stored.booleanValue() : (Boolean)fromCode(attribute);
     }
 
     public int integer(String attribute) {
         JsonNode stored = stored(attribute);
-        return stored != null ? stored.intValue() : (Integer)required(attribute);
+        return stored != null ? stored.intValue() : (Integer)fromCode(attribute);
     }
 
     public <E extends Enum<E>> E enumValue(String attribute, Class<E> enumType) {
         JsonNode stored = stored(attribute);
-        return stored != null ? Enum.valueOf(enumType, stored.asText()) : enumType.cast(required(attribute));
+        return stored != null ? Enum.valueOf(enumType, stored.asText()) : enumType.cast(fromCode(attribute));
     }
 
     static String[] lines(String text) {
@@ -157,36 +154,16 @@ public final class ResolvedAnnotation<A extends Annotation> {
         return override.getAttributes().get(attribute);
     }
 
-    /** The code's value of an attribute, or the annotation's default; null when there is neither. */
+    /** The attribute as the code's annotation states it. */
     private Object fromCode(String attribute) {
-        Method method = method(attribute);
-        if (declared == null) {
-            return method.getDefaultValue();
-        }
         try {
-            return method.invoke(declared);
-        }
-        catch (ReflectiveOperationException e) {
-            throw new IllegalStateException("Cannot read " + attribute + " of @" + type.getSimpleName(), e);
-        }
-    }
-
-    /** As {@link #fromCode}, for an attribute a caller cannot do without. */
-    private Object required(String attribute) {
-        Object value = fromCode(attribute);
-        if (value == null) {
-            throw new AnnotationOverrideException(key, "the code carries no @" + type.getSimpleName()
-                    + " there and the attribute " + attribute + " has no default, so the override must state it");
-        }
-        return value;
-    }
-
-    private Method method(String attribute) {
-        try {
-            return type.getMethod(attribute);
+            return type.getMethod(attribute).invoke(declared);
         }
         catch (NoSuchMethodException e) {
             throw new IllegalArgumentException("@" + type.getSimpleName() + " has no attribute " + attribute, e);
+        }
+        catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("Cannot read " + attribute + " of @" + type.getSimpleName(), e);
         }
     }
 

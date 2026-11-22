@@ -14,10 +14,9 @@ import com.fasterxml.jackson.databind.node.*;
  *
  * @param key        the key a resolver is asked for
  * @param value      the {@code value} the code declares, one entry per line when it is a list
- *                   of strings; null when the code carries no such annotation there or the
- *                   annotation has no {@code value}
+ *                   of strings; null when the annotation has no {@code value}
  * @param attributes the annotation's other attributes as the code declares them; null when
- *                   the code carries no such annotation there or it has no other attribute
+ *                   it has no other attribute
  * @author Andrey Santrosyan
  * @since 0.1.5 (2026-11-22)
  */

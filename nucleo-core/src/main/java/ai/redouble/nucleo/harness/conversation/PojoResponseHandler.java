@@ -147,8 +147,7 @@ public class PojoResponseHandler<T > implements ResponseHandler<T> {
                     + sameName.getName() + " and " + pojoClass.getName() + "; rename one");
         }
         ResolvedAnnotation<LLMDescription> classDesc = Annotations.of(pojoClass, LLMDescription.class);
-        String classText = classDesc != null ? classDesc.text() : null;
-        String description = classText != null ? classText : "Schema of " + className;
+        String description = classDesc != null ? classDesc.text() : "Schema of " + className;
 
         PojoDefinition definition = new PojoDefinition(className, description);
         walk.onPath.put(pojoClass, definition);
