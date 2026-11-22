@@ -42,7 +42,7 @@ import java.util.function.*;
  *       under {@code (thinkerClass, skillPredicate, guardrailClass)} rules. One hub, two
  *       catalogs.</li>
  *   <li><b>The sommelier</b> - the {@link Sommelier} that names the tools serving a need
- *       for a thinker whose catalog is too long to list. {@link ModelSommelier} unless the
+ *       for a thinker whose catalog is too long to list. {@link ModelDrivenSommelier} unless the
  *       deployment sets another.</li>
  * </ul>
  *
@@ -60,7 +60,7 @@ public class ToolHub {
     private final List<AdmissionEntry<ToolProvider>> admissionRules = new CopyOnWriteArrayList<>();
     private final Map<Class<? extends Thinker>, Set<Skill>> thinkerSkillCache = new ConcurrentHashMap<>();
     private final List<AdmissionEntry<Skill>> skillAdmissionRules = new CopyOnWriteArrayList<>();
-    private volatile Sommelier sommelier = new ModelSommelier();
+    private volatile Sommelier sommelier = new ModelDrivenSommelier();
 
     /**
      * Admission rule entry over a catalog member (a {@link ToolProvider} or a {@link Skill}).
@@ -515,7 +515,7 @@ public class ToolHub {
     }
 
     /**
-     * Replaces the sommelier: with a {@link ModelSommelier} that carries a model role, or
+     * Replaces the sommelier: with a {@link ModelDrivenSommelier} that carries a model role, or
      * with the deployment's own implementation.
      */
     public void setSommelier(Sommelier sommelier) {
@@ -533,7 +533,7 @@ public class ToolHub {
 
     /** Test-only: forgets every cached compatible set and every admission rule, and restores the sommelier the runtime starts with. */
     public void resetAll() {
-        sommelier = new ModelSommelier();
+        sommelier = new ModelDrivenSommelier();
         thinkerToolCache.clear();
         thinkerSkillCache.clear();
         admissionRules.clear();

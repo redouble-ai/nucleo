@@ -308,8 +308,8 @@ public class FindToolsTest {
     }
 
     @Test
-    void theHubStartsWithTheModelSommelier_andADeploymentReplacesIt() {
-        assertInstanceOf(ModelSommelier.class, ToolHub.getInstance().getSommelier());
+    void theHubStartsWithTheModelDrivenSommelier_andADeploymentReplacesIt() {
+        assertInstanceOf(ModelDrivenSommelier.class, ToolHub.getInstance().getSommelier());
         ScriptedSommelier own = new ScriptedSommelier();
         ToolHub.getInstance().setSommelier(own);
         assertSame(own, ToolHub.getInstance().getSommelier());

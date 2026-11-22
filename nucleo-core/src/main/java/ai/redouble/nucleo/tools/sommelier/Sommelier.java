@@ -20,7 +20,7 @@ import java.util.*;
  *
  * <p>The seam is one method that returns a job. {@link FindToolsTool} submits that job as
  * its child and waits for it, so an implementation is free to be one model call, several,
- * a search over an index, or anything else a job can do. {@link ModelSommelier} is the
+ * a search over an index, or anything else a job can do. {@link ModelDrivenSommelier} is the
  * implementation the runtime starts with; a deployment replaces it through
  * {@code ToolHub.getInstance().setSommelier(...)}.
  *

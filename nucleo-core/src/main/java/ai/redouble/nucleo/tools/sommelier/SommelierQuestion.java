@@ -9,7 +9,7 @@ package ai.redouble.nucleo.tools.sommelier;
 import java.util.*;
 
 /**
- * What {@link ModelSommelier} puts to a model: a need, and tools to judge it against. Each
+ * What {@link ModelDrivenSommelier} puts to a model: a need, and tools to judge it against. Each
  * tool is its name mapped to its page, the text {@link ToolPage} writes for it.
  *
  * @author Andrey Santrosyan

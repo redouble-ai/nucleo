@@ -17,7 +17,7 @@ import java.util.*;
 import java.util.concurrent.*;
 
 /**
- * One lookup of {@link ModelSommelier}: the catalog's pages are cut into parts of about
+ * One lookup of {@link ModelDrivenSommelier}: the catalog's pages are cut into parts of about
  * {@link SommelierSettings#partTokens} tokens, one {@link SommelierCall} reads each part,
  * all at once, and when there was more than one part a last call reads the tools the parts
  * named, side by side, and its answer is the lookup's.

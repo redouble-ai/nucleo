@@ -24,7 +24,7 @@ import java.util.*;
  * the entry in a {@link ModelRole}:
  *
  * <pre>
- * ModelSommelier sommelier = new ModelSommelier();
+ * ModelDrivenSommelier sommelier = new ModelDrivenSommelier();
  * sommelier.setRole(new ModelRole("tool-lookup", "&lt;catalog id&gt;", Grade.SMALL));
  * ToolHub.getInstance().setSommelier(sommelier);
  * </pre>
@@ -32,7 +32,7 @@ import java.util.*;
  * @author Andrey Santrosyan
  * @since 0.1.5 (2026-11-21)
  */
-public class ModelSommelier implements Sommelier {
+public class ModelDrivenSommelier implements Sommelier {
     private ModelRole role;
 
     public ModelRole getRole() {

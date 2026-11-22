@@ -14,7 +14,7 @@ import java.io.*;
 import java.util.*;
 
 /**
- * A tool as {@link ModelSommelier} shows it to a model: its name, its description, and the
+ * A tool as {@link ModelDrivenSommelier} shows it to a model: its name, its description, and the
  * words of its input and output definitions, one per line. The words are field names,
  * titles, descriptions and enumerated values; the structure of a JSON Schema ({@code type},
  * {@code required}, nesting) says nothing about what a tool is for and is left out.

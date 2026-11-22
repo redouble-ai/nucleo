@@ -21,7 +21,7 @@ import java.util.function.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * How {@link ModelSommelier} reads a catalog: what a model is shown of a tool, how a long
+ * How {@link ModelDrivenSommelier} reads a catalog: what a model is shown of a tool, how a long
  * catalog is cut into parts, which calls a lookup makes and what it answers from them, and
  * which model the calls ask for. A scripted job stands where each model call would, so the
  * tests pin the lookup's own behaviour and call no model.
@@ -214,9 +214,9 @@ public class SommelierLookupTest {
     }
 
     @Test
-    void theModelSommelierPutsEveryToolsPageToItsLookup_andHandsItsRoleOn() throws Exception {
+    void theModelDrivenSommelierPutsEveryToolsPageToItsLookup_andHandsItsRoleOn() throws Exception {
         ModelRole role = new ModelRole("tool-lookup", "some-catalog-entry", Grade.SMALL);
-        ModelSommelier sommelier = new ModelSommelier();
+        ModelDrivenSommelier sommelier = new ModelDrivenSommelier();
         sommelier.setRole(role);
         Set<ToolProvider> catalog = SommelierFixtures.catalog(3);
         SommelierLookup lookup = (SommelierLookup) sommelier.pair(root(), "the need", catalog);
@@ -225,6 +225,6 @@ public class SommelierLookupTest {
         assertEquals(List.of("tool_1", "tool_2", "tool_3"), List.copyOf(lookup.getInput().getTools().keySet()));
         assertEquals("tool_2\nDescribes entry number 2\nInput:\nquery_of_tool_2\nWhat to look for\n", lookup.getInput().getTools().get("tool_2"),
                 "the page is the tool in full, as ToolPage writes it");
-        assertNull(((SommelierLookup) new ModelSommelier().pair(root(), "the need", catalog)).getRole(), "no role by default");
+        assertNull(((SommelierLookup) new ModelDrivenSommelier().pair(root(), "the need", catalog)).getRole(), "no role by default");
     }
 }

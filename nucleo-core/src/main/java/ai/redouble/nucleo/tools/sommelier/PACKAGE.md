@@ -58,7 +58,7 @@ catalog does not hold is rejected there.
 
 ## How the catalog is read
 
-`ModelSommelier`, the sommelier the runtime starts with, has a model read every tool of the
+`ModelDrivenSommelier`, the sommelier the runtime starts with, has a model read every tool of the
 catalog in full and name the ones that fit. Nothing is filtered or ranked before a model has
 read it.
 
@@ -86,7 +86,7 @@ a weaker model, or that has measured a better choice, names the catalog entry in
 `ModelRole`:
 
 ```java
-ModelSommelier sommelier = new ModelSommelier();
+ModelDrivenSommelier sommelier = new ModelDrivenSommelier();
 sommelier.setRole(new ModelRole("tool-lookup", "<catalog id>", Grade.SMALL));
 ToolHub.getInstance().setSommelier(sommelier);
 ```
@@ -179,16 +179,16 @@ catalog $0.03, at list price without prompt caching.
 | Setting | What it sets | Shipped |
 |---|---|---|
 | `SommelierSettings.listedTools` | the longest catalog listed to a thinker's model; a longer one is found through `find_tools` | 30 |
-| `SommelierSettings.partTokens` | about how many tokens of tool pages `ModelSommelier` puts in one model call | 50,000 |
+| `SommelierSettings.partTokens` | about how many tokens of tool pages `ModelDrivenSommelier` puts in one model call | 50,000 |
 
 ## Classes
 
 | Class | What it is |
 |---|---|
 | `Sommelier` | The seam: a need and a catalog in, a job that names the fitting tools out |
-| `ModelSommelier` | The shipped implementation, with an optional `ModelRole` |
+| `ModelDrivenSommelier` | The shipped implementation, with an optional `ModelRole` |
 | `FindToolsTool`, `FindToolsInput`, `FindToolsResult` | The `find_tools` tool a thinker's model calls |
-| `SommelierLookup` | One lookup of `ModelSommelier`: the parts, their calls and the last call |
+| `SommelierLookup` | One lookup of `ModelDrivenSommelier`: the parts, their calls and the last call |
 | `SommelierCall` | One model call over a set of tool pages, with the instruction the model is given |
 | `SommelierQuestion`, `SommelierAnswer` | What a call is asked and what it answers |
 | `ToolPage` | A tool as text for a model to read |

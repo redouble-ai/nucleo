@@ -14,7 +14,7 @@ import ai.redouble.nucleo.tools.*;
 import java.time.*;
 
 /**
- * One exchange of {@link ModelSommelier} with a model: the model reads a need and a set of
+ * One exchange of {@link ModelDrivenSommelier} with a model: the model reads a need and a set of
  * tool pages side by side and names the tools that fit. The model sees the tools together
  * on purpose. Judged one at a time, a tool that is merely plausible is accepted; judged
  * beside the others, the one that holds the answer is picked.

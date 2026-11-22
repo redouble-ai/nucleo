@@ -24,7 +24,7 @@ public class SommelierSettings extends Settings {
     public volatile int listedTools = 30;
 
     /**
-     * About how many tokens of tool pages {@link ModelSommelier} puts in one model call. A
+     * About how many tokens of tool pages {@link ModelDrivenSommelier} puts in one model call. A
      * catalog longer than this is read in parts of about this size.
      */
     public volatile int partTokens = 50_000;
