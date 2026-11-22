@@ -354,7 +354,7 @@ public class FieldDescriptor {
         // A temporal field is a string of a particular shape. Saying only "string" leaves
         // a consumer to guess and leaves a boundary with nothing to check, so the shape
         // is published as the standard `format` and enforced from it.
-        if ("date".equals(type) || "date-time".equals(type)) {
+        if ("date".equals(type) || "date-time".equals(type) || "time".equals(type)) {
             node.put("format", type);
         }
         // "integer" says nothing about width, so a consumer is entitled to send 2^64 and
@@ -420,7 +420,7 @@ public class FieldDescriptor {
 
     /** The prose type names {@link #scalarSchema} can turn into a JSON Schema type. */
     private static final Set<String> KNOWN_SCALARS = Set.of("string", "int", "integer", "long", "double", "float", "number",
-            "boolean", "bool", "date", "date-time");
+            "boolean", "bool", "date", "date-time", "time");
 
     /**
      * Maps our internal type names to JSON Schema types.

@@ -82,6 +82,7 @@ public final class McpInputGate {
     private static final String MAXIMUM = "maximum";
     private static final String DATE = "date";
     private static final String DATE_TIME = "date-time";
+    private static final String TIME = "time";
     private static final String REF = "$ref";
     private static final String DEFS = "$defs";
     private static final String DEFS_POINTER = "#/$defs/";
@@ -370,12 +371,27 @@ public final class McpInputGate {
             }
             if (DATE_TIME.equals(format)) {
                 checkDateTime(text);
+                return;
+            }
+            if (TIME.equals(format)) {
+                checkTime(text);
             }
         }
         catch (DateTimeParseException e) {
             // The parser quotes the text it could not read; only the expected shape leaves.
             throw refuse(toolName, "'" + path + "' must be an ISO-8601 " + format
-                    + (DATE.equals(format) ? " (YYYY-MM-DD)" : " (YYYY-MM-DDThh:mm:ss)"));
+                    + (DATE.equals(format) ? " (YYYY-MM-DD)" : TIME.equals(format) ? " (hh:mm:ss)" : " (YYYY-MM-DDThh:mm:ss)"));
+        }
+    }
+
+    /** A time of day in either ISO shape, with an offset or without; the parse is the check. */
+    @SuppressWarnings("ResultOfMethodCallIgnored")
+    private static void checkTime(String text) {
+        try {
+            OffsetTime.parse(text);
+        }
+        catch (DateTimeParseException e) {
+            LocalTime.parse(text);
         }
     }
 

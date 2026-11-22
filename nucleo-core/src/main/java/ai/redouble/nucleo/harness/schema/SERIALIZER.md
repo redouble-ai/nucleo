@@ -62,8 +62,8 @@ schema vocabulary.
   publication use. Required-ness is the `required` array, an enum-typed field is a
   string constrained by `enum` (a collection of enums constrains its `items`), examples
   are the `examples` keyword, a map is an object with `additionalProperties` stating its
-  value shape (`true` for a map to Object), an `Object` field is an untyped value, a date
-  or date-time is a string with the standard `format`, an integer or long carries its
+  value shape (`true` for a map to Object), an `Object` field is an untyped value, a date,
+  a date-time or a time of day is a string with the standard `format`, an integer or long carries its
   width as `minimum` and `maximum`, a collection of scalars states its `items`, and the
   prose markers of the `@`-notation never appear. `toJsonSchema(Map)` replaces named
   fields' descriptions with the caller's text, for a schema whose shared parameters are

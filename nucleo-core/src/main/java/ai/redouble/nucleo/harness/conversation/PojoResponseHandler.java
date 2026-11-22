@@ -335,6 +335,12 @@ public class PojoResponseHandler<T > implements ResponseHandler<T> {
                 descriptor.setType("boolean");
             } else if (clazz == LocalDate.class) {
                 descriptor.setType("date");
+            } else if (clazz == LocalTime.class || clazz == OffsetTime.class) {
+                // A time of day alone: "16:50:29" is not a date-time and is not published as one
+                descriptor.setType("time");
+            } else if (clazz == Instant.class) {
+                // A moment on the time line, written with its offset like every other timestamp
+                descriptor.setType("date-time");
             } else if (clazz == Date.class || clazz.getName().contains("Date") || clazz.getName().contains("Time")) {
                 // Everything temporal that carries a time of day. Told apart from a plain
                 // date because the two accept different text, and a consumer that is only

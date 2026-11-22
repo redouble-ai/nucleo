@@ -65,9 +65,14 @@ account of how it answered, below.
 - **Dates and times are written as ISO-8601 text, and the text says which kind it is.** A
   `LocalDate` is a plain date, `"2021-07-28"`, with no time and no zone. A timestamp
   (`Instant`, `OffsetDateTime`, `ZonedDateTime`) always carries its offset:
-  `"2026-05-28T16:50:29.597415Z"`, `"2026-05-28T18:50:29.597415+02:00"`. A `LocalDateTime`
-  and a `LocalTime` gain no offset: `"2021-07-28T16:50:29"`, `"16:50:29"`. This is the shape
-  a field's schema publishes (`date`, `date-time`), in a tool's result as in its input.
+  `"2026-05-28T16:50:29.597415Z"`, `"2026-05-28T18:50:29.597415+02:00"`. A zone's name is
+  never written, since it is no part of an ISO-8601 date-time. A `LocalDateTime` and a
+  `LocalTime` gain no offset: `"2021-07-28T16:50:29"`, `"16:50:29"`. This is the shape a
+  field's schema publishes (`date`, `date-time`, and `time` for a time of day), in a tool's
+  result as in its input, so a value handed out is accepted back. Every written value reads
+  back to an equal value: a timestamp keeps the offset it was written with, and a
+  `ZonedDateTime` of a named zone reads back as the same date, time and offset, its zone
+  being that offset. A `Duration` is a number of seconds.
 
 ## The model's reasoning
 

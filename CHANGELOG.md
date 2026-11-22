@@ -18,9 +18,15 @@ group `ai.redouble`; a published version is never changed in place.
   in Jackson's numeric form, so a model read `[ 2021, 7, 28 ]` for a date and
   `1779987029.597415000` for a timestamp, while the tool's schema told it to write
   `"2021-07-28"`. A `LocalDate` is now written `"2021-07-28"`; an `Instant`, `OffsetDateTime`
-  or `ZonedDateTime` as ISO-8601 text with its offset; a `LocalDateTime` and a `LocalTime` as
-  ISO-8601 text with none. Anything that stores what `NucleoJsonSerializer` writes stores the
-  new text from now on; values stored in the numeric forms are still read.
+  or `ZonedDateTime` as ISO-8601 text with its offset and no zone name; a `LocalDateTime` and
+  a `LocalTime` as ISO-8601 text with none. A timestamp read keeps the offset it was written
+  with, where it used to be moved to UTC. An `Instant` field's schema is now a string of
+  format `date-time` (it was published as an object), and a `LocalTime` or `OffsetTime`
+  field's a string of format `time` (it was `date-time`), which the MCP input check enforces.
+  Anything that stores or sends
+  what `NucleoJsonSerializer` writes carries the new text from now on: a consumer outside
+  Java that read a timestamp as a number reads a string. Values stored in the numeric forms
+  are still read.
 - The artifacts a called thinker selects reach the thinker that called it. A thinker that ran
   as another thinker's tool answered with references the calling model could read and its
   registry did not hold: an artifact tool given one answered that the artifact was not found,

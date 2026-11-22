@@ -396,6 +396,11 @@ public class NucleoJsonSerializer {
                 // offset. Jackson's numeric forms ([2021,7,28], epoch seconds) say nothing to a
                 // model. Reading still accepts text, arrays and numbers.
                 .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
+                // A timestamp read keeps the offset it was written with in place of being moved
+                // to UTC, so a written value reads back at the same offset and local time. The
+                // name of a zone ("[Europe/Paris]") is not written: it is no part of an
+                // ISO-8601 `date-time`, and a consumer told to expect that format refuses it.
+                .disable(DeserializationFeature.ADJUST_DATES_TO_CONTEXT_TIME_ZONE)
                 .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES)
                 // snake_case <-> camelCase
                 .propertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE)
