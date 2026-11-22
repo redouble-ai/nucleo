@@ -62,6 +62,12 @@ account of how it answered, below.
 - **Dates, numbers and yes-or-no fields are read generously but never guessed.** A
   `Boolean` field accepts "yes"; a `LocalDate` field accepts "2026-09-22T00:00". A value
   that cannot be read as the field's type goes back to the model.
+- **Dates and times are written as ISO-8601 text, and the text says which kind it is.** A
+  `LocalDate` is a plain date, `"2021-07-28"`, with no time and no zone. A timestamp
+  (`Instant`, `OffsetDateTime`, `ZonedDateTime`) always carries its offset:
+  `"2026-05-28T16:50:29.597415Z"`, `"2026-05-28T18:50:29.597415+02:00"`. A `LocalDateTime`
+  and a `LocalTime` gain no offset: `"2021-07-28T16:50:29"`, `"16:50:29"`. This is the shape
+  a field's schema publishes (`date`, `date-time`), in a tool's result as in its input.
 
 ## The model's reasoning
 

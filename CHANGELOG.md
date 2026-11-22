@@ -14,6 +14,13 @@ group `ai.redouble`; a published version is never changed in place.
   first few rows, and until now the model had no way to see the others. Every thinker has a
   new tool, `read_rows`: the model names the list, the first row and how many, ten by
   default, and sees those rows in full from then on.
+- A date in a tool result reaches the model as a date. Every `java.time` value was written
+  in Jackson's numeric form, so a model read `[ 2021, 7, 28 ]` for a date and
+  `1779987029.597415000` for a timestamp, while the tool's schema told it to write
+  `"2021-07-28"`. A `LocalDate` is now written `"2021-07-28"`; an `Instant`, `OffsetDateTime`
+  or `ZonedDateTime` as ISO-8601 text with its offset; a `LocalDateTime` and a `LocalTime` as
+  ISO-8601 text with none. Anything that stores what `NucleoJsonSerializer` writes stores the
+  new text from now on; values stored in the numeric forms are still read.
 - The artifacts a called thinker selects reach the thinker that called it. A thinker that ran
   as another thinker's tool answered with references the calling model could read and its
   registry did not hold: an artifact tool given one answered that the artifact was not found,

@@ -391,6 +391,11 @@ public class NucleoJsonSerializer {
                 // empty object, not an error; serialize it as {}. Without this, such inputs throw and the
                 // failure is either swallowed (observability) or fatal at the unguarded write() call sites.
                 .disable(SerializationFeature.FAIL_ON_EMPTY_BEANS)
+                // A date or a time is written as ISO-8601 text, the shape its schema publishes
+                // (`date`, `date-time`): a plain date as "2021-07-28", a timestamp with its
+                // offset. Jackson's numeric forms ([2021,7,28], epoch seconds) say nothing to a
+                // model. Reading still accepts text, arrays and numbers.
+                .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
                 .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, DeserializationFeature.FAIL_ON_NULL_FOR_PRIMITIVES)
                 // snake_case <-> camelCase
                 .propertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE)
