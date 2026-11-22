@@ -19,14 +19,20 @@ import java.util.*;
 /**
  * Dynamic {@link ToolProvider} for {@link RequestToolsTool}. Unlike
  * {@link ClassToolProvider}, the JSON schema is built fresh from the supplied
- * catalog of compatible providers, so the LLM sees the current catalog as an
- * enum of valid tool names with per-value descriptions inside the
- * {@code tool_names} array - no free-text catalog dump in the system prompt.
+ * catalog of compatible providers, in one of two forms.
  *
- * <p>The catalog travels in the tool's input schema and nowhere else - never as free
- * text in the prompt - and the LLM provider enforces it natively: any name the model
- * proposes that isn't in the current enum is rejected upstream of
- * {@code request_tools.execute}.
+ * <p>Listed, for a catalog short enough to show: the LLM sees the current catalog as an
+ * enum of valid tool names with per-value descriptions inside the {@code tool_names}
+ * array. The catalog travels in the tool's input schema and nowhere else - never as free
+ * text in the prompt - and a provider that enforces schemas rejects a name outside the
+ * enum upstream of {@code request_tools.execute}.
+ *
+ * <p>Unlisted, for a catalog too long to show: {@code tool_names} is an array of plain
+ * strings and the definition names no tool. The model learns names from
+ * {@code find_tools}, and a name the catalog does not hold comes back among the rejected.
+ *
+ * <p>In both forms the admission lookup of {@code ToolHub.requestTools} decides what a
+ * name can pull in.
  *
  * <p>One instance per turn - registered by the {@code reconcileToolRegistry} hook of
  * {@link AbstractThinker} with the freshly reconciled
@@ -47,15 +53,34 @@ public final class RequestToolsProvider implements ToolProvider {
     private static final String DESCRIPTION =
             "Activate tools from the catalog. Pass tool names to load their full schemas so you can call them.";
 
+    private static final String UNLISTED_DESCRIPTION =
+            "Activate tools from the catalog. Pass the tool names find_tools returned to load their full schemas so you can call them.";
+
     private final Set<ToolProvider> catalog;
+    private final boolean listed;
     private final String schemaJson;
 
+    /** The listed form. */
     public RequestToolsProvider(Set<ToolProvider> catalog) {
-        this.catalog = catalog;
-        this.schemaJson = buildSchema(catalog);
+        this(catalog, true);
     }
 
-    private static String buildSchema(Set<ToolProvider> catalog) {
+    /**
+     * @param listed true to enumerate every tool of the catalog in the schema, false to
+     *               publish a definition that names none
+     */
+    public RequestToolsProvider(Set<ToolProvider> catalog, boolean listed) {
+        this.catalog = catalog;
+        this.listed = listed;
+        this.schemaJson = buildSchema(catalog, listed);
+    }
+
+    /** Whether the schema enumerates the catalog. */
+    public boolean listed() {
+        return listed;
+    }
+
+    private static String buildSchema(Set<ToolProvider> catalog, boolean listed) {
         ObjectNode root = NucleoJsonSerializer.createObjectNode();
         root.put("type", "object");
 
@@ -67,11 +92,16 @@ public final class RequestToolsProvider implements ToolProvider {
         toolNames.put("description", "Names of tools to activate from the catalog");
 
         ObjectNode items = toolNames.putObject("items");
-        ArrayNode oneOf = items.putArray("oneOf");
-        for (ToolProvider provider : catalog) {
-            ObjectNode entry = oneOf.addObject();
-            entry.put("const", provider.name());
-            entry.put("description", provider.description());
+        if (listed) {
+            ArrayNode oneOf = items.putArray("oneOf");
+            for (ToolProvider provider : catalog) {
+                ObjectNode entry = oneOf.addObject();
+                entry.put("const", provider.name());
+                entry.put("description", provider.description());
+            }
+        }
+        else {
+            items.put("type", "string");
         }
 
         ArrayNode required = root.putArray("required");
@@ -87,7 +117,7 @@ public final class RequestToolsProvider implements ToolProvider {
 
     @Override
     public String description() {
-        return DESCRIPTION;
+        return listed ? DESCRIPTION : UNLISTED_DESCRIPTION;
     }
 
     @Override

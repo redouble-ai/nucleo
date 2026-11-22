@@ -49,6 +49,12 @@ what the catalog holds and nothing else. A tool it asks for is checked by the ad
 with the reason. The catalog is shown to the model only through that input, never as text in
 the prompt.
 
+A catalog of more than `SommelierSettings.listedTools` tools, 30 as shipped, is not listed.
+The input of `request_tools` then names no tool and takes any name, a name the catalog does
+not hold comes back rejected, and the palette also holds `find_tools`, to which the model
+states what it needs and which answers with the tools that fit
+([Finding a tool in a long catalog](../sommelier/PACKAGE.md)).
+
 `ToolHub` resolves a thinker class's catalog once and keeps it. Code that connects a tool
 source while the application runs, an MCP server for example, widens a thinker class's catalog
 with `ToolHub.getInstance().registerCompatible(thinkerClass, providers...)` or
@@ -110,7 +116,7 @@ every tool not marked read-only removed from what its model is shown, each remov
 any call to such a tool refused. The check at the call is the one that holds, since a palette
 can grow after the model was shown it: through `request_tools`, a system-wide tool, or a direct
 `addTool`. `request_tools` itself is removed from a read-only palette, because it can admit
-any tool; `request_skill` stays, because admitting a skill changes the conversation's
+any tool, and `find_tools` is not offered without it; `request_skill` stays, because admitting a skill changes the conversation's
 instructions and nothing outside it.
 
 ## How it works inside

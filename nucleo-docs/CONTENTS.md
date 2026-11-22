@@ -44,6 +44,7 @@ travels between agents unaltered.
 - [Tools, thinkers and doers](../nucleo-core/src/main/java/ai/redouble/nucleo/tools/PACKAGE.md)
   - [The kinds of thinker](../nucleo-core/src/main/java/ai/redouble/nucleo/tools/thinking/PACKAGE.md)
   - [Which tools an agent is offered](../nucleo-core/src/main/java/ai/redouble/nucleo/tools/registry/PACKAGE.md)
+  - [Finding a tool in a long catalog](../nucleo-core/src/main/java/ai/redouble/nucleo/tools/sommelier/PACKAGE.md)
 - [Answers as Java objects](../nucleo-core/src/main/java/ai/redouble/nucleo/harness/schema/PACKAGE.md)
 - [Artifacts: data the model cannot alter](../nucleo-core/src/main/java/ai/redouble/nucleo/harness/artifacts/PACKAGE.md)
   - [Artifact tools](../nucleo-core/src/main/java/ai/redouble/nucleo/harness/artifacts/tools/PACKAGE.md)

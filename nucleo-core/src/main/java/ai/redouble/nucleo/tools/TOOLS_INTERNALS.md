@@ -382,7 +382,7 @@ The parent always sees `sub_thinker` in its palette when its own depth ≥ STAND
 
 ### RequestToolsProvider
 
-Dynamic `ToolProvider` for `request_tools`. Built per turn from the reconciled compatible-tools catalog: the JSON schema enumerates current tool names as a `oneOf` array of `{const, description}` entries inside the `tool_names` field, spelled in snake_case like every class-backed schema because that is the spelling the serializer reads back. The LLM provider validates names natively against the enum, so an unrecognized name cannot reach admission. The compatible catalog never enters the system prompt as free text.
+Dynamic `ToolProvider` for `request_tools`. Built per turn from the reconciled compatible-tools catalog: the JSON schema enumerates current tool names as a `oneOf` array of `{const, description}` entries inside the `tool_names` field, spelled in snake_case like every class-backed schema because that is the spelling the serializer reads back. A provider that enforces schemas validates names against the enum before a call reaches admission. The compatible catalog never enters the system prompt as free text. For a catalog longer than `SommelierSettings.listedTools` the provider is built unlisted: `tool_names` is an array of plain strings, the definition names no tool, and the admission lookup rejects a name the catalog does not hold. `reconcileToolRegistry` chooses the form each turn and registers `find_tools` beside the unlisted one.
 
 ### RequestSkillProvider
 

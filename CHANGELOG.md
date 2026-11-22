@@ -5,6 +5,16 @@ group `ai.redouble`; a published version is never changed in place.
 
 ## Unreleased
 
+- A thinker finds the right tool in a catalog of hundreds. A thinker with more than 30 tools
+  to ask for (`SommelierSettings.listedTools`) is no longer shown them: its `request_tools`
+  names no tool, and it has a new tool, `find_tools`, to which its model states what it
+  needs and which answers with the tools that fit. The deployment's `Sommelier` does the
+  finding. The shipped `ModelSommelier` has a model of the `SMALL` grade read every tool in
+  full, in parts of about 50,000 tokens for a long catalog; it is measured with Claude Haiku
+  5.5 and stronger models, and a deployment names another model with a `ModelRole` or sets
+  its own `Sommelier` on `ToolHub`. A thinker with 30 tools or fewer is unchanged. For a
+  thinker with more, the definition of `request_tools` changes: it no longer enumerates the
+  catalog.
 - A search tool tells the model how much it found. `SearchResultArtifact`, alias
   `search_result`, is a new artifact a tool returns in place of a bare list: the total of
   matching rows in the whole store, and one window of them as a `ListArtifact`. The model is

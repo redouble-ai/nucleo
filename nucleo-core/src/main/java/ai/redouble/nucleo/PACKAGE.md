@@ -94,6 +94,8 @@ field the property wins.
 | `McpSettings.stdioMaxConcurrentPerEndpoint` | `nucleo.mcp.stdio-max-concurrent-per-endpoint` | the same, for one server | 10 |
 | `McpSettings.stdioIdleTimeoutSeconds` | `nucleo.mcp.stdio-idle-timeout-seconds` | how long an idle MCP subprocess is kept before it is stopped | 300 |
 | `McpSettings.descMaxChars` | `nucleo.mcp.desc-max-chars` | the longest description of a remote MCP tool shown to a model | 4096 |
+| `SommelierSettings.listedTools` | `nucleo.sommelier.listed-tools` | the longest tool catalog listed to a thinker's model; a longer one is found through `find_tools` ([Finding a tool in a long catalog](tools/sommelier/PACKAGE.md)) | 30 |
+| `SommelierSettings.partTokens` | `nucleo.sommelier.part-tokens` | about how many tokens of tool pages one model call of a catalog lookup reads | 50000 |
 | `DatabaseSettings.name` | `nucleo.database.name` | the name the application's database is registered under ([Admission](harness/admission/PACKAGE.md)) | `default` |
 | `DatabaseSettings.maxConcurrent` | `nucleo.database.max-concurrent` | how many jobs may use the application's database at once; unset registers no database | unset |
 | `AnthropicSettings.connectionPoolSize` | `nucleo.anthropic.connection-pool-size` | the idle connections kept by the Anthropic SDK client, in `nucleo-provider-anthropic` | 200 |

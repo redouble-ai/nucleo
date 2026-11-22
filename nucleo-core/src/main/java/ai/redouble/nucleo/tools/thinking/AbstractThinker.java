@@ -6,6 +6,7 @@
 
 package ai.redouble.nucleo.tools.thinking;
 
+import ai.redouble.nucleo.*;
 import ai.redouble.nucleo.events.*;
 import ai.redouble.nucleo.guardrails.*;
 import ai.redouble.nucleo.harness.*;
@@ -22,6 +23,7 @@ import ai.redouble.nucleo.harness.tokens.*;
 import ai.redouble.nucleo.tools.*;
 import ai.redouble.nucleo.tools.builtin.*;
 import ai.redouble.nucleo.tools.registry.*;
+import ai.redouble.nucleo.tools.sommelier.*;
 import ai.redouble.nucleo.util.*;
 import org.slf4j.*;
 
@@ -488,15 +490,25 @@ public abstract class AbstractThinker<I extends ThinkerInput, O extends ThinkerO
             toolRegistry.unregister(SubThinker.class);
         }
 
-        // Build request_tools with the current catalog as a typed enum inside its input
-        // schema. The catalog is never injected into the prompt as free text - the LLM
-        // sees it through the tool's schema, which the provider validates natively.
+        // A catalog short enough to list travels as a typed enum inside the input schema of
+        // request_tools, which the provider validates natively; it is never injected into
+        // the prompt as free text. A longer one is not shown at all: request_tools takes
+        // the names find_tools returned. A read-only thinker loses request_tools to the
+        // sweep, so it is given no find_tools either.
         Set<ToolProvider> catalog = reconcileCatalog(ToolHub.getInstance().resolveCompatibleTools(this));
         if (catalog != null && !catalog.isEmpty()) {
-            toolRegistry.register(new RequestToolsProvider(catalog));
+            boolean listed = catalog.size() <= Settings.get(SommelierSettings.class).listedTools;
+            toolRegistry.register(new RequestToolsProvider(catalog, listed));
+            if (listed || isForceReadOnly()) {
+                toolRegistry.unregister(FindToolsTool.NAME);
+            }
+            else {
+                toolRegistry.register(FindToolsTool.class);
+            }
         }
         else {
             toolRegistry.unregister(RequestToolsProvider.NAME);
+            toolRegistry.unregister(FindToolsTool.NAME);
         }
 
         // The same for skills: request_skill carries the reconciled skill catalog as a typed
@@ -565,14 +577,16 @@ public abstract class AbstractThinker<I extends ThinkerInput, O extends ThinkerO
      * {@link #declareCompatibleTools()} or pushed at runtime via
      * {@link ToolHub#registerCompatible}). Default returns the set unchanged.
      *
-     * <p>The returned set is authoritative across BOTH catalog surfaces:
+     * <p>The returned set is authoritative across every catalog surface:
      * <ul>
-     *   <li>the enum inside {@code request_tools}' own input schema (what the LLM sees as
-     *       the names it may activate - the catalog never enters the prompt as free text)</li>
+     *   <li>the enum inside {@code request_tools}' own input schema, for a catalog short
+     *       enough to list (what the LLM sees as the names it may activate - the catalog
+     *       never enters the prompt as free text)</li>
+     *   <li>what {@code find_tools} looks in, for a catalog too long to list</li>
      *   <li>the {@link ToolHub#requestTools} admission lookup (what
      *       {@code request_tools} can actually pull in)</li>
      * </ul>
-     * Removing a provider here guarantees the LLM neither sees its name nor can
+     * Removing a provider here guarantees the LLM is neither shown its name nor can
      * activate it through {@code request_tools}, regardless of caching or hallucination.
      *
      * <p>Like {@link #reconcileToolRegistry()}, this gives the thinker full

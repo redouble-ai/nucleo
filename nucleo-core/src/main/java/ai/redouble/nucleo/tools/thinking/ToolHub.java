@@ -13,6 +13,7 @@ import ai.redouble.nucleo.harness.errors.*;
 import ai.redouble.nucleo.prompt.skill.*;
 import ai.redouble.nucleo.tools.*;
 import ai.redouble.nucleo.tools.registry.*;
+import ai.redouble.nucleo.tools.sommelier.*;
 import org.reflections.*;
 import org.reflections.scanners.*;
 import org.reflections.util.*;
@@ -40,6 +41,9 @@ import java.util.function.*;
  *       declarations, cached per thinker class, admitted through {@code request_skill}
  *       under {@code (thinkerClass, skillPredicate, guardrailClass)} rules. One hub, two
  *       catalogs.</li>
+ *   <li><b>The sommelier</b> - the {@link Sommelier} that names the tools serving a need
+ *       for a thinker whose catalog is too long to list. {@link ModelSommelier} unless the
+ *       deployment sets another.</li>
  * </ul>
  *
  * @author Andrey Santrosyan
@@ -56,6 +60,7 @@ public class ToolHub {
     private final List<AdmissionEntry<ToolProvider>> admissionRules = new CopyOnWriteArrayList<>();
     private final Map<Class<? extends Thinker>, Set<Skill>> thinkerSkillCache = new ConcurrentHashMap<>();
     private final List<AdmissionEntry<Skill>> skillAdmissionRules = new CopyOnWriteArrayList<>();
+    private volatile Sommelier sommelier = new ModelSommelier();
 
     /**
      * Admission rule entry over a catalog member (a {@link ToolProvider} or a {@link Skill}).
@@ -295,8 +300,7 @@ public class ToolHub {
             Thinker<?, ?> thinker,
             List<String> toolNames,
             ToolRegistry targetRegistry) throws LLMReadableCheckedException {
-        Set<ToolProvider> compatible = ((AbstractThinker<?, ?>) thinker)
-                .reconcileCatalog(resolveCompatibleTools(thinker));
+        Set<ToolProvider> compatible = catalogOf(thinker);
 
         Map<String, ToolProvider> nameToProvider = new HashMap<>();
         for (ToolProvider provider : compatible) {
@@ -503,8 +507,33 @@ public class ToolHub {
         Collections.addAll(set, skills);
     }
 
-    /** Test-only: forgets every cached compatible set and every admission rule. */
+    // --- The sommelier ---
+
+    /** The sommelier that answers {@code find_tools} for every thinker of this process. */
+    public Sommelier getSommelier() {
+        return sommelier;
+    }
+
+    /**
+     * Replaces the sommelier: with a {@link ModelSommelier} that carries a model role, or
+     * with the deployment's own implementation.
+     */
+    public void setSommelier(Sommelier sommelier) {
+        this.sommelier = sommelier;
+    }
+
+    /**
+     * The tools on offer to a thinker this turn: its compatible set after its own
+     * {@link AbstractThinker#reconcileCatalog} hook. The one catalog {@code request_tools}
+     * admits from and {@code find_tools} looks in.
+     */
+    public Set<ToolProvider> catalogOf(Thinker<?, ?> thinker) {
+        return ((AbstractThinker<?, ?>) thinker).reconcileCatalog(resolveCompatibleTools(thinker));
+    }
+
+    /** Test-only: forgets every cached compatible set and every admission rule, and restores the sommelier the runtime starts with. */
     public void resetAll() {
+        sommelier = new ModelSommelier();
         thinkerToolCache.clear();
         thinkerSkillCache.clear();
         admissionRules.clear();

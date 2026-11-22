@@ -296,7 +296,8 @@ tools](../harness/artifacts/tools/PACKAGE.md)), `sub_thinker` for delegating par
 (below), and any tool registered for all thinkers with
 `ToolHub.getInstance().registerSystemWideTool`. When it declares tools or skills the model
 may ask for, it is also given `request_tools` and `request_skill` ([Palettes and the tool
-registry](registry/PACKAGE.md)).
+registry](registry/PACKAGE.md)), and `find_tools` when the tools it may ask for are too many
+to list ([Finding a tool in a long catalog](sommelier/PACKAGE.md)).
 
 ### What a thinker declares
 
