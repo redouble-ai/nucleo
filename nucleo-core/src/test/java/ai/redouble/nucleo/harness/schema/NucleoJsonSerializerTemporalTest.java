@@ -246,6 +246,18 @@ class NucleoJsonSerializerTemporalTest {
     }
 
     @Test
+    @DisplayName("a date field reads a model's own spelling, a timestamp or time-of-day field only ISO-8601 text")
+    void fieldTypeDecidesHowStrictlyTextIsRead() throws IOException {
+        Dated lenient = NucleoJsonSerializer.parse("{\"day\":\"07/28/2021\",\"local\":\"28.07.2021\"}", Dated.class);
+        assertEquals(LocalDate.of(2021, 7, 28), lenient.getDay());
+        assertEquals(LocalDateTime.of(2021, 7, 28, 0, 0), lenient.getLocal());
+        for (String field : List.of("instant", "offset", "zoned", "time")) {
+            assertThrows(IOException.class, () -> NucleoJsonSerializer.parse("{\"" + field + "\":\"07/28/2021 4:50 PM\"}", Dated.class),
+                         field + " reads ISO-8601 text only");
+        }
+    }
+
+    @Test
     @DisplayName("the text a model writes for a timestamp is read, with or without a zone's name")
     void modelWrittenTimestampsAreRead() throws IOException {
         Dated read = NucleoJsonSerializer.parse("{\"instant\":\"2026-05-28T18:50:29+02:00\",\"offset\":\"2026-05-28T16:50:29Z\","

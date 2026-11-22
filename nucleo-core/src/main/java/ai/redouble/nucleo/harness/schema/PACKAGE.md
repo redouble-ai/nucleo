@@ -73,6 +73,14 @@ account of how it answered, below.
   back to an equal value: a timestamp keeps the offset it was written with, and a
   `ZonedDateTime` of a named zone reads back as the same date, time and offset, its zone
   being that offset. A `Duration` is a number of seconds.
+- **The type of a date field decides how strictly a model's text is read.** A `LocalDate`
+  or `LocalDateTime` field is lenient: it reads whatever `Temporals.parseLenient` reads,
+  `"07/28/2021"` and `"28.07.2021"` as well as ISO text. An `Instant`, `OffsetDateTime`,
+  `ZonedDateTime` or `LocalTime` field is strict: it reads ISO-8601 text and refuses anything
+  else, and the refusal goes back to the model as a correctable error naming the field.
+  Declare the lenient types where a model's own spelling of a date is welcome, and the
+  strict ones where the exact moment matters. A call over MCP is held to ISO-8601 text
+  whatever the type.
 
 ## The model's reasoning
 
