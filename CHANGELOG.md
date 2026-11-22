@@ -27,6 +27,11 @@ group `ai.redouble`; a published version is never changed in place.
   what `NucleoJsonSerializer` writes carries the new text from now on: a consumer outside
   Java that read a timestamp as a number reads a string. Values stored in the numeric forms
   are still read.
+- A tool whose base class declares its own type parameters gets its real input type. The
+  input and output of a tool were read by position from the first generic superclass, so a
+  tool extending `AbstractLookupTool<Row, Input>` was published with the schema of `Row`
+  and failed every call from a model with a `ClassCastException`. They are now the types
+  bound to `I` and `O` of `Tool<I, O>`, traced through the hierarchy.
 - The artifacts a called thinker selects reach the thinker that called it. A thinker that ran
   as another thinker's tool answered with references the calling model could read and its
   registry did not hold: an artifact tool given one answered that the artifact was not found,

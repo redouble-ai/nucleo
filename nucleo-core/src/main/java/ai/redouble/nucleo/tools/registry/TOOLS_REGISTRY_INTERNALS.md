@@ -24,7 +24,10 @@ Registries store providers, never classes.
 - `ClassToolProvider` wraps a `Class<? extends Tool>` and reads its `@ToolName`,
   `@ToolDescription`, `@DisplayName`, `@ToolWeight` annotations. Equality is by wrapped
   class, so registering the same class twice produces the same registry entry. The input
-  schema is generated once from the input type and narrowed by the tool's declared
+  and the output are the types bound to `I` and `O` of `Tool<I, O>`, traced through the
+  tool's hierarchy, so a base class between the tool and `Tool` may declare its own type
+  parameters in any number and order; a tool whose hierarchy leaves the input open is
+  refused when the provider is built. The input schema is generated once from the input type and narrowed by the tool's declared
   `@SchemaRefinedBy` refiner; a refiner that fails throws rather than publishing the
   schema it exists to narrow. An output schema is published only for a composite output
   type the walker can describe truthfully; otherwise the provider answers null and the

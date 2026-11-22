@@ -140,32 +140,52 @@ public final class ClassToolProvider implements ToolProvider {
      * type does not resolve simply publishes no output schema.
      */
     private static Class<?> resolveTypeArgument(Class<? extends Tool> cls, int index) {
-        // The declaration may sit any number of levels up: a family of tools shares one generic
-        // base that fixes the arguments, and a member of the family extends that base raw. The
-        // first parameterized ancestor is the one that fixed them.
-        for (Class<?> current = cls; current != null && current != Object.class; current = current.getSuperclass()) {
-            Type superclass = current.getGenericSuperclass();
-            if (superclass instanceof ParameterizedType pType) {
-                Type[] typeArgs = pType.getActualTypeArguments();
-                if (typeArgs.length > index) {
-                    Class<?> raw = rawClassOf(typeArgs[index]);
-                    if (raw != null) {
-                        return raw;
+        return rawClassOf(boundAtTool(cls, Map.of(), Tool.class.getTypeParameters()[index]));
+    }
+
+    /**
+     * What one of {@code Tool}'s own type variables is bound to, seen from a class of the
+     * tool's hierarchy. The classes between a tool and {@code Tool} may declare any number of
+     * type parameters in any order, so nothing is read by position on the way: each step up
+     * pairs the parent's variables with the arguments the child gave them, an argument that
+     * is the child's own variable being replaced by what that variable was bound to below.
+     * Only at {@code Tool} itself is the wanted variable looked up.
+     *
+     * @param current  the class reached so far
+     * @param bindings what the type variables of {@code current} are bound to, by the classes below it
+     * @param wanted   a type variable of {@code Tool}
+     * @return the type bound to it, or null when the hierarchy leaves it open
+     */
+    private static Type boundAtTool(Class<?> current, Map<TypeVariable<?>, Type> bindings, TypeVariable<?> wanted) {
+        if (current == Tool.class) {
+            return bindings.get(wanted);
+        }
+        List<Type> parents = new ArrayList<>();
+        if (current.getGenericSuperclass() != null) {
+            parents.add(current.getGenericSuperclass());
+        }
+        parents.addAll(Arrays.asList(current.getGenericInterfaces()));
+        for (Type parent : parents) {
+            Class<?> raw = rawClassOf(parent);
+            if (raw == null || !Tool.class.isAssignableFrom(raw)) {
+                continue;
+            }
+            Map<TypeVariable<?>, Type> parentBindings = new HashMap<>();
+            if (parent instanceof ParameterizedType parameterized) {
+                TypeVariable<?>[] variables = raw.getTypeParameters();
+                Type[] arguments = parameterized.getActualTypeArguments();
+                for (int i = 0; i < variables.length; i++) {
+                    // A variable of the current class stands for whatever was bound to it below;
+                    // one that nothing bound stays out, and is open at Tool too
+                    Type argument = arguments[i] instanceof TypeVariable<?> variable ? bindings.get(variable) : arguments[i];
+                    if (argument != null) {
+                        parentBindings.put(variables[i], argument);
                     }
                 }
             }
-        }
-        for (Type type : cls.getGenericInterfaces()) {
-            if (type instanceof ParameterizedType pType) {
-                if (Tool.class.isAssignableFrom((Class<?>) pType.getRawType())) {
-                    Type[] typeArgs = pType.getActualTypeArguments();
-                    if (typeArgs.length > index) {
-                        Class<?> raw = rawClassOf(typeArgs[index]);
-                        if (raw != null) {
-                            return raw;
-                        }
-                    }
-                }
+            Type bound = boundAtTool(raw, parentBindings, wanted);
+            if (bound != null) {
+                return bound;
             }
         }
         return null;
