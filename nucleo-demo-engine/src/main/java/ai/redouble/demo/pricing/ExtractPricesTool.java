@@ -11,6 +11,7 @@ import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.errors.*;
 import ai.redouble.nucleo.harness.llm.*;
 import ai.redouble.nucleo.harness.models.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 import java.time.*;
 
@@ -26,7 +27,8 @@ import java.time.*;
  */
 @DisplayName(value = "Extract Prices", action = "Reading the prices a document states")
 @ToolName("extract_prices")
-@ToolDescription(value = "Lists every price one document states, with audience, kind, currency and the dates the document attaches.", readOnly = true)
+@LLMDescription("Lists every price one document states, with audience, kind, currency and the dates the document attaches.")
+@ReadOnly
 @ToolWeight(type = ToolType.API_CALL, min = 3, max = 3)
 public class ExtractPricesTool extends AbstractModelDependentTool<DocumentText, PriceMentions> {
     private static final String INSTRUCTIONS = "List every price this document states for a product or service, one entry"

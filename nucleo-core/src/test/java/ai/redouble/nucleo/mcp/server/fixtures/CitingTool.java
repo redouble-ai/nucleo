@@ -7,6 +7,7 @@
 package ai.redouble.nucleo.mcp.server.fixtures;
 
 import ai.redouble.nucleo.harness.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.mcp.*;
 import ai.redouble.nucleo.tools.*;
 
@@ -20,7 +21,8 @@ import ai.redouble.nucleo.tools.*;
 @MCP
 @ToolName("mcp_citing")
 @DisplayName(value = "Citing", action = "Citing")
-@ToolDescription(value = "Answers with a citation artifact.", readOnly = true)
+@LLMDescription("Answers with a citation artifact.")
+@ReadOnly
 public class CitingTool extends AbstractTool<NoFieldsInput, ServedCitation> {
     public static final String DOI = "10.1038/s41586-024-07386-0";
 

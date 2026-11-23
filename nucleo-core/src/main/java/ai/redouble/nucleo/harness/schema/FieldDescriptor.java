@@ -23,6 +23,7 @@ public class FieldDescriptor {
     static final String DEFS_PREFIX = "#/$defs/";
     private String name;
     private String description;
+    private String title;
     private String type;
     private PojoDefinition definition;
     private List<String> enumValues;
@@ -70,6 +71,18 @@ public class FieldDescriptor {
 
     public void setDefinition(PojoDefinition definition) {
         this.definition = definition;
+    }
+
+    /**
+     * The name people call the field by, from its {@code @DisplayName}; null when it has
+     * none. Written as the {@code title} of the field's JSON Schema.
+     */
+    public String getTitle() {
+        return title;
+    }
+
+    public void setTitle(String title) {
+        this.title = title;
     }
 
     /**
@@ -314,6 +327,11 @@ public class FieldDescriptor {
                 }
             }
             node.set("examples", examplesNode);
+        }
+        // The name people call the field by. An object-typed field already carries its type's
+        // name there, which a reader of the schema identifies the type by
+        if (title != null && !node.has("title")) {
+            node.put("title", title);
         }
         if (descriptionOverride != null) {
             node.put("description", descriptionOverride);

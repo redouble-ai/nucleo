@@ -9,6 +9,7 @@ package ai.redouble.examples.scopes;
 import ai.redouble.examples.tool.*;
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.errors.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 
 /**
@@ -20,7 +21,7 @@ import ai.redouble.nucleo.tools.*;
  * @since 0.1 (2026-09-28)
  */
 @ToolName("file_note")
-@ToolDescription("File a note on one order of one customer, naming the channel it came from")
+@LLMDescription("File a note on one order of one customer, naming the channel it came from")
 public class FileNoteTool extends AbstractTool<FileNote, String> {
     public FileNoteTool(Identifiable parent) {
         super(parent);

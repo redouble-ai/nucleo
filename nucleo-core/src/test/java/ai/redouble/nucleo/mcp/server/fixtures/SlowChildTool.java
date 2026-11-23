@@ -8,6 +8,7 @@ package ai.redouble.nucleo.mcp.server.fixtures;
 
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.errors.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 
 import java.util.concurrent.atomic.*;
@@ -20,7 +21,8 @@ import java.util.concurrent.atomic.*;
  * @since 0.1 (2026-09-02)
  */
 @ToolName("mcp_slow_child")
-@ToolDescription(value = "Runs until cancelled.", readOnly = true)
+@LLMDescription("Runs until cancelled.")
+@ReadOnly
 public class SlowChildTool extends AbstractTool<NoFieldsInput, String> {
     public final AtomicBoolean observedCancellation = new AtomicBoolean(false);
 

@@ -11,6 +11,7 @@ import ai.redouble.nucleo.ext.patent.ratelimiters.*;
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.admission.*;
 import ai.redouble.nucleo.harness.errors.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 import com.fasterxml.jackson.databind.*;
 import org.slf4j.*;
@@ -31,7 +32,8 @@ import java.time.*;
  */
 @ToolName("uspto_odp_fulltext")
 @DisplayName(value = "USPTO ODP Full Text", action = "Fetching US Patent Full Text")
-@ToolDescription(value = "Fetch full patent text (abstract, claims, description) for a US patent. Expensive - use only when body text is explicitly needed.", readOnly = true)
+@LLMDescription("Fetch full patent text (abstract, claims, description) for a US patent. Expensive - use only when body text is explicitly needed.")
+@ReadOnly
 @ToolWeight(type = ToolType.API_CALL, min = 2, max = 3)
 public class UsptoOdpFullTextTool extends AbstractTool<UsptoOdpFullTextInput, UsptoOdpFullTextOutput> {
     private static final Logger log = LoggerFactory.getLogger(UsptoOdpFullTextTool.class);

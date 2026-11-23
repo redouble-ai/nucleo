@@ -23,8 +23,9 @@ import java.util.*;
 
 /**
  * {@link ToolProvider} that wraps a {@code Class<? extends Tool>}. Reads
- * {@link ToolName}, {@link ToolDescription}, {@link DisplayName}, {@link ToolWeight}
- * annotations. Its name and its input and output types are the code's alone. Its
+ * {@link ToolName}, {@link LLMDescription}, {@link ReadOnly}, {@link DisplayName} and
+ * {@link ToolWeight}, and the deprecated {@code @ToolDescription} on a tool that still
+ * carries it. Its name and its input and output types are the code's alone. Its
  * description, its read-only flag, its display name, its weight and its schemas are read
  * through {@link Annotations}, so a deployment's store can override them: they are generated
  * once via {@link PojoResponseHandler} and kept until {@link Annotations#changed()} says the
@@ -89,9 +90,22 @@ public final class ClassToolProvider implements ToolProvider {
     private Described describe(long generation) {
         Described fresh = new Described();
         fresh.generation = generation;
-        ResolvedAnnotation<ToolDescription> descAnn = Annotations.of(toolClass, ToolDescription.class);
-        fresh.description = descAnn != null ? descAnn.text() : "Tool: " + name;
-        fresh.readOnly = descAnn != null && descAnn.bool("readOnly");
+        // A tool is described by @LLMDescription and declared read-only by @ReadOnly. The
+        // deprecated @ToolDescription is read where a tool still carries it: its text when the
+        // tool has no @LLMDescription, its flag in any case
+        ResolvedAnnotation<LLMDescription> descAnn = Annotations.of(toolClass, LLMDescription.class);
+        ResolvedAnnotation<ToolDescription> oldDescAnn = Annotations.of(toolClass, ToolDescription.class);
+        if (oldDescAnn != null && oldDescAnn.stores("readOnly")) {
+            // What a read-only thinker may call is a fact about the code
+            throw new AnnotationOverrideException(oldDescAnn.key(), "readOnly is decided in the code and cannot be stored");
+        }
+        if (descAnn != null) {
+            fresh.description = descAnn.text();
+        }
+        else {
+            fresh.description = oldDescAnn != null ? oldDescAnn.text() : "Tool: " + name;
+        }
+        fresh.readOnly = toolClass.isAnnotationPresent(ReadOnly.class) || (oldDescAnn != null && oldDescAnn.declared().readOnly());
         ResolvedAnnotation<DisplayName> displayAnn = Annotations.of(toolClass, DisplayName.class);
         fresh.displayName = displayAnn != null ? displayAnn.string("value") : toolClass.getSimpleName();
         fresh.actionVerb = displayAnn != null ? displayAnn.string("action") : "";

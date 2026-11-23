@@ -8,6 +8,7 @@ package ai.redouble.nucleo.tools.builtin;
 
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.errors.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 
 import java.time.*;
@@ -25,7 +26,8 @@ import java.time.temporal.*;
  */
 @DisplayName(value = "Duration Calculator", action = "Calculating duration")
 @ToolName("calculate_duration")
-@ToolDescription(value = "Calculates hours and minutes between two date-times. Use this to compute elapsed duration and verify minimum duration requirements.", readOnly = true)
+@LLMDescription("Calculates hours and minutes between two date-times. Use this to compute elapsed duration and verify minimum duration requirements.")
+@ReadOnly
 @ToolWeight(type = ToolType.IN_MEMORY)
 public class DurationCalculatorTool extends AbstractTool<DurationCalculatorInput, DurationCalculatorOutput> {
     private static final DateTimeFormatter DATE_TIME_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");

@@ -5,14 +5,30 @@ group `ai.redouble`; a published version is never changed in place.
 
 ## Unreleased
 
+- A thinker on a model that writes its tool calls as text survives compaction and restore.
+  Such a model has no tool channel, so its assistant turn held text and no `ToolUseBlock`,
+  while each result was a `ToolResultBlock` under the id Nucleo gave the call. Compaction
+  refused every such conversation ("Compaction left tool_result ... without its tool_use"),
+  and a restore dropped its tool results. The thinker now records each of those calls on
+  the assistant turn as a `ToolUseBlock` with the new component `fromText` set. The turn's
+  text already holds the call, so that block is not sent to a model and counts no tokens.
+  `ToolUseBlock` keeps its three-argument constructor, and a conversation of a model with a
+  tool channel is unchanged.
+- A tool, a type and a field are named and described the same way. `@LLMDescription` on a
+  tool class is the tool's description, as it already is for a type and a field, and the new
+  marker `@ReadOnly` declares a tool read-only. `@DisplayName` may now stand on a field, whose
+  JSON Schema carries it as `title`. `@ToolDescription` is deprecated, for removal in 1.0: a
+  tool that carries it is read as before, and a tool that carries both descriptions is
+  described by `@LLMDescription`.
 - What a tool tells the model can be changed without a release. A deployment sets an
   `AnnotationResolver` with `Annotations.setResolver`, and from then on the description of a
-  tool (`@ToolDescription`), of a class or field of its input and output (`@LLMDescription`,
-  `@LLMExample`), its display name and its weight are read from the deployment's store when
+  tool, of a class or field of its input and output (`@LLMDescription`, `@LLMExample`), the
+  display name of a tool or a field and a tool's weight are read from the deployment's store when
   it holds something under the annotation's key, `<class name>@<Annotation>` or
   `<class name>.<field>@<Annotation>`, and from the code otherwise. A stored override is the
   annotation's `value` as text and, apart from it, a JSON object of its other attributes. A
-  store restates an annotation the code carries and cannot add one the code does not have. A
+  store restates an annotation the code carries and cannot add one the code does not have,
+  and whether a tool is read-only is never stored. A
   tool served over MCP carries the stored text. `Annotations.changed()` tells Nucleo the
   store changed, and `ClassToolProvider.annotationKeys()` lists what can be stored for a
   tool. With no resolver set nothing changes.

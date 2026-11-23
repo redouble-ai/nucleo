@@ -10,6 +10,7 @@ import ai.redouble.nucleo.guardrails.*;
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.artifacts.*;
 import ai.redouble.nucleo.harness.errors.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.http.*;
 import ai.redouble.nucleo.tools.*;
 import ai.redouble.nucleo.tools.guardrails.*;
@@ -46,7 +47,8 @@ import java.util.*;
  */
 @DisplayName(value = "Fetch Web Page", action = "Fetching Web Page")
 @ToolName("web_fetch")
-@ToolDescription(value = "Fetch the text content of a web page. Use this after search to get full page content for analysis.", readOnly = true)
+@LLMDescription("Fetch the text content of a web page. Use this after search to get full page content for analysis.")
+@ReadOnly
 @ToolWeight(type = ToolType.API_CALL, min = 1, max = 1)
 public class WebFetchTool extends AbstractTool<WebFetchInput, WebFetchOutput> {
     private static final Logger log = LoggerFactory.getLogger(WebFetchTool.class);

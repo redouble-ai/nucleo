@@ -7,6 +7,7 @@
 package ai.redouble.nucleo.mcp.server.fixtures;
 
 import ai.redouble.nucleo.harness.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.mcp.*;
 import ai.redouble.nucleo.tools.*;
 
@@ -22,7 +23,8 @@ import java.util.*;
 @MCP
 @ToolName("mcp_tree")
 @DisplayName(value = "Tree", action = "Growing")
-@ToolDescription(value = "Answers with a small tree of nodes.", readOnly = true)
+@LLMDescription("Answers with a small tree of nodes.")
+@ReadOnly
 public class TreeTool extends AbstractTool<NoFieldsInput, TreeOutput> {
     public TreeTool(Identifiable parent) {
         super(parent);

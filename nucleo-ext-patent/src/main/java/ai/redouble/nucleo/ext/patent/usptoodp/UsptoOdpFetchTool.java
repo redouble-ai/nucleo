@@ -11,6 +11,7 @@ import ai.redouble.nucleo.ext.patent.ratelimiters.*;
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.admission.*;
 import ai.redouble.nucleo.harness.errors.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 import com.fasterxml.jackson.databind.*;
 import org.slf4j.*;
@@ -28,7 +29,8 @@ import java.time.*;
  */
 @ToolName("uspto_odp_fetch")
 @DisplayName(value = "USPTO ODP Fetch", action = "Fetching US Patent Details")
-@ToolDescription(value = "Fetch detailed US patent bibliographic data by patent number from USPTO ODP. Returns title, inventors, applicants, dates, classifications, and abstract.", readOnly = true)
+@LLMDescription("Fetch detailed US patent bibliographic data by patent number from USPTO ODP. Returns title, inventors, applicants, dates, classifications, and abstract.")
+@ReadOnly
 @ToolWeight(type = ToolType.API_CALL, min = 1, max = 2)
 public class UsptoOdpFetchTool extends AbstractTool<UsptoOdpFetchInput, UsptoOdpFetchOutput> {
     private static final Logger log = LoggerFactory.getLogger(UsptoOdpFetchTool.class);

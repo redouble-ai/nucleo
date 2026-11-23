@@ -9,6 +9,7 @@ package ai.redouble.nucleo.tools.benchmark;
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.errors.*;
 import ai.redouble.nucleo.harness.models.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 import java.time.*;
 
@@ -34,7 +35,8 @@ import java.time.*;
  */
 @DisplayName(value = "Judge", action = "Judging a run of a benchmark against the reference")
 @ToolName("benchmark_judge")
-@ToolDescription(value = "Scores one run of a task against the reference run under a fixed rubric, blind.", readOnly = true)
+@LLMDescription("Scores one run of a task against the reference run under a fixed rubric, blind.")
+@ReadOnly
 @ToolWeight(type = ToolType.API_CALL, min = 3, max = 3)
 public class JudgeTool extends AbstractModelDependentTool<JudgeInput, JudgeVerdict> {
     static final String INSTRUCTIONS = """

@@ -9,6 +9,7 @@ package ai.redouble.nucleo.tools.thinking;
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.conversation.*;
 import ai.redouble.nucleo.harness.models.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.prompt.*;
 import ai.redouble.nucleo.tools.*;
 import ai.redouble.nucleo.tools.registry.*;
@@ -58,7 +59,7 @@ import java.util.*;
  * @since 0.1 (2026-03-29)
  */
 @ToolName("sub_thinker")
-@ToolDescription("Spawn a focused sub-agent to investigate a specific aspect of the problem. " +
+@LLMDescription("Spawn a focused sub-agent to investigate a specific aspect of the problem. " +
         "Use for decomposition by aspect (different angles on one subject), never to apply " +
         "the same operation to every iterand of a list - that belongs to the fan-out tools " +
         "when available (see the 'delegation' skill). " +

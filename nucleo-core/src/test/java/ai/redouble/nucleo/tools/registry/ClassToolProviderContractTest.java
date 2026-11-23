@@ -58,7 +58,8 @@ class ClassToolProviderContractTest {
     }
 
     @ToolName("counted_probe")
-    @ToolDescription(value = "Counts a thing.", readOnly = true)
+    @LLMDescription("Counts a thing.")
+    @ReadOnly
     public static class CountedTool extends AbstractTool<CountedInput, Confirmation> {
         public CountedTool(Identifiable parent) {
             super(parent);
@@ -72,7 +73,8 @@ class ClassToolProviderContractTest {
 
     /** A model-dependent tool that learns its grade later - the shape the inheritance rule exists for. */
     @ToolName("graded_probe")
-    @ToolDescription(value = "Answers at whatever grade it inherited.", readOnly = true)
+    @LLMDescription("Answers at whatever grade it inherited.")
+    @ReadOnly
     public static class GradedTool extends AbstractModelDependentTool<CountedInput, Confirmation> {
         public GradedTool(Identifiable parent) {
             super(parent);
@@ -86,7 +88,7 @@ class ClassToolProviderContractTest {
 
     /** No (Identifiable) constructor - the contract violation the factory must name. */
     @ToolName("ctorless_probe")
-    @ToolDescription("Cannot be constructed by the framework.")
+    @LLMDescription("Cannot be constructed by the framework.")
     public static class CtorlessTool extends AbstractTool<CountedInput, Confirmation> {
         public CtorlessTool() {
             super(null);
@@ -108,7 +110,8 @@ class ClassToolProviderContractTest {
     }
 
     @ToolName("refined_probe")
-    @ToolDescription(value = "Accepts only the resolved values.", readOnly = true)
+    @LLMDescription("Accepts only the resolved values.")
+    @ReadOnly
     @SchemaRefinedBy(ColumnsRefiner.class)
     public static class RefinedTool extends CountedTool {
         public RefinedTool(Identifiable parent) {
@@ -124,7 +127,7 @@ class ClassToolProviderContractTest {
     }
 
     @ToolName("broken_refined_probe")
-    @ToolDescription("Declares a refiner that cannot do its work.")
+    @LLMDescription("Declares a refiner that cannot do its work.")
     @SchemaRefinedBy(BrokenRefiner.class)
     public static class BrokenRefinedTool extends CountedTool {
         public BrokenRefinedTool(Identifiable parent) {
@@ -143,7 +146,7 @@ class ClassToolProviderContractTest {
     }
 
     @ToolName("unbuildable_refined_probe")
-    @ToolDescription("Declares a refiner the provider cannot construct.")
+    @LLMDescription("Declares a refiner the provider cannot construct.")
     @SchemaRefinedBy(UnbuildableRefiner.class)
     public static class UnbuildableRefinedTool extends CountedTool {
         public UnbuildableRefinedTool(Identifiable parent) {
@@ -286,7 +289,8 @@ class ClassToolProviderContractTest {
     }
 
     @ToolName("dated_probe")
-    @ToolDescription(value = "Needs a date.", readOnly = true)
+    @LLMDescription("Needs a date.")
+    @ReadOnly
     public static class DatedTool extends AbstractTool<DatedInput, Confirmation> {
         public DatedTool(Identifiable parent) {
             super(parent);

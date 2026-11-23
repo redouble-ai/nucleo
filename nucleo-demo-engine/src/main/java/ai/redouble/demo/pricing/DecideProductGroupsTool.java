@@ -12,6 +12,7 @@ import ai.redouble.nucleo.harness.decision.*;
 import ai.redouble.nucleo.harness.errors.*;
 import ai.redouble.nucleo.harness.llm.*;
 import ai.redouble.nucleo.harness.models.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 
 import java.time.*;
@@ -31,7 +32,8 @@ import java.util.*;
  */
 @DisplayName(value = "Decide Product Groups", action = "Deciding which names are one product")
 @ToolName("decide_product_groups")
-@ToolDescription(value = "Groups the product names documents used by the product each one means: a verdict per pair of names, then the proper name per group.", readOnly = true)
+@LLMDescription("Groups the product names documents used by the product each one means: a verdict per pair of names, then the proper name per group.")
+@ReadOnly
 @ToolWeight(type = ToolType.API_CALL, min = 1, max = 2)
 public class DecideProductGroupsTool extends AbstractTool<ProductNames, ProductGroups> {
     /** The probability a verdict must reach to join two names. */

@@ -9,6 +9,7 @@ package ai.redouble.nucleo.ext.patent.epo;
 import ai.redouble.nucleo.ext.patent.artifacts.*;
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.errors.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 import com.fasterxml.jackson.databind.*;
 import org.slf4j.*;
@@ -26,7 +27,8 @@ import java.util.*;
  */
 @ToolName("epo_biblio")
 @DisplayName(value = "EPO Biblio", action = "Fetching Patent Bibliographic Data")
-@ToolDescription(value = "Fetch detailed bibliographic data for a patent from EPO OPS. Returns title, abstract, applicants, inventors, dates, and classification codes.", readOnly = true)
+@LLMDescription("Fetch detailed bibliographic data for a patent from EPO OPS. Returns title, abstract, applicants, inventors, dates, and classification codes.")
+@ReadOnly
 @ToolWeight(type = ToolType.API_CALL, min = 1, max = 1)
 public class EPOBiblioTool extends AbstractEPOTool<EPOBiblioInput, EPOBiblioOutput> {
     private static final Logger log = LoggerFactory.getLogger(EPOBiblioTool.class);

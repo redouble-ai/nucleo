@@ -8,6 +8,7 @@ package ai.redouble.nucleo.ext.patent.epo;
 
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.errors.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 import com.fasterxml.jackson.databind.*;
 import org.slf4j.*;
@@ -22,7 +23,8 @@ import java.time.*;
  */
 @ToolName("epo_number_convert")
 @DisplayName(value = "EPO Number Convert", action = "Converting Patent Number")
-@ToolDescription(value = "Convert patent numbers between DOCDB and EPODOC formats using EPO OPS number service.", readOnly = true)
+@LLMDescription("Convert patent numbers between DOCDB and EPODOC formats using EPO OPS number service.")
+@ReadOnly
 @ToolWeight(type = ToolType.API_CALL, min = 1, max = 1)
 public class EPONumberConversionTool extends AbstractEPOTool<EPONumberConversionInput, EPONumberConversionOutput> {
     private static final Logger log = LoggerFactory.getLogger(EPONumberConversionTool.class);

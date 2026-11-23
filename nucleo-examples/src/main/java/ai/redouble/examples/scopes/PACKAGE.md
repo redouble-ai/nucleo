@@ -72,7 +72,7 @@ The shift is bound to the case and the channel the same way, two markers and a c
 <!-- sample: EmailShiftDoer.java#shift -->
 ```java
 @ToolName("email_shift")
-@ToolDescription("Work one customer's case on the email channel")
+@LLMDescription("Work one customer's case on the email channel")
 public class EmailShiftDoer extends AbstractDoer<String, List<String>> implements CaseScoped, ChannelScoped {
     private final String customerId;
 
@@ -104,7 +104,7 @@ it ride in through the runtime and keep holding:
 <!-- sample: DisputeDoer.java#dispute -->
 ```java
 @ToolName("dispute")
-@ToolDescription("Work one disputed order: file the notes of the dispute")
+@LLMDescription("Work one disputed order: file the notes of the dispute")
 public class DisputeDoer extends AbstractDoer<String, List<String>> implements OrderScoped {
     private final String customerId;
     private final String orderNumber;

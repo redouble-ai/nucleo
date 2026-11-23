@@ -9,6 +9,7 @@ package ai.redouble.nucleo.ext.patent.epo;
 import ai.redouble.nucleo.ext.patent.artifacts.*;
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.errors.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 import com.fasterxml.jackson.databind.*;
 import org.slf4j.*;
@@ -27,7 +28,8 @@ import java.time.*;
  */
 @ToolName("epo_fulltext")
 @DisplayName(value = "EPO Full Text", action = "Fetching Patent Full Text")
-@ToolDescription(value = "Fetch full patent text (biblio + claims + description) from EPO OPS. Expensive - use only when body text is explicitly needed.", readOnly = true)
+@LLMDescription("Fetch full patent text (biblio + claims + description) from EPO OPS. Expensive - use only when body text is explicitly needed.")
+@ReadOnly
 @ToolWeight(type = ToolType.API_CALL, min = 3, max = 3)
 public class EPOFullTextTool extends AbstractEPOTool<EPOFullTextInput, EPOFullTextOutput> {
     private static final Logger log = LoggerFactory.getLogger(EPOFullTextTool.class);

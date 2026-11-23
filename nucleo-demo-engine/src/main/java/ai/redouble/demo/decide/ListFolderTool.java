@@ -10,6 +10,7 @@ import ai.redouble.demo.extract.*;
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.artifacts.*;
 import ai.redouble.nucleo.harness.errors.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 import ai.redouble.nucleo.tools.deciding.*;
 
@@ -30,7 +31,8 @@ import java.util.stream.*;
  * @since 0.1 (2026-09-24)
  */
 @ToolName("list_folder")
-@ToolDescription(value = "Lists the files of a folder: name, kind (text, office, pdf, image, binary or empty), size and the first words of a text file", readOnly = true)
+@LLMDescription("Lists the files of a folder: name, kind (text, office, pdf, image, binary or empty), size and the first words of a text file")
+@ReadOnly
 public class ListFolderTool extends DecisionTool<Folder, ListArtifact<FileEntry>> {
     /** How many bytes of a file decide whether it is text and give its first words. */
     static final int HEAD_BYTES = 512;

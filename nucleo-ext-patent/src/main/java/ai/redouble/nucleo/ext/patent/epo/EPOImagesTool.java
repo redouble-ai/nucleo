@@ -8,6 +8,7 @@ package ai.redouble.nucleo.ext.patent.epo;
 
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.errors.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 import com.fasterxml.jackson.databind.*;
 import org.slf4j.*;
@@ -24,7 +25,8 @@ import java.time.*;
  */
 @ToolName("epo_images")
 @DisplayName(value = "EPO Images", action = "Fetching Patent Images")
-@ToolDescription(value = "Fetch patent document images from EPO OPS. Returns the PDF download URL, for content extraction with a document-parsing tool.", readOnly = true)
+@LLMDescription("Fetch patent document images from EPO OPS. Returns the PDF download URL, for content extraction with a document-parsing tool.")
+@ReadOnly
 @ToolWeight(type = ToolType.API_CALL, min = 1, max = 1)
 public class EPOImagesTool extends AbstractEPOTool<EPOImagesInput, EPOImagesOutput> {
     private static final Logger log = LoggerFactory.getLogger(EPOImagesTool.class);

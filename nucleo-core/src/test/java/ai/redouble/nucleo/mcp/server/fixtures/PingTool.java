@@ -7,6 +7,7 @@
 package ai.redouble.nucleo.mcp.server.fixtures;
 
 import ai.redouble.nucleo.harness.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.mcp.*;
 import ai.redouble.nucleo.tools.*;
 
@@ -18,7 +19,8 @@ import ai.redouble.nucleo.tools.*;
  */
 @MCP
 @ToolName("mcp_ping")
-@ToolDescription(value = "Answers pong.", readOnly = true)
+@LLMDescription("Answers pong.")
+@ReadOnly
 public class PingTool extends AbstractTool<NoFieldsInput, String> {
     public PingTool(Identifiable parent) {
         super(parent);

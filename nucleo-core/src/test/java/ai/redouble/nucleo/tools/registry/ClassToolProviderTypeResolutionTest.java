@@ -77,7 +77,8 @@ class ClassToolProviderTypeResolutionTest {
     }
 
     @ToolName("order_lookup")
-    @ToolDescription(value = "Finds orders.", readOnly = true)
+    @LLMDescription("Finds orders.")
+    @ReadOnly
     public static class OrderLookupTool extends AbstractLookupTool<Order, OrderLookupInput> {
         public OrderLookupTool(Identifiable parent) {
             super(parent);
@@ -92,7 +93,8 @@ class ClassToolProviderTypeResolutionTest {
     }
 
     @ToolName("order_triple")
-    @ToolDescription(value = "Finds orders, the long way.", readOnly = true)
+    @LLMDescription("Finds orders, the long way.")
+    @ReadOnly
     public static class OrderTripleTool extends AbstractTriple<Order, String, OrderLookupInput> {
         public OrderTripleTool(Identifiable parent) {
             super(parent);
@@ -112,7 +114,8 @@ class ClassToolProviderTypeResolutionTest {
     }
 
     @ToolName("order_first")
-    @ToolDescription(value = "Finds one order.", readOnly = true)
+    @LLMDescription("Finds one order.")
+    @ReadOnly
     public static class FirstOrderTool extends AbstractOrderTool<Order> {
         public FirstOrderTool(Identifiable parent) {
             super(parent);
@@ -121,7 +124,8 @@ class ClassToolProviderTypeResolutionTest {
 
     /** Extends a tool that fixed both types, declaring nothing itself. */
     @ToolName("order_lookup_again")
-    @ToolDescription(value = "Finds orders, again.", readOnly = true)
+    @LLMDescription("Finds orders, again.")
+    @ReadOnly
     public static class DerivedOrderLookupTool extends OrderLookupTool {
         public DerivedOrderLookupTool(Identifiable parent) {
             super(parent);
@@ -131,7 +135,8 @@ class ClassToolProviderTypeResolutionTest {
     /** Extends the generic base raw, so nothing binds its input. */
     @SuppressWarnings({"rawtypes", "unchecked"})
     @ToolName("order_raw")
-    @ToolDescription(value = "Finds nothing in particular.", readOnly = true)
+    @LLMDescription("Finds nothing in particular.")
+    @ReadOnly
     public static class RawLookupTool extends AbstractLookupTool {
         public RawLookupTool(Identifiable parent) {
             super(parent);

@@ -10,6 +10,7 @@ import ai.redouble.examples.tool.*;
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.errors.*;
 import ai.redouble.nucleo.harness.models.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 import ai.redouble.nucleo.tools.builtin.*;
 
@@ -39,7 +40,8 @@ import java.util.*;
  */
 // region doer
 @ToolName("customer_report")
-@ToolDescription(value = "Look up every order of one customer and answer a question over them", readOnly = true)
+@LLMDescription("Look up every order of one customer and answer a question over them")
+@ReadOnly
 public class CustomerReportDoer extends AbstractDoer<CustomerQuestion, CustomerReport> {
     public CustomerReportDoer(Identifiable parent) {
         super(parent);

@@ -9,6 +9,7 @@ package ai.redouble.demo;
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.conversation.*;
 import ai.redouble.nucleo.harness.models.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.prompt.*;
 import ai.redouble.nucleo.prompt.skill.*;
 import ai.redouble.nucleo.tools.*;
@@ -29,7 +30,8 @@ import java.util.*;
  * @since 0.1 (2026-09-11)
  */
 @ToolName("demo_agent")
-@ToolDescription(value = "Answers a query with the demo's tools and whichever skills it admits", readOnly = true)
+@LLMDescription("Answers a query with the demo's tools and whichever skills it admits")
+@ReadOnly
 @ToolWeight(type = ToolType.THINKER, min = 1, max = 8)
 public class DemoAgent extends SingleObjectiveThinker<DemoQuery, DemoAnswer> {
 

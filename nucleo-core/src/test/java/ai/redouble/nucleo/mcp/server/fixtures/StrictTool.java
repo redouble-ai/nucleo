@@ -7,6 +7,7 @@
 package ai.redouble.nucleo.mcp.server.fixtures;
 
 import ai.redouble.nucleo.harness.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.mcp.*;
 import ai.redouble.nucleo.tools.*;
 
@@ -20,7 +21,8 @@ import ai.redouble.nucleo.tools.*;
 @MCP
 @ToolName("mcp_strict")
 @DisplayName(value = "Strict", action = "Checking")
-@ToolDescription(value = "Accepts a typed input and reports only how many fields arrived.", readOnly = true)
+@LLMDescription("Accepts a typed input and reports only how many fields arrived.")
+@ReadOnly
 public class StrictTool extends AbstractTool<StrictInput, EchoOutput> {
     public StrictTool(Identifiable parent) {
         super(parent);

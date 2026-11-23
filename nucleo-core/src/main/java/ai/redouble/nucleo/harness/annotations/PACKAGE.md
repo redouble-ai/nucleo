@@ -1,7 +1,8 @@
 # Package: ai.redouble.nucleo.harness.annotations
 
-What a tool tells a model about itself is written in annotations: `@ToolDescription` on the
-tool, `@LLMDescription` on its input and output and on their fields. That text is the first
+What a tool tells a model about itself is written in annotations: `@LLMDescription` on the
+tool, on its input and output and on their fields, and `@DisplayName` for the name people
+call each of them by. That text is the first
 thing people want to change after the code ships. A description misleads the model, a field
 means something particular in one organisation, a tool came from a library and speaks its
 author's language. If the text lives only in the annotation, every such change is a release.
@@ -17,7 +18,8 @@ A tool as it is written today:
 
 ```java
 @ToolName("search_cases")
-@ToolDescription(value = "Search the support cases", readOnly = true)
+@LLMDescription("Search the support cases")
+@ReadOnly
 public class CaseSearchTool extends AbstractTool<CaseSearchInput, CaseSearchResult> { ... }
 
 public class CaseSearchInput {
@@ -36,7 +38,7 @@ and from then on its store decides what the model reads:
 
 | Key | Stored value |
 |---|---|
-| `com.acme.support.CaseSearchTool@ToolDescription` | Search the support cases, open and closed |
+| `com.acme.support.CaseSearchTool@LLMDescription` | Search the support cases, open and closed |
 | `com.acme.support.CaseSearchInput.title@LLMDescription` | Words in the title. Customers call a case a ticket |
 
 A key the store does not hold reads as the code wrote it. With no resolver set, every
@@ -67,8 +69,7 @@ An `AnnotationOverride` has two parts, and either may be left null:
 - **`value`**: the annotation's `value`, as plain text. For an annotation whose `value` is a
   list of strings, `@LLMExample`, it is one entry per line; blank lines are dropped
 - **`attributes`**: a JSON object of the annotation's other attributes, for example
-  `{"readOnly": true}` for a `@ToolDescription` or `{"action": "Searching cases"}` for a
-  `@DisplayName`
+  `{"action": "Searching cases"}` for a `@DisplayName` or `{"min": 30}` for a `@ToolWeight`
 
 Whatever an override leaves out is the code's.
 
@@ -88,15 +89,19 @@ offer.
 
 | Annotation | What a store can set | Read by |
 |---|---|---|
-| `@ToolDescription` | the description, `readOnly` | `ClassToolProvider` |
-| `@DisplayName` | the name, `action` | `ClassToolProvider`, `JobSnapshot` |
+| `@LLMDescription` | the description of a tool, of a class or of a field | `ClassToolProvider`, `JobSnapshot`, the schema of every input, output and artifact |
+| `@DisplayName` | the name of a tool, a job or a field, and `action` | `ClassToolProvider`, `JobSnapshot`, the schema, where a field's name is its `title` |
+| `@LLMExample` | the examples of a field | the schema |
 | `@ToolWeight` | `type`, `level`, `min`, `max` | `ClassToolProvider` |
-| `@LLMDescription` | the description of a class or of a field | the schema of every input, output and artifact |
-| `@LLMExample` | the examples of a field | the same |
+| `@ToolDescription`, deprecated | the description of a tool that still carries it | `ClassToolProvider`, `JobSnapshot` |
 
 `@ToolName` and `@TypeAlias` are not read through here: they are the identifiers a model
 sends back and a stored record refers to. `@LLMRequired`, `@LLMSummarizable`,
 `@LLMContextIgnore`, `@SchemaRefinedBy` and `@MCP` stay in the code as well.
+
+Whether a tool is read-only is never stored. `@ReadOnly` is a marker with no attributes, and
+the `readOnly` attribute of a stored `@ToolDescription` override is refused: what a read-only
+thinker may call is a fact about the code.
 
 A tool served over MCP is described from the same provider and the same schema as a tool
 offered to a thinker, so a client of the server receives the stored text too.
@@ -108,8 +113,8 @@ cannot take throws `AnnotationOverrideException`, which names the key and what t
 annotation accepts and repeats nothing that was stored:
 
 - an attribute the annotation does not have
-- an attribute of the wrong type: `readOnly` takes true or false, `min` a whole number,
-  `type` one of the enum's names
+- an attribute of the wrong type: `min` takes a whole number, `type` one of the enum's names
+- `readOnly` on a `@ToolDescription`
 - `value` placed among the attributes
 - attributes that are not a JSON object
 - a `value` for an annotation that has none, such as `@ToolWeight`
@@ -120,8 +125,8 @@ annotation accepts and repeats nothing that was stored:
 A refused override is never degraded to the code's wording or to a tool without a schema:
 the tool cannot be registered until the row is corrected.
 
-A row that sets `readOnly` or a weight decides what a tool may do. The store a resolver reads
-deserves the same care as the code.
+A row that sets a weight decides how a tool is scheduled, and a row's text is what a model
+acts on. The store a resolver reads deserves the same care as the code.
 
 ## When a change is seen
 

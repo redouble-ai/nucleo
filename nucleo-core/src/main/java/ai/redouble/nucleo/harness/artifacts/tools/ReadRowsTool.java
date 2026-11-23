@@ -9,6 +9,7 @@ package ai.redouble.nucleo.harness.artifacts.tools;
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.artifacts.*;
 import ai.redouble.nucleo.harness.errors.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 
 import java.time.*;
@@ -35,7 +36,8 @@ import java.util.*;
  */
 @DisplayName(value = "Read Rows", action = "Reading rows of a list")
 @ToolName("read_rows")
-@ToolDescription(value = "Read rows of a list in full. A list is shown with only its first few rows; use this to read any others, by the list's reference, the first row and how many.", readOnly = true)
+@LLMDescription("Read rows of a list in full. A list is shown with only its first few rows; use this to read any others, by the list's reference, the first row and how many.")
+@ReadOnly
 @ToolWeight(type = ToolType.IN_MEMORY)
 public class ReadRowsTool extends AbstractTool<ReadRowsInput, ReadRowsOutput> implements ArtifactRegistryAware {
     /** Rows returned when the model names no count. */

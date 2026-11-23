@@ -30,7 +30,8 @@ import java.util.*;
  */
 @DisplayName(value = "BioRxiv Fetch", action = "Fetching Complete BioRxiv Preprint")
 @ToolName("fetch_biorxiv_preprint")
-@ToolDescription(value = "Fetch complete details for a specific bioRxiv/medRxiv preprint by DOI. Returns full metadata including abstract, authors, funding, and publication status.", readOnly = true)
+@LLMDescription("Fetch complete details for a specific bioRxiv/medRxiv preprint by DOI. Returns full metadata including abstract, authors, funding, and publication status.")
+@ReadOnly
 @ToolWeight(type = ToolType.API_CALL, min = 1, max = 1)
 public class BioRxivFetchTool extends AbstractTool<BioRxivFetchInput, BioRxivFetchOutput> {
 

@@ -89,7 +89,8 @@ class DecisionThinkerTest {
 
     /** Splits a note on its semicolons into a list of notes. */
     @ToolName("split_note")
-    @ToolDescription(value = "Splits a note into its parts", readOnly = true)
+    @LLMDescription("Splits a note into its parts")
+    @ReadOnly
     public static class SplitNote extends DecisionTool<Note, ListArtifact<Note>> {
         public SplitNote(Identifiable parent) {
             super(parent);
@@ -110,7 +111,8 @@ class DecisionThinkerTest {
 
     /** Judges a note: kept when it mentions alpha. The verdicts on a note, a list of one; the key tool of the triage. */
     @ToolName("judge_note")
-    @ToolDescription(value = "Judges whether a note is worth keeping", readOnly = true)
+    @LLMDescription("Judges whether a note is worth keeping")
+    @ReadOnly
     public static class JudgeNote extends DecisionTool<Note, ListArtifact<Verdict>> {
         public JudgeNote(Identifiable parent) {
             super(parent);
@@ -127,7 +129,8 @@ class DecisionThinkerTest {
 
     /** Refuses every note with a failure the model can read. */
     @ToolName("picky_judge")
-    @ToolDescription(value = "Judges a note when it is short enough", readOnly = true)
+    @LLMDescription("Judges a note when it is short enough")
+    @ReadOnly
     public static class PickyJudge extends DecisionTool<Note, ListArtifact<Verdict>> {
         public PickyJudge(Identifiable parent) {
             super(parent);
@@ -141,7 +144,8 @@ class DecisionThinkerTest {
 
     /** Fails on every note with a failure no model can read: a bug, never a verdict. */
     @ToolName("broken_judge")
-    @ToolDescription(value = "Judges a note, when its database is up", readOnly = true)
+    @LLMDescription("Judges a note, when its database is up")
+    @ReadOnly
     public static class BrokenJudge extends DecisionTool<Note, ListArtifact<Verdict>> {
         public BrokenJudge(Identifiable parent) {
             super(parent);

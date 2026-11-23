@@ -8,6 +8,7 @@ package ai.redouble.nucleo.tools.builtin;
 
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.errors.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 
 import java.time.*;
@@ -30,7 +31,8 @@ import java.time.temporal.*;
  */
 @DisplayName(value = "Date Calculator", action = "Calculating date difference")
 @ToolName("calculate_dates")
-@ToolDescription(value = "Compares two dates and calculates the difference. Use this for date comparisons, calculating days/months between dates, and checking timing rules.", readOnly = true)
+@LLMDescription("Compares two dates and calculates the difference. Use this for date comparisons, calculating days/months between dates, and checking timing rules.")
+@ReadOnly
 @ToolWeight(type = ToolType.IN_MEMORY)
 public class DateCalculatorTool extends AbstractTool<DateCalculatorInput, DateCalculatorOutput> {
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd");

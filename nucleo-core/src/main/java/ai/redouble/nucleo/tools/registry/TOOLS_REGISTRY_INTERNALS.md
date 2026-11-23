@@ -22,7 +22,7 @@ surface does not name (icons, categories, cost hints); the framework reads nothi
 Registries store providers, never classes.
 
 - `ClassToolProvider` wraps a `Class<? extends Tool>` and reads its `@ToolName`,
-  `@ToolDescription`, `@DisplayName`, `@ToolWeight` annotations. Equality is by wrapped
+  `@LLMDescription`, `@ReadOnly`, `@DisplayName`, `@ToolWeight` annotations. Equality is by wrapped
   class, so registering the same class twice produces the same registry entry. The input
   and the output are the types bound to `I` and `O` of `Tool<I, O>`, traced through the
   tool's hierarchy, so a base class between the tool and `Tool` may declare its own type

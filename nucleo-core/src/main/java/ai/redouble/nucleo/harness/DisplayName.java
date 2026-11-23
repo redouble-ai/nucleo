@@ -25,11 +25,22 @@ import java.lang.annotation.*;
  * answers, then this annotation, then the class simple name; the action is this annotation's
  * or the empty string.
  *
+ * <p>On a field of an input, an output or an artifact it is the name people call the field
+ * by, and the field's JSON Schema carries it as {@code title}, so a model learns the word a
+ * person will use and a client that renders a form shows a proper label:
+ * <pre>
+ * {@code @DisplayName("Claim status")}
+ * {@code @LLMDescription("The status of the claim as the adjuster last set it")}
+ * private String statCd;
+ * </pre>
+ * A field that is itself an object keeps its type's name as {@code title}. The action means
+ * something only on a thing that runs and is not read on a field.
+ *
  * @author Andrey Santrosyan
  * @since 0.1 (2025-11-15)
  */
 @Retention(RetentionPolicy.RUNTIME)
-@Target(ElementType.TYPE)
+@Target({ElementType.TYPE, ElementType.FIELD})
 public @interface DisplayName {
     /**
      * The human-readable display name for this job or tool.

@@ -9,6 +9,7 @@ package ai.redouble.examples.scopes;
 import ai.redouble.nucleo.guardrails.*;
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.errors.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 
 import java.util.*;
@@ -30,7 +31,7 @@ import java.util.concurrent.*;
  */
 // region shift
 @ToolName("email_shift")
-@ToolDescription("Work one customer's case on the email channel")
+@LLMDescription("Work one customer's case on the email channel")
 public class EmailShiftDoer extends AbstractDoer<String, List<String>> implements CaseScoped, ChannelScoped {
     private final String customerId;
 

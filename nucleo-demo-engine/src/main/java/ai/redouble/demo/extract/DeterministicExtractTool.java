@@ -8,6 +8,7 @@ package ai.redouble.demo.extract;
 
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.errors.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 import java.io.*;
 import java.nio.charset.*;
@@ -31,7 +32,8 @@ import java.util.zip.*;
  */
 @DisplayName(value = "Extract Text", action = "Reading a file")
 @ToolName("extract_text")
-@ToolDescription(value = "Reads the text of a file by its format, without a model.", readOnly = true)
+@LLMDescription("Reads the text of a file by its format, without a model.")
+@ReadOnly
 @ToolWeight(type = ToolType.IN_MEMORY)
 public class DeterministicExtractTool extends AbstractTool<FileRef, Extraction> {
     /** Extensions read as text without asking anyone. */

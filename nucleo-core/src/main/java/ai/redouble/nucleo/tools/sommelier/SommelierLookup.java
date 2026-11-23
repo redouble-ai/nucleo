@@ -10,6 +10,7 @@ import ai.redouble.nucleo.*;
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.errors.*;
 import ai.redouble.nucleo.harness.models.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 import org.slf4j.*;
 
@@ -34,7 +35,8 @@ import java.util.concurrent.*;
  */
 @DisplayName(value = "Sommelier Lookup", action = "Reading the tool catalog")
 @ToolName("sommelier_lookup")
-@ToolDescription(value = "Reads a tool catalog, in parts when it is long, and names the tools that serve a stated need.", readOnly = true)
+@LLMDescription("Reads a tool catalog, in parts when it is long, and names the tools that serve a stated need.")
+@ReadOnly
 @ToolWeight(type = ToolType.IN_MEMORY, min = 1, max = 1)
 public class SommelierLookup extends AbstractDoer<SommelierQuestion, SommelierAnswer> {
     private static final Logger log = LoggerFactory.getLogger(SommelierLookup.class);

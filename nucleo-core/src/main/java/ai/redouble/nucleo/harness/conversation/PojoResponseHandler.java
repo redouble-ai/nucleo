@@ -6,6 +6,7 @@
 
 package ai.redouble.nucleo.harness.conversation;
 
+import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.annotations.*;
 import ai.redouble.nucleo.harness.artifacts.*;
 import ai.redouble.nucleo.harness.schema.*;
@@ -258,6 +259,12 @@ public class PojoResponseHandler<T > implements ResponseHandler<T> {
         }
 
         descriptor.setDescription(!descBuilder.isEmpty() ? descBuilder.toString() : "Field " + jsonName);
+        // The name people call the field by reaches the model in the schema, so a stored one
+        // is guarded as a stored description is
+        ResolvedAnnotation<DisplayName> displayName = Annotations.of(contextClass, field, DisplayName.class);
+        if (displayName != null) {
+            descriptor.setTitle(displayName.text());
+        }
 
         // Resolve generic types if needed
         Type resolvedType = resolveFieldType(field, contextClass);

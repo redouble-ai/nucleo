@@ -9,6 +9,7 @@ package ai.redouble.examples.scope;
 import ai.redouble.examples.tool.*;
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.errors.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 
 /**
@@ -20,7 +21,8 @@ import ai.redouble.nucleo.tools.*;
  * @since 0.1 (2026-09-27)
  */
 @ToolName("customer_order")
-@ToolDescription(value = "Look up one order of one customer: its status and the date it was promised for", readOnly = true)
+@LLMDescription("Look up one order of one customer: its status and the date it was promised for")
+@ReadOnly
 public class CustomerOrderTool extends AbstractTool<CustomerOrder, OrderStatus> {
     public CustomerOrderTool(Identifiable parent) {
         super(parent);

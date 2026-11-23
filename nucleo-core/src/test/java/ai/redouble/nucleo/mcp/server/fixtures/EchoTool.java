@@ -7,6 +7,7 @@
 package ai.redouble.nucleo.mcp.server.fixtures;
 
 import ai.redouble.nucleo.harness.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.mcp.*;
 import ai.redouble.nucleo.tools.*;
 
@@ -19,7 +20,8 @@ import ai.redouble.nucleo.tools.*;
 @MCP
 @ToolName("mcp_echo")
 @DisplayName(value = "Echo", action = "Echoing")
-@ToolDescription(value = "Echoes text back with the calling principal.", readOnly = true)
+@LLMDescription("Echoes text back with the calling principal.")
+@ReadOnly
 public class EchoTool extends AbstractTool<EchoInput, EchoOutput> {
     public EchoTool(Identifiable parent) {
         super(parent);

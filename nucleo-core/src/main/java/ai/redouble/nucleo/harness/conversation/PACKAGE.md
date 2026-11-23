@@ -108,7 +108,12 @@ How a definition reaches the model depends on the provider. Anthropic and OpenAI
 tools parameter of their own, and their clients send every definition there; the model
 answers with a `ToolUseBlock` under an id the provider assigns. The Bedrock Converse client
 writes the definitions into the text instead, the model writes its tool calls into its
-answer, and Nucleo gives each call an id so its result can be matched to it.
+answer, and Nucleo gives each call an id so its result can be matched to it. When the
+thinker runs those calls it records each on the assistant turn as a `ToolUseBlock` under
+that id, with `fromText` set. A conversation therefore holds every call as a block,
+whichever way the model wrote it, and compaction and restore pair a result with its call
+the same way for every model. The turn keeps its text, which already holds the call, so a
+block with `fromText` set is not sent to a model and counts no tokens.
 
 The shape of the answer you declared ([Answers as Java objects](../schema/PACKAGE.md)) is
 appended to the outgoing message. Two fields of it are left out when they would make the

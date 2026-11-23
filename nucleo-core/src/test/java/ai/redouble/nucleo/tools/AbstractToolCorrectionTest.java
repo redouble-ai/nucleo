@@ -89,7 +89,8 @@ public class AbstractToolCorrectionTest {
 
     /** The shape every one-call tool has: wire in getRequirements, converse in execute, unwrap around it. */
     @ToolName("strict_question")
-    @ToolDescription(value = "Answers strictly.", readOnly = true)
+    @LLMDescription("Answers strictly.")
+    @ReadOnly
     static final class StrictTool extends AbstractModelDependentTool<Question, StrictAnswer> {
         private final CannedClient client;
 
@@ -136,7 +137,8 @@ public class AbstractToolCorrectionTest {
      * so its malformed answer is corrected instead of failing the tool.
      */
     @ToolName("picture_question")
-    @ToolDescription(value = "Answers strictly about a picture.", readOnly = true)
+    @LLMDescription("Answers strictly about a picture.")
+    @ReadOnly
     static final class PictureTool extends AbstractModelDependentTool<Question, StrictAnswer> {
         private final CannedClient client;
         int built;

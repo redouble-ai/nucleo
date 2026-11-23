@@ -67,7 +67,8 @@ public final class LiveOpenAIChatProbe {
 
     /** The probe's chat: the time tool and an instruction to answer with the tool's exact value. */
     @ToolName("openai_probe_chat")
-    @ToolDescription(value = "Answers time questions with the current-time tool", readOnly = true)
+    @LLMDescription("Answers time questions with the current-time tool")
+    @ReadOnly
     @ToolWeight(type = ToolType.THINKER, level = 0, min = 1, max = 4)
     public static class ProbeChat extends ChatThinker<ChatAnswer> {
         final StringBuilder answer = new StringBuilder();

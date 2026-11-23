@@ -11,6 +11,7 @@ import ai.redouble.nucleo.ext.lit.models.*;
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.admission.*;
 import ai.redouble.nucleo.harness.errors.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.http.*;
 import ai.redouble.nucleo.mcp.*;
 import ai.redouble.nucleo.secrets.*;
@@ -35,7 +36,8 @@ import java.time.*;
 @DisplayName(value = "PMC Full Text", action = "Fetching full text from PubMed Central")
 @MCP
 @ToolName("fetch_pmc_fulltext")
-@ToolDescription(value = "Fetch full-text article from PubMed Central by PMCID. Returns the complete article text. Only works for open-access articles in PMC.", readOnly = true)
+@LLMDescription("Fetch full-text article from PubMed Central by PMCID. Returns the complete article text. Only works for open-access articles in PMC.")
+@ReadOnly
 @ToolWeight(type = ToolType.API_CALL, min = 1, max = 1)
 public class PMCFullTextTool extends AbstractTool<PMCFullTextInput, PMCFullTextOutput> {
     private static final Logger log = LoggerFactory.getLogger(PMCFullTextTool.class);

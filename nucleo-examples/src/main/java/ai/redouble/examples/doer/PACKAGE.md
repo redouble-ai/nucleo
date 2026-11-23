@@ -18,7 +18,8 @@ what came back.
 <!-- sample: CustomerReportDoer.java#doer -->
 ```java
 @ToolName("customer_report")
-@ToolDescription(value = "Look up every order of one customer and answer a question over them", readOnly = true)
+@LLMDescription("Look up every order of one customer and answer a question over them")
+@ReadOnly
 public class CustomerReportDoer extends AbstractDoer<CustomerQuestion, CustomerReport> {
     public CustomerReportDoer(Identifiable parent) {
         super(parent);
@@ -64,7 +65,7 @@ public class CustomerReportDoer extends AbstractDoer<CustomerQuestion, CustomerR
 
 Reading it from the top:
 
-**A doer is a tool.** It carries the same `@ToolName` and `@ToolDescription` as the tool in
+**A doer is a tool.** It carries the same `@ToolName` and `@LLMDescription` as the tool in
 [Your first tool](../tool/PACKAGE.md), and `AbstractDoer<CustomerQuestion, CustomerReport>`
 names its input and output the same way. An agent given `customer_report` could call it,
 and your own code submits it to the dispatcher like any other job. Its input,

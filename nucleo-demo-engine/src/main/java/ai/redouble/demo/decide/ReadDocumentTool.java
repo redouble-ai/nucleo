@@ -9,6 +9,7 @@ package ai.redouble.demo.decide;
 import ai.redouble.demo.extract.*;
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.errors.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 import ai.redouble.nucleo.tools.deciding.*;
 
@@ -26,7 +27,8 @@ import java.nio.file.*;
  * @since 0.1 (2026-09-24)
  */
 @ToolName("read_document")
-@ToolDescription(value = "Reads a text file or an Office document (docx, xlsx, pptx) as text; refuses a PDF, an image, a binary or an empty file", readOnly = true)
+@LLMDescription("Reads a text file or an Office document (docx, xlsx, pptx) as text; refuses a PDF, an image, a binary or an empty file")
+@ReadOnly
 public class ReadDocumentTool extends DecisionTool<FileEntry, Document> {
     /** Above this share of undecodable characters, a file is not text whatever its extension says. */
     static final double UNDECODABLE_SHARE = 0.05;

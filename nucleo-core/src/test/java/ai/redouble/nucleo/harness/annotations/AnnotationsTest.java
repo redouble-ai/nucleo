@@ -17,6 +17,7 @@ import ai.redouble.nucleo.tools.*;
 import ai.redouble.nucleo.tools.guardrails.*;
 import ai.redouble.nucleo.tools.registry.*;
 import com.fasterxml.jackson.databind.*;
+import io.modelcontextprotocol.spec.*;
 import org.junit.jupiter.api.*;
 
 import java.util.*;
@@ -61,6 +62,7 @@ public class AnnotationsTest {
         @LLMDescription("Words to look for in the case title")
         @LLMExample({"refund", "late delivery"})
         private String title;
+        @ai.redouble.nucleo.harness.DisplayName("Case status")
         private String status;
 
         public String getTitle() {
@@ -95,7 +97,8 @@ public class AnnotationsTest {
 
     @MCP
     @ToolName("search_cases")
-    @ToolDescription(value = "Search the support cases", readOnly = true)
+    @LLMDescription("Search the support cases")
+    @ReadOnly
     @ai.redouble.nucleo.harness.DisplayName(value = "Case Search", action = "Searching cases")
     @ToolWeight(type = ToolType.API_CALL, min = 5, max = 15)
     public static class CaseSearchTool extends AbstractTool<CaseSearchInput, CaseSearchResult> {
@@ -106,6 +109,27 @@ public class AnnotationsTest {
         @Override
         public CaseSearchResult execute(JobResources resources, JobContext<CaseSearchResult> context) {
             return new CaseSearchResult();
+        }
+    }
+
+    /** A tool still written with the deprecated annotation. */
+    @SuppressWarnings("removal")
+    @ToolName("legacy_tool")
+    @ToolDescription(value = "Search the old way", readOnly = true)
+    public static class LegacyTool extends BareTool {
+        public LegacyTool(Identifiable parent) {
+            super(parent);
+        }
+    }
+
+    /** A tool that carries both descriptions, the deprecated one not read-only. */
+    @SuppressWarnings("removal")
+    @ToolName("both_tool")
+    @ToolDescription("Described the old way")
+    @LLMDescription("Described the new way")
+    public static class BothTool extends BareTool {
+        public BothTool(Identifiable parent) {
+            super(parent);
         }
     }
 
@@ -209,7 +233,7 @@ public class AnnotationsTest {
 
     @Test
     void storedTextReplacesTheDescriptionAndLeavesTheAttributes() {
-        store.text(TOOL + "@ToolDescription", "Search the support cases, open and closed");
+        store.text(TOOL + "@LLMDescription", "Search the support cases, open and closed");
         ClassToolProvider provider = ClassToolProvider.of(CaseSearchTool.class);
         assertEquals("Search the support cases, open and closed", provider.description());
         assertTrue(provider.readOnly(), "readOnly is not stored, so it is the code's");
@@ -217,11 +241,10 @@ public class AnnotationsTest {
 
     @Test
     void storedAttributesReplaceTheAttributesAndLeaveTheText() throws Exception {
-        store.attributes(TOOL + "@ToolDescription", "{\"readOnly\": false}");
         store.attributes(TOOL + "@DisplayName", "{\"action\": \"Looking up cases\"}");
         ClassToolProvider provider = ClassToolProvider.of(CaseSearchTool.class);
         assertEquals("Search the support cases", provider.description());
-        assertFalse(provider.readOnly());
+        assertTrue(provider.readOnly());
         assertEquals("Case Search", provider.displayName());
         assertEquals("Looking up cases", provider.actionVerb());
     }
@@ -314,30 +337,71 @@ public class AnnotationsTest {
 
     @Test
     void anAttributeTheAnnotationDoesNotHaveIsRefusedByKey() throws Exception {
-        store.attributes(TOOL + "@ToolDescription", "{\"readonly\": true}");
+        store.attributes(TOOL + "@DisplayName", "{\"Action\": \"Looking\"}");
         AnnotationOverrideException refused = assertThrows(AnnotationOverrideException.class, () -> ClassToolProvider.of(CaseSearchTool.class));
-        assertEquals(TOOL + "@ToolDescription", refused.getKey());
-        assertTrue(refused.getMessage().contains("[readOnly, value]"), refused.getMessage());
+        assertEquals(TOOL + "@DisplayName", refused.getKey());
+        assertTrue(refused.getMessage().contains("[action, value]"), refused.getMessage());
     }
 
     @Test
     void anAttributeOfTheWrongTypeIsRefusedWithoutRepeatingIt() throws Exception {
-        store.attributes(TOOL + "@ToolDescription", "{\"readOnly\": \"canary-yes\"}");
+        store.attributes(TOOL + "@ToolWeight", "{\"min\": \"canary-yes\"}");
         AnnotationOverrideException refused = assertThrows(AnnotationOverrideException.class, () -> ClassToolProvider.of(CaseSearchTool.class));
-        assertTrue(refused.getMessage().contains("true or false"), refused.getMessage());
+        assertTrue(refused.getMessage().contains("a whole number"), refused.getMessage());
         assertFalse(refused.getMessage().contains("canary-yes"), refused.getMessage());
     }
 
     @Test
+    void aToolWrittenWithTheDeprecatedAnnotationIsReadAsBefore() {
+        ClassToolProvider provider = ClassToolProvider.of(LegacyTool.class);
+        assertEquals("Search the old way", provider.description());
+        assertTrue(provider.readOnly());
+        assertEquals("Search the old way", JobSnapshot.extractDescription(LegacyTool.class));
+        store.text(LegacyTool.class.getName() + "@ToolDescription", "Search the old way, reworded");
+        Annotations.changed();
+        assertEquals("Search the old way, reworded", provider.description());
+    }
+
+    @Test
+    void aToolWithBothDescriptionsIsDescribedByTheNewOne() {
+        ClassToolProvider provider = ClassToolProvider.of(BothTool.class);
+        assertEquals("Described the new way", provider.description());
+        assertFalse(provider.readOnly(), "neither annotation says read-only");
+        assertEquals("Described the new way", JobSnapshot.extractDescription(BothTool.class));
+    }
+
+    @Test
+    void readOnlyIsDecidedInTheCodeAndAStoredOneIsRefused() throws Exception {
+        assertTrue(ClassToolProvider.of(CaseSearchTool.class).readOnly(), "@ReadOnly marks it");
+        assertFalse(ClassToolProvider.of(BareTool.class).readOnly());
+        String key = LegacyTool.class.getName() + "@ToolDescription";
+        store.attributes(key, "{\"readOnly\": false}");
+        AnnotationOverrideException refused = assertThrows(AnnotationOverrideException.class, () -> ClassToolProvider.of(LegacyTool.class));
+        assertEquals(key, refused.getKey());
+        assertTrue(refused.getMessage().contains("decided in the code"), refused.getMessage());
+    }
+
+    @Test
+    void aFieldsDisplayNameIsTheTitleOfItsSchema() throws Exception {
+        ClassToolProvider provider = ClassToolProvider.of(CaseSearchTool.class);
+        JsonNode properties = inputSchema(provider).get("properties");
+        assertEquals("Case status", properties.get("status").get("title").asText());
+        assertNull(properties.get("title").get("title"), "a field without a display name has no title");
+        store.text(INPUT + ".status@DisplayName", "Ticket status");
+        Annotations.changed();
+        assertEquals("Ticket status", inputSchema(provider).get("properties").get("status").get("title").asText());
+    }
+
+    @Test
     void aValueAmongTheAttributesIsRefused() throws Exception {
-        store.attributes(TOOL + "@ToolDescription", "{\"value\": \"Search\"}");
+        store.attributes(TOOL + "@LLMDescription", "{\"value\": \"Search\"}");
         AnnotationOverrideException refused = assertThrows(AnnotationOverrideException.class, () -> ClassToolProvider.of(CaseSearchTool.class));
         assertTrue(refused.getMessage().contains("apart from the attributes"), refused.getMessage());
     }
 
     @Test
     void attributesThatAreNotAnObjectAreRefused() throws Exception {
-        store.attributes(TOOL + "@ToolDescription", "[true]");
+        store.attributes(TOOL + "@LLMDescription", "[true]");
         assertThrows(AnnotationOverrideException.class, () -> ClassToolProvider.of(CaseSearchTool.class));
     }
 
@@ -360,9 +424,9 @@ public class AnnotationsTest {
         java.util.function.Supplier<Guardrail<Prompt>> cap = () -> new SizeCapGuardrail(TEST_ROOT, 10);
         Prompts.addBaselineGuardrail(cap);
         try {
-            store.text(TOOL + "@ToolDescription", "A description far longer than ten characters");
+            store.text(TOOL + "@LLMDescription", "A description far longer than ten characters");
             AnnotationOverrideException refused = assertThrows(AnnotationOverrideException.class, () -> ClassToolProvider.of(CaseSearchTool.class));
-            assertEquals(TOOL + "@ToolDescription", refused.getKey());
+            assertEquals(TOOL + "@LLMDescription", refused.getKey());
             assertInstanceOf(GuardrailException.class, refused.getCause());
         }
         finally {
@@ -395,7 +459,7 @@ public class AnnotationsTest {
     void aChangedStoreReachesAProviderThatAlreadyExists() {
         ClassToolProvider provider = ClassToolProvider.of(CaseSearchTool.class);
         assertEquals("Search the support cases", provider.description());
-        store.text(TOOL + "@ToolDescription", "Search every support case");
+        store.text(TOOL + "@LLMDescription", "Search every support case");
         assertEquals("Search the support cases", provider.description(), "held until the deployment says the store changed");
         long before = Annotations.generation();
         Annotations.changed();
@@ -411,9 +475,11 @@ public class AnnotationsTest {
         for (AnnotationKey key : ClassToolProvider.of(CaseSearchTool.class).annotationKeys()) {
             assertNull(keys.put(key.key(), key), "listed twice: " + key.key());
         }
-        AnnotationKey tool = keys.get(TOOL + "@ToolDescription");
+        AnnotationKey tool = keys.get(TOOL + "@LLMDescription");
         assertEquals("Search the support cases", tool.value());
-        assertTrue(tool.attributes().get("readOnly").booleanValue());
+        assertNull(tool.attributes());
+        assertEquals("Case status", keys.get(INPUT + ".status@DisplayName").value());
+        assertFalse(keys.keySet().stream().anyMatch(key -> key.endsWith("@ReadOnly")), "a marker has nothing to store");
         assertEquals("Searching cases", keys.get(TOOL + "@DisplayName").attributes().get("action").asText());
         assertEquals("Which cases to find", keys.get(INPUT + "@LLMDescription").value());
         assertEquals("Words to look for in the case title", keys.get(INPUT + ".title@LLMDescription").value());
@@ -431,11 +497,16 @@ public class AnnotationsTest {
 
     @Test
     void aToolServedOverMcpCarriesTheStoredText() throws Exception {
-        store.text(TOOL + "@ToolDescription", "Search the support cases, open and closed");
+        store.text(TOOL + "@LLMDescription", "Search the support cases, open and closed");
         store.text(INPUT + ".title@LLMDescription", "Words in the title");
         McpToolCatalog catalog = new McpToolCatalog(List.of(), List.of(ClassToolProvider.of(CaseSearchTool.class)));
         ToolProvider served = catalog.byName("search_cases");
         assertEquals("Search the support cases, open and closed", served.description());
         assertTrue(fieldText(served, "title").startsWith("Words in the title"));
+        assertEquals("Case status", inputSchema(served).get("properties").get("status").get("title").asText());
+        McpSchema.Tool published = McpSchemaPublisher.publish(served, SchemaDialect.CANONICAL);
+        assertEquals("Case Search", published.title());
+        assertEquals("Search the support cases, open and closed", published.description());
+        assertTrue(published.annotations().readOnlyHint());
     }
 }

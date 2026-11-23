@@ -79,7 +79,8 @@ class LiveDecisionThinkerTest {
     }
 
     @ToolName("split_minutes")
-    @ToolDescription(value = "Splits the minutes into their statements, one per sentence", readOnly = true)
+    @LLMDescription("Splits the minutes into their statements, one per sentence")
+    @ReadOnly
     public static class SplitMinutes extends DecisionTool<Minutes, ListArtifact<Statement>> {
         public SplitMinutes(Identifiable parent) {
             super(parent);
@@ -100,7 +101,8 @@ class LiveDecisionThinkerTest {
 
     /** The key tool: the notices drafted from one statement, a list of one. */
     @ToolName("draft_notice")
-    @ToolDescription(value = "Drafts a customer price notice from one statement of the minutes", readOnly = true)
+    @LLMDescription("Drafts a customer price notice from one statement of the minutes")
+    @ReadOnly
     public static class DraftNotice extends DecisionTool<Statement, ListArtifact<Notice>> {
         public DraftNotice(Identifiable parent) {
             super(parent);

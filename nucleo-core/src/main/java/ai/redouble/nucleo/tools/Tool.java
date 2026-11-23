@@ -15,8 +15,9 @@ import ai.redouble.nucleo.harness.errors.*;
  *
  * <p>Tools are specialized jobs that accept structured input and produce
  * structured output. They declare their own resource requirements and can
- * perform database operations, LLM calls, or any other work. Tools are
- * identified by {@link ToolName} and {@link ToolDescription} annotations.
+ * perform database operations, LLM calls, or any other work. A tool is named by
+ * {@link ToolName}, described by {@link ai.redouble.nucleo.harness.schema.LLMDescription}
+ * on its class, and declared read-only by {@link ReadOnly}.
  *
  * <p>Every tool is a {@link GuardedExecution}: it may declare its own content,
  * auth and admission guardrails, and the framework enforces them at dispatch on

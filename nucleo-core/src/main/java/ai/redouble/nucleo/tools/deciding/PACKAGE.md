@@ -170,7 +170,8 @@ public class Verdict extends AbstractArtifact {
 }
 
 @ToolName("split_note")
-@ToolDescription(value = "Splits a note into its parts", readOnly = true)
+@LLMDescription("Splits a note into its parts")
+@ReadOnly
 public class SplitNote extends DecisionTool<Note, ListArtifact<Note>> {
     public SplitNote(Identifiable parent) { super(parent); }
 
@@ -189,7 +190,8 @@ public class SplitNote extends DecisionTool<Note, ListArtifact<Note>> {
 
 /** The key tool: it produces the verdicts the answer is a list of, one per note. */
 @ToolName("judge_note")
-@ToolDescription(value = "Judges whether a note is worth keeping", readOnly = true)
+@LLMDescription("Judges whether a note is worth keeping")
+@ReadOnly
 public class JudgeNote extends DecisionTool<Note, ListArtifact<Verdict>> {
     public JudgeNote(Identifiable parent) { super(parent); }
 
@@ -203,7 +205,8 @@ public class JudgeNote extends DecisionTool<Note, ListArtifact<Verdict>> {
 }
 
 @ToolName("triage")
-@ToolDescription(value = "Keeps the verdicts on the parts of a note worth keeping", readOnly = true)
+@LLMDescription("Keeps the verdicts on the parts of a note worth keeping")
+@ReadOnly
 public class Triage extends DecisionThinker<Note, Verdict> {
     public Triage(Identifiable parent) {
         super(parent, Verdict.class, JudgeNote.class, List.of(SplitNote.class),

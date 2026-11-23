@@ -8,6 +8,7 @@ package ai.redouble.nucleo.tools.sommelier;
 
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.errors.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 import ai.redouble.nucleo.tools.registry.*;
 import ai.redouble.nucleo.tools.thinking.*;
@@ -30,7 +31,8 @@ import java.util.concurrent.*;
  */
 @DisplayName(value = "Find Tools", action = "Finding Tools")
 @ToolName(FindToolsTool.NAME)
-@ToolDescription(value = "Find the tools that serve a need. More tools are available than are listed to you: say what you have and what you want, and the answer names the tools that fit. Activate the ones you choose with request_tools.", readOnly = true)
+@LLMDescription("Find the tools that serve a need. More tools are available than are listed to you: say what you have and what you want, and the answer names the tools that fit. Activate the ones you choose with request_tools.")
+@ReadOnly
 @ToolWeight(type = ToolType.IN_MEMORY, min = 1, max = 1)
 public class FindToolsTool extends AbstractDoer<FindToolsInput, FindToolsResult> implements ToolRegistryAware {
     private static final Logger log = LoggerFactory.getLogger(FindToolsTool.class);

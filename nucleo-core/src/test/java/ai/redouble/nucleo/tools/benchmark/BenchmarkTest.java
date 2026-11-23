@@ -12,6 +12,7 @@ import ai.redouble.nucleo.harness.errors.*;
 import ai.redouble.nucleo.harness.llm.*;
 import ai.redouble.nucleo.harness.models.*;
 import ai.redouble.nucleo.harness.observability.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.harness.tokens.*;
 import ai.redouble.nucleo.tools.*;
 import org.junit.jupiter.api.*;
@@ -69,7 +70,8 @@ class BenchmarkTest {
 
     /** Answers with the model its seat resolved to, and books one priced call on it so the ledger has a row. */
     @ToolName("echo_model")
-    @ToolDescription(value = "Answers with the model it was served.", readOnly = true)
+    @LLMDescription("Answers with the model it was served.")
+    @ReadOnly
     static final class EchoTool extends AbstractModelDependentTool<Question, Answer> {
         private ModelBinding binding;
 

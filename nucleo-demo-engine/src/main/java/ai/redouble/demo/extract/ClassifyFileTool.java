@@ -11,6 +11,7 @@ import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.errors.*;
 import ai.redouble.nucleo.harness.llm.*;
 import ai.redouble.nucleo.harness.models.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 import java.time.*;
 
@@ -25,7 +26,8 @@ import java.time.*;
  */
 @DisplayName(value = "Classify File", action = "Judging an unknown file")
 @ToolName("classify_file")
-@ToolDescription(value = "Decides from a file's first bytes whether it is text, a binary, or a person's problem.", readOnly = true)
+@LLMDescription("Decides from a file's first bytes whether it is text, a binary, or a person's problem.")
+@ReadOnly
 @ToolWeight(type = ToolType.API_CALL, min = 2, max = 2)
 public class ClassifyFileTool extends AbstractModelDependentTool<FileHead, Classification> {
     private static final String INSTRUCTIONS = "Decide what this file is from its name, size and first bytes. Text in any"

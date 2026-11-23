@@ -11,6 +11,7 @@ import ai.redouble.examples.tool.*;
 import ai.redouble.nucleo.guardrails.*;
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.errors.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 import org.junit.jupiter.api.*;
 
@@ -89,7 +90,8 @@ class ExamplesTest {
 
     /** Plain code bound to one customer, submitting the tool with whatever claim it was handed. */
     @ToolName("bound_lookup")
-    @ToolDescription(value = "Look an order up inside one customer's case", readOnly = true)
+    @LLMDescription("Look an order up inside one customer's case")
+    @ReadOnly
     static class BoundDoer extends AbstractDoer<CustomerOrder, String> implements CustomerScoped {
         private final String customerId;
 

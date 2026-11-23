@@ -8,6 +8,7 @@ package ai.redouble.nucleo.tools.sommelier;
 
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.errors.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 import ai.redouble.nucleo.tools.builtin.*;
 import ai.redouble.nucleo.tools.registry.*;
@@ -82,7 +83,8 @@ final class SommelierFixtures {
 
     /** Stands where a model call would: answers the question it was given through the script. */
     @ToolName("scripted_sommelier_call")
-    @ToolDescription(value = "Answers a sommelier question from a script.", readOnly = true)
+    @LLMDescription("Answers a sommelier question from a script.")
+    @ReadOnly
     static class ScriptedCall extends AbstractTool<SommelierQuestion, SommelierAnswer> {
         private final Function<SommelierQuestion, List<String>> script;
 

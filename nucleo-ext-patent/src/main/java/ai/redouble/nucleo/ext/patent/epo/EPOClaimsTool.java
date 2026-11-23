@@ -8,6 +8,7 @@ package ai.redouble.nucleo.ext.patent.epo;
 
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.errors.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 import com.fasterxml.jackson.databind.*;
 import org.slf4j.*;
@@ -22,7 +23,8 @@ import java.time.*;
  */
 @ToolName("epo_claims")
 @DisplayName(value = "EPO Claims", action = "Fetching Patent Claims")
-@ToolDescription(value = "Fetch the full claims text of a patent from EPO OPS by patent number.", readOnly = true)
+@LLMDescription("Fetch the full claims text of a patent from EPO OPS by patent number.")
+@ReadOnly
 @ToolWeight(type = ToolType.API_CALL, min = 1, max = 1)
 public class EPOClaimsTool extends AbstractEPOTool<EPOClaimsInput, EPOClaimsOutput> {
     private static final Logger log = LoggerFactory.getLogger(EPOClaimsTool.class);

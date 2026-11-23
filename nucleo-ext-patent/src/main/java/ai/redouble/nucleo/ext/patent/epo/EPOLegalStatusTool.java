@@ -8,6 +8,7 @@ package ai.redouble.nucleo.ext.patent.epo;
 
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.errors.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 import com.fasterxml.jackson.databind.*;
 import org.slf4j.*;
@@ -23,7 +24,8 @@ import java.util.*;
  */
 @ToolName("epo_legal_status")
 @DisplayName(value = "EPO Legal Status", action = "Fetching Patent Legal Status")
-@ToolDescription(value = "Fetch the legal status and event history of a patent from EPO OPS. Returns current status and chronological legal events.", readOnly = true)
+@LLMDescription("Fetch the legal status and event history of a patent from EPO OPS. Returns current status and chronological legal events.")
+@ReadOnly
 @ToolWeight(type = ToolType.API_CALL, min = 1, max = 1)
 public class EPOLegalStatusTool extends AbstractEPOTool<EPOLegalStatusInput, EPOLegalStatusOutput> {
     private static final Logger log = LoggerFactory.getLogger(EPOLegalStatusTool.class);

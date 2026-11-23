@@ -9,6 +9,7 @@ package ai.redouble.examples.artifacts;
 import ai.redouble.examples.tool.*;
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.errors.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 
 import java.util.*;
@@ -22,7 +23,8 @@ import java.util.*;
  * @since 0.1 (2026-09-27)
  */
 @ToolName("customer_orders")
-@ToolDescription(value = "List every order of one customer", readOnly = true)
+@LLMDescription("List every order of one customer")
+@ReadOnly
 public class CustomerOrdersTool extends AbstractTool<CustomerId, CustomerOrders> {
     public CustomerOrdersTool(Identifiable parent) {
         super(parent);

@@ -9,6 +9,7 @@ package ai.redouble.demo.poi;
 import ai.redouble.demo.extract.*;
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.errors.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 import org.apache.pdfbox.pdmodel.*;
 import org.apache.pdfbox.text.*;
@@ -32,7 +33,8 @@ import java.util.*;
  */
 @DisplayName(value = "Extract Text", action = "Reading a file")
 @ToolName("extract_text")
-@ToolDescription(value = "Reads the text of a file by its format with Apache POI and PDFBox, without a model.", readOnly = true)
+@LLMDescription("Reads the text of a file by its format with Apache POI and PDFBox, without a model.")
+@ReadOnly
 @ToolWeight(type = ToolType.IN_MEMORY)
 public class PoiDeterministicExtractTool extends AbstractTool<FileRef, Extraction> {
     /** A page with fewer characters than this of text is a picture or a blank, not a text layer. */

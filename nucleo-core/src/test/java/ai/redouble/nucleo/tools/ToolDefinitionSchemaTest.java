@@ -64,7 +64,8 @@ public class ToolDefinitionSchemaTest {
     }
 
     @ToolName("annotated_probe")
-    @ToolDescription(value = "A tool whose input carries every annotation.", readOnly = true)
+    @LLMDescription("A tool whose input carries every annotation.")
+    @ReadOnly
     public static class AnnotatedTool extends AbstractTool<AnnotatedToolInput, ProbeOutput> {
         public AnnotatedTool(Identifiable parent) {
             super(parent);

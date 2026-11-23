@@ -12,6 +12,7 @@ import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.conversation.*;
 import ai.redouble.nucleo.harness.errors.*;
 import ai.redouble.nucleo.harness.models.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 import org.apache.pdfbox.pdmodel.*;
 import org.apache.pdfbox.rendering.*;
@@ -33,7 +34,8 @@ import java.util.*;
  */
 @DisplayName(value = "Transcribe Images", action = "Reading a scan with a model")
 @ToolName("transcribe_images")
-@ToolDescription(value = "Transcribes the text on an image or a scanned PDF with a vision-capable model.", readOnly = true)
+@LLMDescription("Transcribes the text on an image or a scanned PDF with a vision-capable model.")
+@ReadOnly
 @ToolWeight(type = ToolType.API_CALL, min = 5, max = 5)
 public class PdfVisionExtractTool extends AbstractModelDependentTool<FileRef, Extraction> {
     /** Pages of a scanned PDF sent per file; a longer scan is transcribed up to here and says so. */

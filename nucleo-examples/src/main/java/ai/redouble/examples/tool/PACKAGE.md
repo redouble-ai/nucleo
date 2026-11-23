@@ -15,7 +15,8 @@ number, and calls it from code. The next page hands the same class to a model.
 <!-- sample: OrderStatusTool.java#tool -->
 ```java
 @ToolName("order_status")
-@ToolDescription(value = "Look up one order by its number: its status, its customer, the date it was promised for", readOnly = true)
+@LLMDescription("Look up one order by its number: its status, its customer, the date it was promised for")
+@ReadOnly
 public class OrderStatusTool extends AbstractTool<OrderNumber, OrderStatus> {
     public OrderStatusTool(Identifiable parent) {
         super(parent);
@@ -47,9 +48,9 @@ public class OrderStatusTool extends AbstractTool<OrderNumber, OrderStatus> {
 Reading it from the top:
 
 **The label.** A model chooses a tool the way a person chooses a button: by reading its
-label. `@ToolName` is the name the model calls it by, and `@ToolDescription` tells the model
+label. `@ToolName` is the name the model calls it by, and `@LLMDescription` tells the model
 what the tool is for, so it is worth writing as carefully as a method's documentation.
-`readOnly = true` promises that the tool changes nothing, which lets Nucleo offer it to
+`@ReadOnly` promises that the tool changes nothing, which lets Nucleo offer it to
 agents that are only allowed to look.
 
 **What goes in and what comes out.** `AbstractTool<OrderNumber, OrderStatus>` says the tool

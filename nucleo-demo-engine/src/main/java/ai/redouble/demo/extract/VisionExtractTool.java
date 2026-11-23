@@ -11,6 +11,7 @@ import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.conversation.*;
 import ai.redouble.nucleo.harness.errors.*;
 import ai.redouble.nucleo.harness.models.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 import java.io.*;
 import java.nio.file.*;
@@ -29,7 +30,8 @@ import java.util.*;
  */
 @DisplayName(value = "Read With a Model", action = "Reading a file with a model")
 @ToolName("transcribe_images")
-@ToolDescription(value = "Reads the text of an image or a PDF by sending the file to a document-capable model.", readOnly = true)
+@LLMDescription("Reads the text of an image or a PDF by sending the file to a document-capable model.")
+@ReadOnly
 @ToolWeight(type = ToolType.API_CALL, min = 5, max = 5)
 public class VisionExtractTool extends AbstractModelDependentTool<FileRef, Extraction> {
     public static final Set<String> IMAGES = Set.of("png", "jpg", "jpeg", "gif", "webp");

@@ -9,6 +9,7 @@ package ai.redouble.examples.scopes;
 import ai.redouble.nucleo.guardrails.*;
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.errors.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 
 import java.util.*;
@@ -27,7 +28,7 @@ import java.util.concurrent.*;
  */
 // region dispute
 @ToolName("dispute")
-@ToolDescription("Work one disputed order: file the notes of the dispute")
+@LLMDescription("Work one disputed order: file the notes of the dispute")
 public class DisputeDoer extends AbstractDoer<String, List<String>> implements OrderScoped {
     private final String customerId;
     private final String orderNumber;

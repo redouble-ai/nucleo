@@ -8,6 +8,7 @@ package ai.redouble.nucleo.mcp.server.fixtures;
 
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.errors.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.mcp.*;
 import ai.redouble.nucleo.tools.*;
 
@@ -22,7 +23,8 @@ import java.util.concurrent.atomic.*;
  */
 @MCP
 @ToolName("mcp_slow_parent")
-@ToolDescription(value = "Spawns a slow child and waits for it.", readOnly = true)
+@LLMDescription("Spawns a slow child and waits for it.")
+@ReadOnly
 public class SlowParentDoer extends AbstractDoer<NoFieldsInput, String> {
     public static final AtomicReference<SlowChildTool> LAST_CHILD = new AtomicReference<>();
 

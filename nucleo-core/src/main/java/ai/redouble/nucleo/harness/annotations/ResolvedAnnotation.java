@@ -55,6 +55,11 @@ public final class ResolvedAnnotation<A extends Annotation> {
         return override != null;
     }
 
+    /** Whether the store holds this attribute of the annotation. */
+    public boolean stores(String attribute) {
+        return override != null && override.getAttributes() != null && override.getAttributes().has(attribute);
+    }
+
     /** The annotation as the code declares it. */
     public A declared() {
         return declared;

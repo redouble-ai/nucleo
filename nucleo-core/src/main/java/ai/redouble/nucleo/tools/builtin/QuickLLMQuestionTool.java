@@ -9,6 +9,7 @@ package ai.redouble.nucleo.tools.builtin;
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.errors.*;
 import ai.redouble.nucleo.harness.models.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 
 import java.time.*;
@@ -33,7 +34,8 @@ import java.time.*;
  */
 @DisplayName(value = "Quick Question", action = "Answering Quick Question with AI")
 @ToolName("quick_llm_question")
-@ToolDescription(value = "Ask a focused question about specific text at the grade the question deserves. Returns structured answer with confidence and reasoning.", readOnly = true)
+@LLMDescription("Ask a focused question about specific text at the grade the question deserves. Returns structured answer with confidence and reasoning.")
+@ReadOnly
 @ToolWeight(type = ToolType.API_CALL, min = 5, max = 5)
 public class QuickLLMQuestionTool extends AbstractModelDependentTool<QuickLLMQuestionInput, QuickLLMQuestionOutput> {
     public QuickLLMQuestionTool(Identifiable parent) {

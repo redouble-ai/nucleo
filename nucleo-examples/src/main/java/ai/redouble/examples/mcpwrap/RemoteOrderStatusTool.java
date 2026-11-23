@@ -33,7 +33,8 @@ import com.fasterxml.jackson.databind.node.*;
  */
 // region wrapper
 @ToolName("order_status")
-@ToolDescription(value = "Look up one order by its number: its status, its customer, the date it was promised for", readOnly = true)
+@LLMDescription("Look up one order by its number: its status, its customer, the date it was promised for")
+@ReadOnly
 public class RemoteOrderStatusTool extends AbstractTool<OrderNumber, OrderStatus> {
     public RemoteOrderStatusTool(Identifiable parent) {
         super(parent);

@@ -8,6 +8,7 @@ package ai.redouble.demo.decide;
 
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.artifacts.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 import ai.redouble.nucleo.tools.deciding.*;
 
@@ -25,7 +26,8 @@ import java.util.regex.*;
  * @since 0.1 (2026-09-24)
  */
 @ToolName("split_statements")
-@ToolDescription(value = "Splits a document into its statements: the sentences of every paragraph and every bullet, each with its place in the document", readOnly = true)
+@LLMDescription("Splits a document into its statements: the sentences of every paragraph and every bullet, each with its place in the document")
+@ReadOnly
 public class SplitStatementsTool extends DecisionTool<Document, ListArtifact<Statement>> {
     /** A sentence ends at a period, question or exclamation mark followed by a space and an upper-case letter, a digit or a quote. */
     private static final Pattern SENTENCE_END = Pattern.compile("(?<=[.!?])\\s+(?=[A-Z0-9\"'(\\[])");

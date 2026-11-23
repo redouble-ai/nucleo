@@ -29,7 +29,8 @@ import java.util.*;
  */
 @ToolName("uspto_odp_search")
 @DisplayName(value = "USPTO ODP Search", action = "Searching US Patents")
-@ToolDescription(value = "Search US patents via USPTO Open Data Portal. Supports search by title, assignee, inventor, CPC class, and date range. Returns bibliographic data for matching patents.", readOnly = true)
+@LLMDescription("Search US patents via USPTO Open Data Portal. Supports search by title, assignee, inventor, CPC class, and date range. Returns bibliographic data for matching patents.")
+@ReadOnly
 @ToolWeight(type = ToolType.API_CALL, min = 1, max = 1)
 public class UsptoOdpSearchTool extends AbstractTool<UsptoOdpSearchInput, UsptoOdpSearchOutput> {
     private static final Logger log = LoggerFactory.getLogger(UsptoOdpSearchTool.class);

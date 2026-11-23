@@ -11,6 +11,7 @@ import ai.redouble.nucleo.harness.conversation.*;
 import ai.redouble.nucleo.harness.errors.*;
 import ai.redouble.nucleo.harness.errors.retry.*;
 import ai.redouble.nucleo.harness.models.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.prompt.*;
 import ai.redouble.nucleo.tools.*;
 import ai.redouble.nucleo.tools.thinking.*;
@@ -1003,7 +1004,7 @@ public class GuardrailEnforcementTest {
 
     /** An annotated tool that changes something - the sweep must withhold it. */
     @ToolName("fixture_writer")
-    @ToolDescription("Test tool that changes something")
+    @LLMDescription("Test tool that changes something")
     public static class WriterTool extends AbstractTool<WriteInput, String> {
         public WriterTool(Identifiable parent) {
             super(parent);

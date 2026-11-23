@@ -62,6 +62,10 @@ account of how it answered, below.
   is no need to repeat the values in the description.
 - **For a format, add an example.** `@LLMExample("2026-09-22")` shows the model a sample
   value where a description alone leaves the format open.
+- **For the name people use, add `@DisplayName`.** `@DisplayName("Claim status")` on a field
+  called `statCd` is written into the schema as the field's `title`, so the model connects
+  the word a person says with the field, and a client that renders a form from the schema
+  has its label. A field that is itself an object keeps its type's name as `title`.
 - **Dates, numbers and yes-or-no fields are read generously but never guessed.** A
   `Boolean` field accepts "yes"; a `LocalDate` field accepts "2026-09-22T00:00". A value
   that cannot be read as the field's type goes back to the model.

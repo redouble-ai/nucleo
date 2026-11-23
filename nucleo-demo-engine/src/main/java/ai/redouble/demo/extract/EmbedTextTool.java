@@ -11,6 +11,7 @@ import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.errors.*;
 import ai.redouble.nucleo.harness.llm.*;
 import ai.redouble.nucleo.harness.models.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 import java.time.*;
 
@@ -25,7 +26,8 @@ import java.time.*;
  */
 @DisplayName(value = "Embed Text", action = "Embedding a text")
 @ToolName("embed_text")
-@ToolDescription(value = "Turns a text into a vector on the deployment's embeddings model.", readOnly = true)
+@LLMDescription("Turns a text into a vector on the deployment's embeddings model.")
+@ReadOnly
 @ToolWeight(type = ToolType.API_CALL, min = 1, max = 1)
 public class EmbedTextTool extends AbstractTool<TextToEmbed, Embedding> {
     /** The reservation's token estimate: a character count over this is a conservative token count for every tokenizer in use. */

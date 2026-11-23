@@ -11,6 +11,7 @@ import ai.redouble.nucleo.harness.conversation.ContentBlocks.*;
 import ai.redouble.nucleo.harness.conversation.*;
 import ai.redouble.nucleo.harness.errors.*;
 import ai.redouble.nucleo.harness.models.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 import org.junit.jupiter.api.*;
 
@@ -149,7 +150,7 @@ public class ParallelToolExecutionTest {
     }
 
     @ToolName("barrier_tool")
-    @ToolDescription("Test tool that waits for its sibling at a barrier")
+    @LLMDescription("Test tool that waits for its sibling at a barrier")
     public static class BarrierTool extends AbstractTool<StubInput, StubOutput> {
         public BarrierTool(Identifiable parent) {
             super(parent);
@@ -173,7 +174,7 @@ public class ParallelToolExecutionTest {
     }
 
     @ToolName("aware_tool")
-    @ToolDescription("Test tool that acts on the turn's conversation")
+    @LLMDescription("Test tool that acts on the turn's conversation")
     public static class AwareTool extends AbstractTool<StubInput, StubOutput> implements ConversationAware {
         private ConversationContext conversation;
 
@@ -211,7 +212,7 @@ public class ParallelToolExecutionTest {
     }
 
     @ToolName("started_at_tool")
-    @ToolDescription("Test tool that records when it started")
+    @LLMDescription("Test tool that records when it started")
     public static class StartedAtTool extends AbstractTool<StubInput, StubOutput> {
         public StartedAtTool(Identifiable parent) {
             super(parent);

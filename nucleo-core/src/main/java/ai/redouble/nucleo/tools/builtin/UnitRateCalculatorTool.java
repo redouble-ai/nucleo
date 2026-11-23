@@ -8,6 +8,7 @@ package ai.redouble.nucleo.tools.builtin;
 
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.errors.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 
 import java.time.*;
@@ -24,7 +25,8 @@ import java.time.*;
  */
 @DisplayName(value = "Unit Rate Calculator", action = "Calculating unit rate")
 @ToolName("calculate_unit_rate")
-@ToolDescription(value = "Multiplies a unit rate by a quantity with an optional quantity cap. Returns exact total with formula. USE THIS TOOL for all rate * quantity calculations to ensure accuracy.", readOnly = true)
+@LLMDescription("Multiplies a unit rate by a quantity with an optional quantity cap. Returns exact total with formula. USE THIS TOOL for all rate * quantity calculations to ensure accuracy.")
+@ReadOnly
 @ToolWeight(type = ToolType.IN_MEMORY)
 public class UnitRateCalculatorTool extends AbstractTool<UnitRateCalculatorInput, UnitRateCalculatorOutput> {
     public UnitRateCalculatorTool(Identifiable parent) {

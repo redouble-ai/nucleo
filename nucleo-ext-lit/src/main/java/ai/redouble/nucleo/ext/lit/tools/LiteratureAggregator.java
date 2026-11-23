@@ -11,6 +11,7 @@ import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.artifacts.*;
 import ai.redouble.nucleo.harness.conversation.*;
 import ai.redouble.nucleo.harness.models.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.mcp.*;
 import ai.redouble.nucleo.prompt.*;
 import ai.redouble.nucleo.tools.*;
@@ -46,7 +47,8 @@ import java.util.*;
  */
 @MCP
 @ToolName("literature_aggregator_agent")
-@ToolDescription(value = "Autonomously search, analyze, and synthesize biomedical literature (published papers and preprints) on a research topic. Searches both PubMed and bioRxiv/medRxiv. Returns comprehensive summary with key article references and identified themes.", readOnly = true)
+@LLMDescription("Autonomously search, analyze, and synthesize biomedical literature (published papers and preprints) on a research topic. Searches both PubMed and bioRxiv/medRxiv. Returns comprehensive summary with key article references and identified themes.")
+@ReadOnly
 @ToolWeight(type = ToolType.THINKER, min = 5, max = 15)
 public class LiteratureAggregator extends SingleObjectiveThinker<PaperAggregatorInput, LiteratureAggregationOutput> {
 

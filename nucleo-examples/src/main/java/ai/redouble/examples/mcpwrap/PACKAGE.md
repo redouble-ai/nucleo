@@ -7,7 +7,8 @@ your own, with the input and output classes fixed in your code:
 <!-- sample: RemoteOrderStatusTool.java#wrapper -->
 ```java
 @ToolName("order_status")
-@ToolDescription(value = "Look up one order by its number: its status, its customer, the date it was promised for", readOnly = true)
+@LLMDescription("Look up one order by its number: its status, its customer, the date it was promised for")
+@ReadOnly
 public class RemoteOrderStatusTool extends AbstractTool<OrderNumber, OrderStatus> {
     public RemoteOrderStatusTool(Identifiable parent) {
         super(parent);

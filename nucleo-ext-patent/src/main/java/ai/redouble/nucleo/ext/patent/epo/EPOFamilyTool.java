@@ -8,6 +8,7 @@ package ai.redouble.nucleo.ext.patent.epo;
 
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.errors.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 import com.fasterxml.jackson.databind.*;
 import org.slf4j.*;
@@ -24,7 +25,8 @@ import java.util.*;
  */
 @ToolName("epo_family")
 @DisplayName(value = "EPO Family", action = "Fetching Patent Family")
-@ToolDescription(value = "Fetch the INPADOC patent family members for a given patent from EPO OPS. Returns all related patent numbers across jurisdictions.", readOnly = true)
+@LLMDescription("Fetch the INPADOC patent family members for a given patent from EPO OPS. Returns all related patent numbers across jurisdictions.")
+@ReadOnly
 @ToolWeight(type = ToolType.API_CALL, min = 1, max = 1)
 public class EPOFamilyTool extends AbstractEPOTool<EPOFamilyInput, EPOFamilyOutput> {
     private static final Logger log = LoggerFactory.getLogger(EPOFamilyTool.class);

@@ -9,6 +9,7 @@ package ai.redouble.nucleo.tools.builtin;
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.errors.*;
 import ai.redouble.nucleo.harness.models.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 
 import java.time.*;
@@ -27,7 +28,8 @@ import java.time.*;
  */
 @DisplayName(value = "Analyze Violation", action = "Analyzing Policy Violation")
 @ToolName("analyze_violation")
-@ToolDescription(value = "You must use this tool in case of any Guardrail Violations. Analyze a guardrail violation to determine if it was a thinker mistake or user hijack attempt.", readOnly = true)
+@LLMDescription("You must use this tool in case of any Guardrail Violations. Analyze a guardrail violation to determine if it was a thinker mistake or user hijack attempt.")
+@ReadOnly
 @ToolWeight(type = ToolType.API_CALL, min = 5, max = 5)
 public class AnalyzeViolationTool extends AbstractModelDependentTool<ViolationAnalysisInput, ViolationAnalysisOutput> {
     static final String INSTRUCTIONS = """

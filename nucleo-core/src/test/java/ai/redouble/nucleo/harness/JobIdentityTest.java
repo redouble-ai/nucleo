@@ -6,6 +6,7 @@
 
 package ai.redouble.nucleo.harness;
 
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 import org.junit.jupiter.api.*;
 
@@ -43,7 +44,7 @@ class JobIdentityTest {
     }
 
     @DisplayName(value = "Named Fixture", action = "Naming")
-    @ToolDescription("what the fixture is for")
+    @LLMDescription("what the fixture is for")
     static class AnnotatedJob extends PlainJob {
         private final String instanceName;
 

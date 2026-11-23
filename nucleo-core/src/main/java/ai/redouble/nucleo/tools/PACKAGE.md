@@ -84,30 +84,39 @@ orchestrator waits on a handle it blocks a virtual thread, which costs next to n
 
 [Your first tool](../../../../../../../../nucleo-examples/src/main/java/ai/redouble/examples/tool/PACKAGE.md)
 shows the whole shape: extend `AbstractTool<I, O>`, name and describe the class with
-`@ToolName` and `@ToolDescription`, ask for resources in `getRequirements()`, and do the work
+`@ToolName` and `@LLMDescription`, ask for resources in `getRequirements()`, and do the work
 in `execute`. Every tool needs a public constructor taking the parent,
 `public MyTool(Identifiable parent)`: when a model calls the tool, Nucleo builds a fresh
 instance through it, with the calling agent as the parent, so each call has an instance of
 its own.
 
-What `@ToolDescription` says is the default. A deployment can keep its own wording of a
+A tool, its input, its output and their fields are all described the same way:
+`@LLMDescription` is what the model is told, and `@DisplayName` is the name people see. On a
+field the name is also written into the schema as `title`, so the model learns the word a
+person will use for it.
+
+What `@LLMDescription` says is the default. A deployment can keep its own wording of a
 tool's description, and of its input's and output's fields, outside the code:
 [Descriptions kept outside the code](../harness/annotations/PACKAGE.md).
 
+`@ToolDescription`, the earlier way to describe a tool and mark it read-only, is deprecated
+and will be removed in 1.0. A tool that still carries it is read as before.
+
 ### Saying that a tool changes nothing
 
-`@ToolDescription` has a `readOnly` flag, `false` unless you set it. `OrderStatusTool`
-sets it:
+A tool is assumed to change something unless it carries `@ReadOnly`. `OrderStatusTool`
+carries it:
 
 ```java
 @ToolName("order_status")
-@ToolDescription(value = "Look up one order by its number: its status, its customer, the date it was promised for", readOnly = true)
+@LLMDescription("Look up one order by its number: its status, its customer, the date it was promised for")
+@ReadOnly
 ```
 
-`readOnly = true` is a promise that the tool observes the world without changing it, and it
+`@ReadOnly` is a promise that the tool observes the world without changing it, and it
 decides where the tool may run: a thinker bound to look without touching (below) is offered
-read-only tools and nothing else. Setting the flag forces the named form `value = "..."`,
-because Java allows the shorthand only while `value` is the one element present.
+read-only tools and nothing else. It has no attributes, so nothing stored outside the code
+can make a tool read-only.
 
 A tool is read-only when nothing anyone observes afterwards has changed. Reads of every kind
 qualify: database SELECTs, HTTP GETs and search endpoints, pure computation, model calls,

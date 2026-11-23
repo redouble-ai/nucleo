@@ -28,7 +28,8 @@ import java.util.*;
  * @since 0.1 (2026-09-24)
  */
 @ToolName("price_change_finder")
-@ToolDescription(value = "Finds the statements in a folder's documents that decide a change of a price, deciding with a decision model which files to open", readOnly = true)
+@LLMDescription("Finds the statements in a folder's documents that decide a change of a price, deciding with a decision model which files to open")
+@ReadOnly
 @DisplayName(value = "Price Change Finder", action = "Finding the statements that decide a price change")
 public class PriceChangeFinder extends DecisionThinker<Folder, Statement> {
     public static final String OBJECTIVE = "Find every statement in the documents of this folder that decides a change of a price"

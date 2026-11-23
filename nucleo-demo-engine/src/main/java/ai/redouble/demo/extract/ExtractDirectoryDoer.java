@@ -10,6 +10,7 @@ import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.errors.*;
 import ai.redouble.nucleo.harness.llm.*;
 import ai.redouble.nucleo.harness.observability.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 import org.slf4j.*;
 import java.io.*;
@@ -37,7 +38,8 @@ import java.util.stream.*;
  * @since 0.1 (2026-09-14)
  */
 @ToolName("extract_directory")
-@ToolDescription(value = "Extracts the text of every file under a directory through the cheapest tier that reads it, in parallel, and indexes the result.", readOnly = true)
+@LLMDescription("Extracts the text of every file under a directory through the cheapest tier that reads it, in parallel, and indexes the result.")
+@ReadOnly
 @ToolWeight(type = ToolType.IN_MEMORY)
 public class ExtractDirectoryDoer extends AbstractDoer<ExtractRequest, ExtractReport> {
     private static final Logger log = LoggerFactory.getLogger(ExtractDirectoryDoer.class);

@@ -8,6 +8,7 @@ package ai.redouble.nucleo.tools.registry;
 
 import ai.redouble.nucleo.guardrails.*;
 import ai.redouble.nucleo.harness.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 import ai.redouble.nucleo.tools.thinking.*;
 import org.junit.jupiter.api.*;
@@ -48,7 +49,8 @@ public class ReadOnlyPaletteTest {
     }
 
     @ToolName("reader")
-    @ToolDescription(value = "Reads a thing and changes nothing", readOnly = true)
+    @LLMDescription("Reads a thing and changes nothing")
+    @ReadOnly
     public static class ReaderTool extends AbstractTool<Input, String> {
         public ReaderTool(Identifiable parent) {
             super(parent);
@@ -61,7 +63,8 @@ public class ReadOnlyPaletteTest {
     }
 
     @ToolName("second_reader")
-    @ToolDescription(value = "Also reads a thing", readOnly = true)
+    @LLMDescription("Also reads a thing")
+    @ReadOnly
     public static class SecondReaderTool extends AbstractTool<Input, String> {
         public SecondReaderTool(Identifiable parent) {
             super(parent);
@@ -74,7 +77,7 @@ public class ReadOnlyPaletteTest {
     }
 
     @ToolName("writer")
-    @ToolDescription("Writes a thing")
+    @LLMDescription("Writes a thing")
     public static class WriterTool extends AbstractTool<Input, String> {
         public WriterTool(Identifiable parent) {
             super(parent);
@@ -89,7 +92,7 @@ public class ReadOnlyPaletteTest {
     @Test
     void annotationDefaultMakesAToolMutating() {
         assertFalse(ClassToolProvider.of(WriterTool.class).readOnly(),
-                "a tool that does not declare readOnly must not be treated as read-only");
+                "a tool that carries no @ReadOnly must not be treated as read-only");
         assertTrue(ClassToolProvider.of(ReaderTool.class).readOnly());
     }
 

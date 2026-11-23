@@ -23,8 +23,8 @@ import java.util.*;
  * <p>Two concrete implementations live in this package:
  * <ul>
  *   <li>{@link ClassToolProvider} wraps a {@code Class<? extends Tool>} and reads its
- *       {@link ToolName}, {@link ToolDescription}, {@link ai.redouble.nucleo.harness.DisplayName}, {@link ToolWeight}
- *       annotations. The native, framework-shipped path.</li>
+ *       {@link ToolName}, {@link ai.redouble.nucleo.harness.schema.LLMDescription}, {@link ReadOnly},
+ *       {@link ai.redouble.nucleo.harness.DisplayName}, {@link ToolWeight} annotations. The native, framework-shipped path.</li>
  *   <li>{@code MCPToolProvider} (in {@code ai.redouble.nucleo.mcp}) wraps an MCP endpoint plus
  *       a tool descriptor, namespaces the name, and routes calls through the MCP client pool.</li>
  * </ul>
@@ -106,7 +106,7 @@ public interface ToolProvider {
 
     /**
      * Whether invoking this tool leaves the environment unchanged. Mirrors
-     * {@link ToolDescription#readOnly()} for class-backed providers.
+     * the {@link ReadOnly} marker on the tool class for class-backed providers.
      *
      * <p>The default is {@code false} because that is the correct answer for a provider
      * that cannot know: an MCP server describes no such property, and {@code request_tools}

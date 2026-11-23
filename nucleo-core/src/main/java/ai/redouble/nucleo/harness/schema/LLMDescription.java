@@ -9,9 +9,14 @@ package ai.redouble.nucleo.harness.schema;
 import java.lang.annotation.*;
 
 /**
- * Provides a description of what a field or class should contain.
- * This description is used when generating LLM prompts to guide the model
- * on what content to generate for this field or overall response.
+ * What the model is told about a thing it works with: on a tool class, what the tool does and
+ * when to use it; on an input, output or artifact class, what the type is; on a field, what
+ * the field holds, including any constraints. It is the {@code description} of the tool's
+ * definition and of the JSON Schema at every level. The name people see is a separate text,
+ * {@link ai.redouble.nucleo.harness.DisplayName}.
+ *
+ * <p>Nucleo reads it on classes and fields. It may also stand on a method, for a host whose
+ * properties are getters and which reads the annotation there itself.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2025-09-16)
@@ -21,8 +26,8 @@ import java.lang.annotation.*;
 @Documented
 public @interface LLMDescription {
     /**
-     * Description of the field's expected content, including any constraints.
-     * Example: "A confidence score from 1-10 where 10 is highest confidence"
+     * The description. For a field: its expected content, including any constraints, for
+     * example "A confidence score from 1-10 where 10 is highest confidence".
      */
     String value();
 }

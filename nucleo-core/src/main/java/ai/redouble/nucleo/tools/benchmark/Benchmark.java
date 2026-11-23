@@ -63,7 +63,8 @@ import java.util.function.*;
  */
 @DisplayName(value = "Benchmark", action = "Racing a job across the models of its grade")
 @ToolName("benchmark")
-@ToolDescription(value = "Runs one job on every open model of its grade, several times, and reports cost, latency and judged quality per model.", readOnly = true)
+@LLMDescription("Runs one job on every open model of its grade, several times, and reports cost, latency and judged quality per model.")
+@ReadOnly
 @ToolWeight(type = ToolType.IN_MEMORY)
 public class Benchmark<I, O> extends AbstractDoer<I, O> {
     private static final Logger log = LoggerFactory.getLogger(Benchmark.class);

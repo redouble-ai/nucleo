@@ -7,6 +7,7 @@
 package ai.redouble.nucleo.mcp.server.fixtures;
 
 import ai.redouble.nucleo.harness.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.mcp.*;
 import ai.redouble.nucleo.tools.*;
 import ai.redouble.nucleo.tools.thinking.*;
@@ -23,7 +24,8 @@ import ai.redouble.nucleo.tools.thinking.*;
 @MCP
 @ToolName("mcp_refs")
 @DisplayName(value = "Refs", action = "Asking")
-@ToolDescription(value = "Answers with the query it was given.", readOnly = true)
+@LLMDescription("Answers with the query it was given.")
+@ReadOnly
 public class RefsTool extends AbstractTool<ThinkerInput, String> {
     public RefsTool(Identifiable parent) {
         super(parent);

@@ -10,6 +10,7 @@ import ai.redouble.nucleo.ext.patent.ratelimiters.*;
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.admission.*;
 import ai.redouble.nucleo.harness.errors.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 import com.fasterxml.jackson.databind.*;
 import org.slf4j.*;
@@ -29,7 +30,8 @@ import java.util.*;
  */
 @ToolName("uspto_odp_foreign_priority")
 @DisplayName(value = "USPTO ODP Foreign Priority", action = "Fetching US Patent Foreign Priority")
-@ToolDescription(value = "Fetch foreign priority claims for a US patent from USPTO ODP.", readOnly = true)
+@LLMDescription("Fetch foreign priority claims for a US patent from USPTO ODP.")
+@ReadOnly
 @ToolWeight(type = ToolType.API_CALL, min = 1, max = 2)
 public class UsptoOdpForeignPriorityTool extends AbstractTool<UsptoOdpForeignPriorityInput, UsptoOdpForeignPriorityOutput> {
     private static final Logger log = LoggerFactory.getLogger(UsptoOdpForeignPriorityTool.class);

@@ -11,6 +11,7 @@ import ai.redouble.nucleo.ext.lit.models.*;
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.admission.*;
 import ai.redouble.nucleo.harness.errors.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.http.*;
 import ai.redouble.nucleo.secrets.*;
 import ai.redouble.nucleo.tools.*;
@@ -35,7 +36,8 @@ import java.util.*;
  */
 @DisplayName(value = "PubMed Fetch", action = "Fetching Complete PubMed Articles")
 @ToolName("fetch_pubmed_articles")
-@ToolDescription(value = "Fetch complete details for specific PubMed articles by PMID. Returns full metadata including abstracts, authors with affiliations, MeSH terms, keywords, and grant information.", readOnly = true)
+@LLMDescription("Fetch complete details for specific PubMed articles by PMID. Returns full metadata including abstracts, authors with affiliations, MeSH terms, keywords, and grant information.")
+@ReadOnly
 @ToolWeight(type = ToolType.API_CALL, min = 1, max = 1)
 public class PubMedFetchTool extends AbstractTool<PubMedFetchInput, PubMedFetchOutput> {
     private static final Logger log = LoggerFactory.getLogger(PubMedFetchTool.class);

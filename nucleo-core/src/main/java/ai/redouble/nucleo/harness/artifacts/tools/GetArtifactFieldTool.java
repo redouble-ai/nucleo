@@ -9,6 +9,7 @@ package ai.redouble.nucleo.harness.artifacts.tools;
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.artifacts.*;
 import ai.redouble.nucleo.harness.errors.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 
 import java.time.*;
@@ -32,7 +33,8 @@ import java.time.*;
  */
 @DisplayName(value = "Get Artifact Field", action = "Retrieving artifact field content")
 @ToolName("get_artifact_field")
-@ToolDescription(value = "Get the full content of a specific field from an artifact. Use when you need the complete text that was summarized in context.", readOnly = true)
+@LLMDescription("Get the full content of a specific field from an artifact. Use when you need the complete text that was summarized in context.")
+@ReadOnly
 @ToolWeight(type = ToolType.IN_MEMORY)
 public class GetArtifactFieldTool extends AbstractTool<GetArtifactFieldInput, GetArtifactFieldOutput> implements ArtifactRegistryAware {
     private ArtifactRegistry registry;

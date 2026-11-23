@@ -79,7 +79,7 @@ consumer sees listed and what it may call, so grants cannot be probed. `setCallT
 bounds a call; a call that outlives it has its whole workflow cancelled.
 
 What a caller receives is the tool as this application declared it: the input schema
-generated from `OrderNumber`, the description from `@ToolDescription`, and results as the
+generated from `OrderNumber`, the description from `@LLMDescription`, and results as the
 tool's output object in JSON. Everything a caller sends is checked against that schema
 before the tool runs, and every call runs as a job under the caller's name, recorded like
 any other work ([Offering your tools over MCP](../../../../../../../../nucleo-core/src/main/java/ai/redouble/nucleo/mcp/server/PACKAGE.md)).

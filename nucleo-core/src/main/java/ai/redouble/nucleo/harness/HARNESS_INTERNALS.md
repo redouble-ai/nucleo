@@ -138,7 +138,7 @@ workflow and user from the parent, and has priority 0 and a name of `<class>-<id
 job inherits: `getJobType()` is `JOB`, `getDisplayName()` is null, `getTimeout()` is 30 minutes
 (`AbstractJob.setTimeout(null)` declares none). A `JobSnapshot` names a job by
 `Job.getDisplayName()` when it answers, else `@DisplayName`, else the class simple name; the
-action is the annotation's or empty; the description is a `@ToolDescription` read reflectively,
+action is the annotation's or empty; the description is the class's `@LLMDescription`,
 null without one. `JobState`: COMPLETED, FAILED, CANCELLED and TIMED_OUT are terminal; FAILED
 and TIMED_OUT are failures; COMPLETED is the success; every other state, IDLE included, is
 active. `AbstractStoppable.stop()` raises the stopping flag first and then stops, once; a second

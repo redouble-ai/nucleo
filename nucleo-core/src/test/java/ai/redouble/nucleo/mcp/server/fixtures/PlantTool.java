@@ -7,6 +7,7 @@
 package ai.redouble.nucleo.mcp.server.fixtures;
 
 import ai.redouble.nucleo.harness.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.mcp.*;
 import ai.redouble.nucleo.tools.*;
 
@@ -23,7 +24,8 @@ import ai.redouble.nucleo.tools.*;
 @MCP
 @ToolName("mcp_plant")
 @DisplayName(value = "Plant", action = "Planting")
-@ToolDescription(value = "Counts the nodes of a tree.", readOnly = true)
+@LLMDescription("Counts the nodes of a tree.")
+@ReadOnly
 public class PlantTool extends AbstractTool<TreeInput, String> {
     public PlantTool(Identifiable parent) {
         super(parent);

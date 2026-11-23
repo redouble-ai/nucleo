@@ -8,6 +8,7 @@ package ai.redouble.nucleo.ext.patent.epo;
 
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.errors.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.http.*;
 import ai.redouble.nucleo.mcp.*;
 import ai.redouble.nucleo.tools.*;
@@ -27,7 +28,8 @@ import java.util.*;
 @MCP
 @ToolName("epo_search")
 @DisplayName(value = "EPO Search", action = "Searching EPO")
-@ToolDescription(value = "Search EPO Open Patent Services for patents by title, applicant, inventor, classification, date, or raw CQL query. Returns matching patent numbers.", readOnly = true)
+@LLMDescription("Search EPO Open Patent Services for patents by title, applicant, inventor, classification, date, or raw CQL query. Returns matching patent numbers.")
+@ReadOnly
 @ToolWeight(type = ToolType.API_CALL, min = 1, max = 1)
 public class EPOSearchTool extends AbstractEPOTool<EPOSearchInput, EPOSearchOutput> {
     private static final Logger log = LoggerFactory.getLogger(EPOSearchTool.class);

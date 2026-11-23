@@ -43,7 +43,7 @@ import java.util.*;
  * <p><b>Example:</b>
  * <pre>
  * &#64;ToolName("process_invoices")
- * &#64;ToolDescription("Processes all pending invoices in parallel")
+ * &#64;LLMDescription("Processes all pending invoices in parallel")
  * public class InvoiceProcessingDoer extends AbstractDoer&lt;InvoiceInput, InvoiceResult&gt; {
  *
  *     public InvoiceProcessingDoer(Identifiable parent) {

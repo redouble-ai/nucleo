@@ -39,7 +39,8 @@ import java.util.stream.*;
  */
 @DisplayName(value = "BioRxiv Search", action = "Searching BioRxiv Database")
 @ToolName("search_biorxiv")
-@ToolDescription(value = "Search bioRxiv and medRxiv preprints within a date window. Requires both a query and a dateFrom/dateTo range; results are filtered by keyword against titles and abstracts returned by the API.", readOnly = true)
+@LLMDescription("Search bioRxiv and medRxiv preprints within a date window. Requires both a query and a dateFrom/dateTo range; results are filtered by keyword against titles and abstracts returned by the API.")
+@ReadOnly
 @ToolWeight(type = ToolType.API_CALL, min = 1, max = 1)
 public class BioRxivSearchTool extends AbstractTool<BioRxivSearchInput, BioRxivSearchOutput> {
 

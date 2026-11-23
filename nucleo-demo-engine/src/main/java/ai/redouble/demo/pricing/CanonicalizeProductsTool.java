@@ -11,6 +11,7 @@ import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.errors.*;
 import ai.redouble.nucleo.harness.llm.*;
 import ai.redouble.nucleo.harness.models.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 import java.time.*;
 
@@ -25,7 +26,8 @@ import java.time.*;
  */
 @DisplayName(value = "Canonicalize Products", action = "Grouping product names")
 @ToolName("canonicalize_products")
-@ToolDescription(value = "Groups the product names documents used by the product each one means.", readOnly = true)
+@LLMDescription("Groups the product names documents used by the product each one means.")
+@ReadOnly
 @ToolWeight(type = ToolType.API_CALL, min = 2, max = 2)
 public class CanonicalizeProductsTool extends AbstractModelDependentTool<ProductNames, ProductGroups> {
     private static final String INSTRUCTIONS = "Group these names by the product or service each one means. Names that"

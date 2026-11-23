@@ -11,6 +11,7 @@ import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.conversation.*;
 import ai.redouble.nucleo.harness.errors.*;
 import ai.redouble.nucleo.harness.models.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 import ai.redouble.nucleo.tools.builtin.*;
 import ai.redouble.nucleo.tools.thinking.*;
@@ -59,7 +60,8 @@ public class ToolHubToolAdmissionTest {
 
     /** A tool that carries its own admission verdict, consulted through a throwaway probe instance. */
     @ToolName("self_guarded")
-    @ToolDescription(value = "Admits nobody, by its own declaration.", readOnly = true)
+    @LLMDescription("Admits nobody, by its own declaration.")
+    @ReadOnly
     public static class SelfGuardedTool extends AbstractTool<ProbeInput, String> {
         static int denials;
 

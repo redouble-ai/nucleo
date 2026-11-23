@@ -9,6 +9,7 @@ package ai.redouble.nucleo.tools.sommelier;
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.errors.*;
 import ai.redouble.nucleo.harness.models.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 
 import java.time.*;
@@ -28,7 +29,8 @@ import java.time.*;
  */
 @DisplayName(value = "Sommelier", action = "Finding the tools that serve a need")
 @ToolName("pair_need_with_tools")
-@ToolDescription(value = "Names the tools of a catalog that serve a stated need.", readOnly = true)
+@LLMDescription("Names the tools of a catalog that serve a stated need.")
+@ReadOnly
 @ToolWeight(type = ToolType.API_CALL, min = 1, max = 1)
 public class SommelierCall extends AbstractModelDependentTool<SommelierQuestion, SommelierAnswer> {
 

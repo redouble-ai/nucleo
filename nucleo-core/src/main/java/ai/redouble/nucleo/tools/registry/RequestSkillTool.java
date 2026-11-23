@@ -9,6 +9,7 @@ package ai.redouble.nucleo.tools.registry;
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.conversation.*;
 import ai.redouble.nucleo.harness.errors.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 import ai.redouble.nucleo.tools.thinking.*;
 import org.slf4j.*;
@@ -27,7 +28,8 @@ import org.slf4j.*;
  * @since 0.1 (2026-04-21)
  */
 @ToolName("request_skill")
-@ToolDescription(value = "Admit skills from the catalog. Pass skill names; each admitted skill's instructions ride every subsequent call in this conversation.", readOnly = true)
+@LLMDescription("Admit skills from the catalog. Pass skill names; each admitted skill's instructions ride every subsequent call in this conversation.")
+@ReadOnly
 @ToolWeight(type = ToolType.IN_MEMORY, min = 1, max = 1)
 public class RequestSkillTool extends AbstractDoer<RequestSkillInput, RequestSkillResult> implements ToolRegistryAware, ConversationAware {
     private static final Logger log = LoggerFactory.getLogger(RequestSkillTool.class);

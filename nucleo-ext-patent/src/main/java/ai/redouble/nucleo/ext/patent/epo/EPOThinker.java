@@ -9,6 +9,7 @@ package ai.redouble.nucleo.ext.patent.epo;
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.conversation.*;
 import ai.redouble.nucleo.harness.models.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.prompt.*;
 import ai.redouble.nucleo.tools.*;
 import ai.redouble.nucleo.tools.builtin.*;
@@ -30,7 +31,8 @@ import java.util.*;
  */
 @ToolName("epo")
 @DisplayName(value = "EPO", action = "Querying EPO OPS")
-@ToolDescription(value = "Query EPO Open Patent Services for patent data. Searches patents, fetches bibliographic data, claims, descriptions, family members, and legal status.", readOnly = true)
+@LLMDescription("Query EPO Open Patent Services for patent data. Searches patents, fetches bibliographic data, claims, descriptions, family members, and legal status.")
+@ReadOnly
 @ToolWeight(type = ToolType.THINKER, min = 5, max = 15)
 public class EPOThinker extends SingleObjectiveThinker<EPOThinkerInput, EPOThinkerOutput> {
     public EPOThinker(Identifiable parent) {

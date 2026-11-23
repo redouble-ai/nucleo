@@ -10,6 +10,7 @@ import ai.redouble.nucleo.ext.patent.ratelimiters.*;
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.admission.*;
 import ai.redouble.nucleo.harness.errors.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 import com.fasterxml.jackson.databind.*;
 import org.slf4j.*;
@@ -28,7 +29,8 @@ import java.util.*;
  */
 @ToolName("uspto_odp_continuity")
 @DisplayName(value = "USPTO ODP Continuity", action = "Fetching US Patent Continuity Chain")
-@ToolDescription(value = "Fetch continuity chain (parent/child applications) for a US patent from USPTO ODP.", readOnly = true)
+@LLMDescription("Fetch continuity chain (parent/child applications) for a US patent from USPTO ODP.")
+@ReadOnly
 @ToolWeight(type = ToolType.API_CALL, min = 1, max = 2)
 public class UsptoOdpContinuityTool extends AbstractTool<UsptoOdpContinuityInput, UsptoOdpContinuityOutput> {
     private static final Logger log = LoggerFactory.getLogger(UsptoOdpContinuityTool.class);

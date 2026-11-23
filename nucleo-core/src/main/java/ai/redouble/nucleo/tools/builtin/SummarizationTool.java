@@ -35,7 +35,8 @@ import java.util.concurrent.*;
  */
 @DisplayName(value = "Summarize Text", action = "Summarizing text")
 @ToolName("summarize_text")
-@ToolDescription(value = "Summarize text to a target size. Handles arbitrarily large text via hierarchical chunking.", readOnly = true)
+@LLMDescription("Summarize text to a target size. Handles arbitrarily large text via hierarchical chunking.")
+@ReadOnly
 @ToolWeight(type = ToolType.API_CALL, min = 5, max = 5)
 public class SummarizationTool extends AbstractDoer<SummarizationInput, SummarizationOutput> implements ModelDependentTool<SummarizationInput, SummarizationOutput> {
     private static final Logger log = LoggerFactory.getLogger(SummarizationTool.class);

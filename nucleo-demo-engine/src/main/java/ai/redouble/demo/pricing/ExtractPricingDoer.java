@@ -10,6 +10,7 @@ import ai.redouble.demo.extract.*;
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.errors.*;
 import ai.redouble.nucleo.harness.observability.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 import org.slf4j.*;
 import java.time.*;
@@ -35,7 +36,8 @@ import java.util.function.*;
  * @since 0.1 (2026-09-15)
  */
 @ToolName("extract_pricing")
-@ToolDescription(value = "Reads every indexed document for the prices it states and reconciles them into current and superseded prices per product.", readOnly = true)
+@LLMDescription("Reads every indexed document for the prices it states and reconciles them into current and superseded prices per product.")
+@ReadOnly
 @ToolWeight(type = ToolType.IN_MEMORY)
 public class ExtractPricingDoer extends AbstractDoer<PricingRequest, PricingReport> {
     private static final Logger log = LoggerFactory.getLogger(ExtractPricingDoer.class);

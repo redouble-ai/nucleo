@@ -8,6 +8,7 @@ package ai.redouble.examples.tool;
 
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.errors.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.mcp.*;
 import ai.redouble.nucleo.tools.*;
 
@@ -18,8 +19,8 @@ import ai.redouble.nucleo.tools.*;
  * number", Nucleo runs this code, and the model reads what came back.
  *
  * <p>A model chooses a tool the way a person chooses a button: by reading its label.
- * {@code @ToolName} is the name it calls the tool by and {@code @ToolDescription} says what
- * the tool is for; {@code readOnly = true} promises the tool changes nothing, which lets it
+ * {@code @ToolName} is the name it calls the tool by and {@code @LLMDescription} says what
+ * the tool is for; {@code @ReadOnly} promises the tool changes nothing, which lets it
  * be offered to agents that are only allowed to look. The input and output are plain beans:
  * from {@link OrderNumber} Nucleo builds the form a model fills in, and an
  * {@link OrderStatus} goes back to code as the object and to a model as text.
@@ -41,7 +42,8 @@ import ai.redouble.nucleo.tools.*;
 @MCP
 // region tool
 @ToolName("order_status")
-@ToolDescription(value = "Look up one order by its number: its status, its customer, the date it was promised for", readOnly = true)
+@LLMDescription("Look up one order by its number: its status, its customer, the date it was promised for")
+@ReadOnly
 public class OrderStatusTool extends AbstractTool<OrderNumber, OrderStatus> {
     public OrderStatusTool(Identifiable parent) {
         super(parent);

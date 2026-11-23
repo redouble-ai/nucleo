@@ -9,6 +9,7 @@ package ai.redouble.nucleo.ext.patent.usptoodp;
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.conversation.*;
 import ai.redouble.nucleo.harness.models.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.prompt.*;
 import ai.redouble.nucleo.tools.*;
 import ai.redouble.nucleo.tools.builtin.*;
@@ -27,7 +28,8 @@ import java.util.*;
  */
 @ToolName("uspto_odp")
 @DisplayName(value = "USPTO ODP", action = "Querying USPTO ODP")
-@ToolDescription(value = "Query USPTO Open Data Portal for US patent data. Searches patents, fetches bibliographic data with abstracts, and retrieves full patent text (claims, description) on demand.", readOnly = true)
+@LLMDescription("Query USPTO Open Data Portal for US patent data. Searches patents, fetches bibliographic data with abstracts, and retrieves full patent text (claims, description) on demand.")
+@ReadOnly
 @ToolWeight(type = ToolType.THINKER, min = 5, max = 15)
 public class UsptoOdpThinker extends SingleObjectiveThinker<UsptoOdpThinkerInput, UsptoOdpThinkerOutput> {
     public UsptoOdpThinker(Identifiable parent) {

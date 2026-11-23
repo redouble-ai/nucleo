@@ -9,12 +9,20 @@ package ai.redouble.nucleo.tools;
 import java.lang.annotation.*;
 
 /**
- * Annotation to provide a description of what a tool does.
- * This description is used by the LLM to understand when and how to use the tool.
+ * What a tool does, as the model is told, and whether the tool is read-only.
+ *
+ * <p>Deprecated: a tool is described like everything else a model works with, by
+ * {@link ai.redouble.nucleo.harness.schema.LLMDescription} on its class, and declared
+ * read-only by {@link ReadOnly}. Until this annotation is removed a tool that carries it is
+ * read as before; a tool that carries both descriptions is described by
+ * {@code @LLMDescription}, and is read-only when either annotation says so.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2025-09-19)
+ * @deprecated since 0.1.5, for removal in 1.0: use
+ * {@link ai.redouble.nucleo.harness.schema.LLMDescription} and {@link ReadOnly}
  */
+@Deprecated(since = "0.1.5", forRemoval = true)
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.TYPE)
 public @interface ToolDescription {

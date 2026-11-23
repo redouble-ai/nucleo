@@ -9,6 +9,7 @@ package ai.redouble.nucleo.harness.artifacts.tools;
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.artifacts.*;
 import ai.redouble.nucleo.harness.errors.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 import org.slf4j.*;
 
@@ -29,7 +30,8 @@ import java.util.*;
  */
 @DisplayName(value = "Search Artifacts", action = "Searching artifact content")
 @ToolName("search_artifact_content")
-@ToolDescription(value = "Search artifact content by exact case-insensitive string matching across all fields. Returns matching snippets with surrounding context.", readOnly = true)
+@LLMDescription("Search artifact content by exact case-insensitive string matching across all fields. Returns matching snippets with surrounding context.")
+@ReadOnly
 @ToolWeight(type = ToolType.IN_MEMORY)
 public class SearchArtifactContentTool extends AbstractDoer<SearchArtifactContentInput, SearchArtifactContentOutput> implements ArtifactRegistryAware {
     private static final Logger log = LoggerFactory.getLogger(SearchArtifactContentTool.class);

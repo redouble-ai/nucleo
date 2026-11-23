@@ -8,6 +8,7 @@ package ai.redouble.nucleo.mcp.server.fixtures;
 
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.errors.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.mcp.*;
 import ai.redouble.nucleo.tools.*;
 
@@ -23,7 +24,8 @@ import java.time.*;
  */
 @MCP
 @ToolName("mcp_faulty")
-@ToolDescription(value = "Fails in the requested way.", readOnly = true)
+@LLMDescription("Fails in the requested way.")
+@ReadOnly
 public class FaultyTool extends AbstractTool<FaultInput, String> {
     public static final Duration SLOW_RUN = Duration.ofSeconds(20);
 

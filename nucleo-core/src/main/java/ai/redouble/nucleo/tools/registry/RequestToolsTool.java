@@ -8,6 +8,7 @@ package ai.redouble.nucleo.tools.registry;
 
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.errors.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 import ai.redouble.nucleo.tools.thinking.*;
 import org.slf4j.*;
@@ -28,7 +29,7 @@ import org.slf4j.*;
  * @since 0.1 (2026-03-14)
  */
 @ToolName("request_tools")
-@ToolDescription("Activate tools from the catalog. Pass tool names to load their full schemas so you can call them.")
+@LLMDescription("Activate tools from the catalog. Pass tool names to load their full schemas so you can call them.")
 @ToolWeight(type = ToolType.IN_MEMORY, min = 1, max = 1)
 public class RequestToolsTool extends AbstractDoer<RequestToolsInput, RequestToolsResult> implements ToolRegistryAware {
     private static final Logger log = LoggerFactory.getLogger(RequestToolsTool.class);

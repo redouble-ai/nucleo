@@ -8,6 +8,7 @@ package ai.redouble.nucleo.tools.builtin;
 
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.errors.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 
 import java.time.*;
@@ -28,7 +29,8 @@ import java.time.format.*;
  */
 @DisplayName(value = "Get Current Time", action = "Retrieving Current Time")
 @ToolName("get_current_time")
-@ToolDescription(value = "Get the current date and time. Call this FIRST and WAIT for result before making any time-dependent searches.", readOnly = true)
+@LLMDescription("Get the current date and time. Call this FIRST and WAIT for result before making any time-dependent searches.")
+@ReadOnly
 @ToolWeight(type = ToolType.IN_MEMORY)
 public class CurrentTimeTool extends AbstractTool<CurrentTimeInput, CurrentTimeOutput> {
     public CurrentTimeTool(Identifiable parent) {

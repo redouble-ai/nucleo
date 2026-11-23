@@ -7,6 +7,7 @@
 package ai.redouble.nucleo.harness;
 
 import ai.redouble.nucleo.harness.annotations.*;
+import ai.redouble.nucleo.harness.schema.*;
 import com.fasterxml.jackson.annotation.*;
 
 import java.io.*;
@@ -17,12 +18,13 @@ import java.util.*;
  * Immutable snapshot of a job's identity and state at a specific point in time.
  *
  * <p>Captures job identity (jobId, userId, workflowId), human-readable metadata
- * (displayName from {@code @DisplayName}, description from {@code @ToolDescription}),
+ * (displayName from {@code @DisplayName}, description from {@code @LLMDescription}),
  * and state (timestamps, attemptNumber) frozen at a moment in time.
  * Instances are immutable; use {@code with*} methods to create new snapshots.
  *
- * <p>The {@code description} field is extracted reflectively from {@code @ToolDescription}
- * to avoid a compile-time dependency from Nucleo to the tools layer. Use
+ * <p>The {@code description} field is the job class's {@code @LLMDescription}. A tool that
+ * still carries the deprecated {@code @ToolDescription} is read from it, reflectively, so
+ * the harness has no compile-time dependency on the tools layer. Use
  * {@link #withDescription(String)} to override with a runtime value (e.g., from a
  * prompt management system).
  *
@@ -119,14 +121,19 @@ public class JobSnapshot implements Serializable, Identifiable {
     }
 
     /**
-     * Extracts description from @ToolDescription annotation via reflection.
-     * Uses reflective annotation lookup to avoid a dependency from Nucleo to the tools layer.
-     * Returns null if the annotation is not present or the class is not on the classpath.
+     * The description of a job class: its {@code @LLMDescription}, or, for a tool that still
+     * carries it, the deprecated {@code @ToolDescription}, looked up reflectively to avoid a
+     * dependency on the tools layer. Null when the class carries neither.
      */
     public static String extractDescription(Class<? extends Job> jobClass) {
         if (jobClass == null) {
             return null;
         }
+        ResolvedAnnotation<LLMDescription> described = Annotations.of(jobClass, LLMDescription.class);
+        if (described != null) {
+            return described.string("value");
+        }
+        // A tool that still carries the deprecated annotation of the tools layer
         try {
             @SuppressWarnings("unchecked")
             Class<? extends java.lang.annotation.Annotation> annClass =

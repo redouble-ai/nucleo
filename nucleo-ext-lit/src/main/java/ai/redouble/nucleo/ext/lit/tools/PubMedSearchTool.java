@@ -11,6 +11,7 @@ import ai.redouble.nucleo.ext.lit.models.*;
 import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.admission.*;
 import ai.redouble.nucleo.harness.errors.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.http.*;
 import ai.redouble.nucleo.mcp.*;
 import ai.redouble.nucleo.secrets.*;
@@ -41,7 +42,8 @@ import java.util.*;
 @DisplayName(value = "PubMed Search", action = "Searching PubMed Database")
 @MCP
 @ToolName("search_pubmed")
-@ToolDescription(value = "Search PubMed biomedical literature database by keywords, authors, dates, or MeSH terms. Returns article metadata including titles, authors, journals, and optionally abstracts.", readOnly = true)
+@LLMDescription("Search PubMed biomedical literature database by keywords, authors, dates, or MeSH terms. Returns article metadata including titles, authors, journals, and optionally abstracts.")
+@ReadOnly
 @ToolWeight(type = ToolType.API_CALL, min = 1, max = 1)
 public class PubMedSearchTool extends AbstractTool<PubMedSearchInput, PubMedSearchOutput> {
     private static final Logger log = LoggerFactory.getLogger(PubMedSearchTool.class);
