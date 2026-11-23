@@ -85,11 +85,13 @@ group `ai.redouble`; a published version is never changed in place.
   was logged and skipped, and the answer left with fewer artifacts than it named. The model
   is now told which reference names nothing and asked again, under the same budget as a
   missing required field; past the budget the call fails with `ResponseValidationException`.
-  `ChatAnswer.stored` still reads an answer an earlier release stored with such a reference.
+  `ChatAnswer.stored` still reads an answer an earlier release stored with such a reference
+  ([#50](https://github.com/redouble-ai/nucleo/issues/50)).
 - Breaking: `ThinkerOutput.resolveArtifacts(registry)` is
   `resolveArtifacts(registry, violations)` and is called by the reply gate,
   `ThinkingResponseHandler.heldArtifacts`. A thinker of your own that extends
-  `AbstractThinker` and called it after reading the answer drops the call.
+  `AbstractThinker` and called it after reading the answer drops the call
+  ([#50](https://github.com/redouble-ai/nucleo/issues/50)).
 - Security: `nucleo-demo-poi` declares `commons-lang3` 3.20.0 and `log4j-api` 2.26.1 as its
   own dependencies. The module, and a host that included it without a platform BOM, took
   3.16.0 (CVE-2025-48924) and 2.24.3 (CVE-2026-49844) from Apache POI 5.4.0. The two demo
@@ -104,7 +106,8 @@ group `ai.redouble`; a published version is never changed in place.
   ([#49](https://github.com/redouble-ai/nucleo/issues/49)).
 - Breaking: `SingleObjectiveThinker.logReasoning` is gone. Both thinkers publish through
   `AbstractThinker.publishReasoning(response, title, context)`; a subclass that overrode
-  `logReasoning` overrides that method.
+  `logReasoning` overrides that method
+  ([#49](https://github.com/redouble-ai/nucleo/issues/49)).
 - Security: `nucleo-bom` manages `httpcore5-h2` at the version it manages `httpcore5`. An
   application on Spring Boot 4.0 that imported the BOM first resolved `httpcore5` 5.4.4 beside
   `httpcore5-h2` 5.3.6, the version CVE-2026-54428 names.
