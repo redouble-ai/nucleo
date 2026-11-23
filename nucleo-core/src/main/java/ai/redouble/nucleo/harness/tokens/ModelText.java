@@ -39,7 +39,8 @@ public final class ModelText {
             case JsonBlock jb -> jb.json();
             case PojoBlock pb -> NucleoJsonSerializer.writeSummarized(pb.pojo());
             case ToolDefinitionBlock td -> ToolDefinitionBlockEncoder.renderText(td);
-            case ToolUseBlock tu -> ToolUseBlockEncoder.renderText(tu);
+            // a call parsed out of the turn's text is in that text already, and is not sent again
+            case ToolUseBlock tu -> tu.fromText() ? "" : ToolUseBlockEncoder.renderText(tu);
             case ToolResultBlock tr -> ToolResultBlockEncoder.renderText(tr);
             case ImageBlock ib -> ib.description() != null ? "[Image: " + ib.description() + "]" : "[Image]";
             case FileBlock fb -> "[File: " + fb.filename() + "]";

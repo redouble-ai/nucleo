@@ -1304,9 +1304,11 @@ public class ConversationContext implements Serializable {
             return new ProcessedMessageData(TurnRole.of(message.getRole()), processedBlocks, cacheabilityOf(message));
         }
         if (message instanceof IncomingMessage<?> incoming) {
-            // the provider's blocks as they came back, so a tool call or a thinking block travels intact
+            // the provider's blocks as they came back, so a tool call or a thinking block travels intact.
+            // A call parsed out of the turn's text is recorded as a block for whatever walks the
+            // conversation; the text beside it already tells the model of the call, so it is not sent
             List<ContentBlock> blocks = (incoming.getContentBlocks() != null && !incoming.getContentBlocks().isEmpty())
-                ? incoming.getContentBlocks()
+                ? incoming.getContentBlocks().stream().filter(block -> !(block instanceof ToolUseBlock call && call.fromText())).toList()
                 : List.of(new TextBlock(incoming.getRawContent()));
             return new ProcessedMessageData(TurnRole.of(message.getRole()), blocks, cacheabilityOf(message));
         }

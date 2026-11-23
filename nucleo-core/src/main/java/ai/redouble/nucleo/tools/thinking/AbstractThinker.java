@@ -224,7 +224,7 @@ public abstract class AbstractThinker<I extends ThinkerInput, O extends ThinkerO
      *
      * <p>Mutating tools are withheld from the definitions the LLM sees, and any call to one
      * is refused at admission. Read-only is a property of a tool's declaration
-     * ({@link ToolDescription#readOnly()}), which defaults to false, so an unmarked tool is
+     * (the {@link ReadOnly} marker on its class), which nothing assumes, so an unmarked tool is
      * withheld: a tool nobody vouched for is not one a bound thinker should run.
      *
      * <p>This is what lets a caller hand over a superset. The whole toolbox of the thinkers
@@ -661,6 +661,47 @@ public abstract class AbstractThinker<I extends ThinkerInput, O extends ThinkerO
     }
 
     /**
+     * Records on the assistant turn every call the turn holds as text alone. A model with no
+     * tool channel writes its calls inside its answer, so the turn that made them carries no
+     * {@link ToolUseBlock}, while each result is recorded as a {@link ToolResultBlock} under
+     * the id minted for its call. A conversation is walked by its blocks: compaction and
+     * restore both pair a result with the call block before it, and found none. Each such
+     * call is added to the turn as a block marked as taken from text, under the id its result
+     * will carry. The turn keeps its text, and the block is not sent to a model.
+     *
+     * <p>The turn is the conversation's last message: the client appends the model's answer,
+     * and the calls are executed before anything follows it.
+     */
+    private void recordTextToolCalls(List<ToolCall> toolCalls, ConversationContext conversation) {
+        if (!(conversation.getLastMessage() instanceof IncomingMessage<?> turn)) {
+            return;
+        }
+        List<ContentBlock> blocks = new ArrayList<>();
+        Set<String> recorded = new HashSet<>();
+        if (turn.hasContentBlocks()) {
+            blocks.addAll(turn.getContentBlocks());
+            for (ContentBlock block : blocks) {
+                if (block instanceof ToolUseBlock call) {
+                    recorded.add(call.toolUseId());
+                }
+            }
+        }
+        else {
+            blocks.add(new TextBlock(turn.getRawContent()));
+        }
+        int held = blocks.size();
+        for (ToolCall toolCall : toolCalls) {
+            String id = toolCall.getToolUseId();
+            if (id != null && recorded.add(id)) {
+                blocks.add(new ToolUseBlock(id, toolCall.getToolName(), NucleoJsonSerializer.write(toolCall.getInput()), true));
+            }
+        }
+        if (blocks.size() > held) {
+            turn.setContentBlocks(blocks);
+        }
+    }
+
+    /**
      * Executes all requested tools and adds results to conversation. The turn's tools run
      * alongside each other: every call is submitted before any is awaited, so a turn that
      * asks for three lookups waits for the slowest one, never for their sum. The one
@@ -676,6 +717,7 @@ public abstract class AbstractThinker<I extends ThinkerInput, O extends ThinkerO
     @SuppressWarnings("RedundantThrows") // the declaration is the hook's contract; only an override throws
     protected void executeTools(List<ToolCall> toolCalls, ConversationContext conversation, JobDispatcher dispatcher, String userId, JobContext<?> context, long iteration)
             throws Exception {
+        recordTextToolCalls(toolCalls, conversation);
         // Phase 1: submit every tool and collect handles or submission failures, in call order
         Map<ToolCall, Object> submissions = new LinkedHashMap<>();
 

@@ -137,6 +137,16 @@ class ModelTextTest {
     }
 
     @Test
+    void aCallParsedOutOfTheTurnsTextIsReadOnce() {
+        String text = "{ \"final_answer\": false, \"tool_calls\": [ { \"tool_name\": \"search\", \"input\": {} } ] }";
+        IncomingMessage<String> assistant = new IncomingMessage<>(StringResponseHandler.instance);
+        assistant.setContentBlocks(List.of(new TextBlock(text), new ToolUseBlock("search#1", "search", "{}", true)));
+        assistant.overwriteRawContent(text);
+        assertEquals("", ModelText.render(new ToolUseBlock("search#1", "search", "{}", true)), "the text beside the block already holds the call");
+        assertEquals(text, ModelText.render(assistant), "so the model reads the turn as it wrote it");
+    }
+
+    @Test
     void aMessageIsItsBlocksJoinedByBlankLines_emptyRenderingsLeftOut() {
         IncomingMessage<String> assistant = new IncomingMessage<>(StringResponseHandler.instance);
         assistant.setContentBlocks(List.of(new ThinkingBlock("hmm", "sig"), new TextBlock("Let me look."), new ToolUseBlock("t1", "search", "{}")));

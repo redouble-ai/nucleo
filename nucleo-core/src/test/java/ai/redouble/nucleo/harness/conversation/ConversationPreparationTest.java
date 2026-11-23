@@ -6,6 +6,7 @@
 
 package ai.redouble.nucleo.harness.conversation;
 
+import ai.redouble.nucleo.harness.conversation.ContentBlocks.*;
 import ai.redouble.nucleo.harness.errors.*;
 import ai.redouble.nucleo.harness.llm.*;
 import ai.redouble.nucleo.harness.models.*;
@@ -387,6 +388,38 @@ public class ConversationPreparationTest {
         conversation.getMessages().add(message("system", "smuggled instruction"));
 
         assertThrows(UncorrectableRuntimeLLMException.class, () -> prepare(conversation));
+    }
+
+    /**
+     * A model with no tool channel writes its call in its text, and the turn records the call
+     * as a block for whatever walks the conversation. The request carries the text alone; a
+     * call the provider returned as a block travels as it came.
+     */
+    @Test
+    void aCallParsedOutOfTheTurnsTextIsSentOnce_aCallTheProviderReturnedTravelsAsItCame() {
+        String text = "{ \"final_answer\": false, \"tool_calls\": [ { \"tool_name\": \"search\", \"input\": {} } ] }";
+        ConversationContext conversation = TestModels.conversation(TestModels.small());
+        conversation.getMessages().add(message("user", USER_TURN));
+        IncomingMessage<String> written = new IncomingMessage<>(StringResponseHandler.instance);
+        written.setContentBlocks(List.of(new TextBlock(text), new ToolUseBlock("search#1", "search", "{}", true)));
+        written.overwriteRawContent(text);
+        conversation.getMessages().add(written);
+        OutgoingMessage<String> firstResult = new OutgoingMessage<>(StringResponseHandler.instance);
+        firstResult.setRole("user");
+        firstResult.addToolResult("search#1", "{\"hits\":1}", false);
+        conversation.getMessages().add(firstResult);
+        IncomingMessage<String> returned = new IncomingMessage<>(StringResponseHandler.instance);
+        List<ContentBlock> asReturned = List.of(new TextBlock("looking"), new ToolUseBlock("toolu_1", "search", "{}"));
+        returned.setContentBlocks(asReturned);
+        returned.overwriteRawContent("looking");
+        conversation.getMessages().add(returned);
+        OutgoingMessage<String> secondResult = new OutgoingMessage<>(StringResponseHandler.instance);
+        secondResult.setRole("user");
+        secondResult.addToolResult("toolu_1", "{\"hits\":2}", false);
+        conversation.getMessages().add(secondResult);
+        List<ProcessedMessageData> turns = prepare(conversation).turns();
+        assertEquals(List.of(new TextBlock(text)), turns.get(1).contentBlocks(), "the turn's text holds the call; its record is not sent beside it");
+        assertEquals(asReturned, turns.get(3).contentBlocks(), "a call the provider returned as a block is sent as before");
     }
 
     private static ConversationContext conversation() {

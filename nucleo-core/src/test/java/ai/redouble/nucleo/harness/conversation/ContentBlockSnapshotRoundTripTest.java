@@ -65,6 +65,9 @@ class ContentBlockSnapshotRoundTripTest {
         assertEquals(new ToolUseBlock("toolu_01", "search", "{\"q\":\"ports\"}"),
                 roundTrip(new ToolUseBlock("toolu_01", "search", "{\"q\":\"ports\"}")),
                 "the id is what the following tool_result references");
+        assertEquals(new ToolUseBlock("search#1", "search", "{\"q\":\"ports\"}", true),
+                roundTrip(new ToolUseBlock("search#1", "search", "{\"q\":\"ports\"}", true)),
+                "a call parsed out of the turn's text stays marked as such, so a restored conversation does not send it twice");
         assertEquals(new ToolResultBlock("toolu_01", "{\"hits\":3}", true),
                 roundTrip(new ToolResultBlock("toolu_01", "{\"hits\":3}", true)),
                 "result payload and the error flag survive");

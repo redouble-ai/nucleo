@@ -10,6 +10,7 @@ import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.conversation.ContentBlocks.*;
 import ai.redouble.nucleo.harness.conversation.*;
 import ai.redouble.nucleo.harness.errors.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 import ai.redouble.nucleo.tools.registry.*;
 import org.junit.jupiter.api.*;
@@ -43,7 +44,7 @@ public class ThinkingResponseHandlerToolUseTest {
     }
 
     @ToolName("known_tool")
-    @ToolDescription("A registered stub tool used only for parse resolution")
+    @LLMDescription("A registered stub tool used only for parse resolution")
     public static class KnownTool extends AbstractTool<StubInput, StubOutput> {
         public KnownTool(Identifiable parent) {
             super(parent);
@@ -130,6 +131,23 @@ public class ThinkingResponseHandlerToolUseTest {
     }
 
     @Test
+    void aTurnReadAgainWithItsRecordedTextCallYieldsTheCallOnce() throws Exception {
+        // After its calls ran, a turn that wrote them as text carries each as a block marked as
+        // taken from text. Reading the turn again must give the same calls under the same ids,
+        // not the text's calls and the blocks' calls both.
+        ToolRegistry registry = new ToolRegistry();
+        registry.register(KnownTool.class);
+        String text = "{ \"final_answer\": false, \"tool_calls\": [ { \"tool_name\": \"known_tool\", \"input\": { \"value\": \"x\" } } ] }";
+        ThinkingResponse<String> response = handler(registry).parse(List.of(
+                new TextBlock(text),
+                new ToolUseBlock("known_tool#1", "known_tool", "{\"value\":\"x\"}", true)));
+        List<ToolCall> calls = response.getToolCalls();
+        assertEquals(1, calls.size(), "the block is the record of the call in the text, not a second call");
+        assertEquals("known_tool#1", calls.get(0).getToolUseId(), "and the call has the id its result was recorded under");
+        assertFalse(response.isFinalAnswer());
+    }
+
+    @Test
     void aNamelessCallFromTextIsRefusedCorrectably_neverAsANullKeyCrash() {
         // Seen live: a model answering the JSON envelope on a wire surface it barely speaks
         // wrote a tool_calls entry with no tool_name. The name is the model's own data, so
@@ -165,7 +183,7 @@ public class ThinkingResponseHandlerToolUseTest {
     }
 
     @ToolName("citing_tool")
-    @ToolDescription("A registered stub tool whose input takes an artifact")
+    @LLMDescription("A registered stub tool whose input takes an artifact")
     public static class CitingTool extends AbstractTool<CitingInput, StubOutput> {
         public CitingTool(Identifiable parent) {
             super(parent);

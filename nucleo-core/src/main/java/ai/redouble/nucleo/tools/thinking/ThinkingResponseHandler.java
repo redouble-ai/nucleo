@@ -84,7 +84,10 @@ public class ThinkingResponseHandler<O> implements ResponseHandler<ThinkingRespo
      * what it returned, and the model would answer from nothing. On a dialect with no native
      * tool channel the id is ours to mint, and it is minted from the tool's name and its place
      * in the turn, so the text-rendered result ({@code [Tool Result get_current_time#1] ...})
-     * reads back to the model as the answer to the call it made.
+     * reads back to the model as the answer to the call it made. The thinker then records the
+     * call on the assistant turn as a {@link ToolUseBlock} under the same id
+     * ({@code AbstractThinker.recordTextToolCalls}), so the conversation holds every call as a
+     * block, whichever way the model wrote it.
      */
     private void identifyTextToolCalls(ThinkingResponse<O> response) {
         int ordinal = 0;
@@ -118,6 +121,11 @@ public class ThinkingResponseHandler<O> implements ResponseHandler<ThinkingRespo
         StringBuilder thinkingContent = new StringBuilder();
 
         for (ContentBlock block : contentBlocks) {
+            if (block instanceof ToolUseBlock recorded && recorded.fromText()) {
+                // The record of a call this handler parsed out of the turn's text on an earlier
+                // read. The text is read again below and yields the same call under the same id
+                continue;
+            }
             if (block instanceof ToolUseBlock toolUse) {
                 // Every native tool_use block MUST yield exactly one ToolCall. Anthropic requires
                 // each tool_use in the assistant turn to be answered by a tool_result in the next
@@ -194,6 +202,7 @@ public class ThinkingResponseHandler<O> implements ResponseHandler<ThinkingRespo
         if (!response.getToolCalls().isEmpty()) {
             response.setFinalAnswer(false);
         }
+        identifyTextToolCalls(response);
 
         return response;
     }

@@ -102,11 +102,24 @@ public class ContentBlocks {
      * When the LLM decides to call a tool, it provides the tool name,
      * a unique invocation ID, and the input parameters as JSON.
      *
-     * @param toolUseId Unique identifier for this tool invocation (from provider)
+     * <p>A model with no tool channel writes its call inside its text, and the call is parsed
+     * out of that text. Such a call is recorded as a block too, with {@code fromText} set,
+     * so that a conversation has one shape for every model: whatever walks it by its blocks
+     * finds every call. The turn's text already holds the call, so a block that came from
+     * text is never sent to a model and counts no tokens.
+     *
+     * @param toolUseId Unique identifier for this tool invocation: the provider's, or the one
+     *                  minted for a call parsed out of text
      * @param toolName Name of the tool to invoke
      * @param inputJson Tool input parameters as JSON string
+     * @param fromText Whether the call was parsed out of the turn's own text
      */
-    public record ToolUseBlock(String toolUseId, String toolName, String inputJson) implements ContentBlock {}
+    public record ToolUseBlock(String toolUseId, String toolName, String inputJson, boolean fromText) implements ContentBlock {
+        /** A call the provider returned as a block of its own. */
+        public ToolUseBlock(String toolUseId, String toolName, String inputJson) {
+            this(toolUseId, toolName, inputJson, false);
+        }
+    }
 
     /**
      * Represents the result of a tool execution being sent back to the LLM.
@@ -202,6 +215,9 @@ public class ContentBlocks {
                 node.put("toolUseId", tu.toolUseId());
                 node.put("toolName", tu.toolName());
                 node.set("input", parseJsonString(tu.inputJson()));
+                if (tu.fromText()) {
+                    node.put("fromText", true);
+                }
             }
             case ToolResultBlock tr -> {
                 node.put("type", "tool_result");

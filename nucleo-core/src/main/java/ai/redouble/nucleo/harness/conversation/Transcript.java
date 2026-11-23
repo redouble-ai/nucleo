@@ -42,6 +42,8 @@ public final class Transcript {
                     case TextBlock text -> sb.append(text.text()).append('\n');
                     case PojoBlock pojo -> sb.append(NucleoJsonSerializer.write(pojo.pojo())).append('\n');
                     case JsonBlock json -> sb.append(json.json()).append('\n');
+                    // a call parsed out of the turn's text is in the text printed above
+                    case ToolUseBlock call when call.fromText() -> { }
                     case ToolUseBlock call -> sb.append("<tool call ").append(call.toolName()).append(" id=").append(call.toolUseId()).append("> ")
                             .append(call.inputJson()).append('\n');
                     case ToolResultBlock result -> sb.append("<tool result id=").append(result.toolUseId()).append(result.isError() ? " error" : "").append("> ")

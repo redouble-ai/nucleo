@@ -382,6 +382,46 @@ public class CompactionContractTest {
         LLMContextCompactor.requirePaired(pinnedByCall.getMessages());
     }
 
+    /**
+     * A model with no tool channel writes its calls inside its text. The turn holds each as a
+     * block marked as taken from text, so its results pair with it as with any other call.
+     */
+    @Test
+    void aConversationWhoseCallsWereWrittenAsTextCompactsAtEveryLevel() {
+        for (CompactionLevel level : new CompactionLevel[] {CompactionLevel.LIGHT, CompactionLevel.MODERATE, CompactionLevel.AGGRESSIVE, CompactionLevel.MAXIMUM}) {
+            ConversationContext context = TestModels.conversation(TestModels.small());
+            context.getMessages().add(user("USER-QUESTION", false));
+            context.getMessages().add(assistantCallingInText(true, "search#1"));
+            context.getMessages().add(results(true, "search#1"));
+            context.getMessages().add(assistantCallingInText(true, "search#1", "search#2"));
+            context.getMessages().add(results(true, "search#1", "search#2"));
+            context.getMessages().add(assistant("ASSISTANT-ANSWER", false));
+            context.getMessages().add(user("FOLLOW-UP", false));
+            context.getMessages().add(assistantCallingInText(true, "search#1"));
+            context.getMessages().add(results(true, "search#1"));
+            LLMContextCompactor.requirePaired(context.getMessages());
+            new CannedCompactor().compact(context, level);
+            LLMContextCompactor.requirePaired(context.getMessages());
+            if (level == CompactionLevel.LIGHT) {
+                assertEquals(CANNED, payloadOf(context.getMessages().get(2), "search#1"), "the result shrank under the id minted for its call");
+            }
+        }
+    }
+
+    static IncomingMessage<String> assistantCallingInText(boolean compactable, String... mintedIds) {
+        String text = "{ \"final_answer\": false, \"tool_calls\": [ { \"tool_name\": \"search\", \"input\": {} } ] }";
+        IncomingMessage<String> msg = new IncomingMessage<>(StringResponseHandler.instance);
+        List<ContentBlock> blocks = new ArrayList<>();
+        blocks.add(new TextBlock(text));
+        for (String id : mintedIds) {
+            blocks.add(new ToolUseBlock(id, "search", "{}", true));
+        }
+        msg.setContentBlocks(blocks);
+        msg.overwriteRawContent(text);
+        msg.setCompactable(compactable);
+        return msg;
+    }
+
     @Test
     void thePairingCheckRefusesAnOrphanOnEitherSide() {
         List<Message> orphanCall = List.of(user("q", true), assistantCalling("x", true, "A"), user("not a result", true));

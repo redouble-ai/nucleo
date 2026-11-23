@@ -36,6 +36,8 @@ public class ContentBlockSnapshot  {
     private String toolInputJson;
     private String toolResultJson;
     private Boolean isError;
+    // Set on a tool call that was parsed out of the turn's own text; absent on a call the provider returned as a block
+    private Boolean fromText;
     // Thinking-block data. `text` is reused for ThinkingBlock.text; `signature` and `data` are
     // the opaque round-trip payloads Anthropic requires when replaying the block on later turns.
     private String signature;
@@ -82,6 +84,7 @@ public class ContentBlockSnapshot  {
                 snapshot.toolUseId = tu.toolUseId();
                 snapshot.toolName = tu.toolName();
                 snapshot.toolInputJson = tu.inputJson();
+                snapshot.fromText = tu.fromText() ? Boolean.TRUE : null;
             }
             case ToolResultBlock tr -> {
                 snapshot.type = "tool_result";
@@ -127,7 +130,7 @@ public class ContentBlockSnapshot  {
             case "tool" -> new ToolDefinitionBlock(toolName, toolDescription, toolSchemaJson);
             case "image" -> new ImageBlock(base64, mimeType, description);
             case "file" -> new FileBlock(base64, mimeType, filename);
-            case "tool_use" -> new ToolUseBlock(toolUseId, toolName, toolInputJson);
+            case "tool_use" -> new ToolUseBlock(toolUseId, toolName, toolInputJson, fromText != null && fromText);
             case "tool_result" -> new ToolResultBlock(toolUseId, toolResultJson, isError != null && isError);
             case "thinking" -> new ThinkingBlock(text, signature);
             case "redacted_thinking" -> new RedactedThinkingBlock(data);
@@ -246,6 +249,12 @@ public class ContentBlockSnapshot  {
     }
     public void setIsError(Boolean isError) {
         this.isError = isError;
+    }
+    public Boolean getFromText() {
+        return fromText;
+    }
+    public void setFromText(Boolean fromText) {
+        this.fromText = fromText;
     }
     public String getSignature() {
         return signature;

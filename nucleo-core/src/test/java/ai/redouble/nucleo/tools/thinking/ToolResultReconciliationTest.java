@@ -13,6 +13,7 @@ import ai.redouble.nucleo.harness.conversation.*;
 import ai.redouble.nucleo.harness.errors.*;
 import ai.redouble.nucleo.harness.models.*;
 import ai.redouble.nucleo.harness.observability.*;
+import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
 import org.junit.jupiter.api.*;
 
@@ -150,6 +151,37 @@ public class ToolResultReconciliationTest {
         assertFalse(hasStrayText(turn), "a null id must not inject a stray text block into a tool_result turn");
     }
 
+    @Test
+    void aCallTheModelWroteAsTextIsRecordedOnItsTurnAsABlock() throws Exception {
+        // A model with no tool channel: the turn is text, and its call has the id minted for it
+        String text = "{ \"final_answer\": false, \"tool_calls\": [ { \"tool_name\": \"normal_tool\", \"input\": {} } ] }";
+        IncomingMessage<String> turn = new IncomingMessage<>(StringResponseHandler.instance);
+        turn.overwriteRawContent(text);
+        ExecuteToolsHarness harness = new ExecuteToolsHarness(new TestThinker(TEST_ROOT), List.of(call("normal_tool", "normal_tool#1")));
+        harness.setTurn(turn);
+        Map<String, ToolResultBlock> results = resultsById(JobDispatcher.getInstance().submit(harness).get());
+        assertEquals(Set.of("normal_tool#1"), results.keySet());
+        List<ContentBlock> blocks = turn.getContentBlocks();
+        assertEquals(2, blocks.size(), "the turn's text, then the call it holds");
+        assertEquals(new TextBlock(text), blocks.get(0), "the text stays as the model wrote it");
+        ToolUseBlock recorded = assertInstanceOf(ToolUseBlock.class, blocks.get(1));
+        assertEquals("normal_tool#1", recorded.toolUseId(), "the block has the id the result is recorded under");
+        assertEquals("normal_tool", recorded.toolName());
+        assertTrue(recorded.fromText(), "and says the call came from the turn's text");
+        assertEquals(text, turn.getRawContent());
+    }
+
+    @Test
+    void aCallTheProviderReturnedAsABlockIsNotRecordedAgain() throws Exception {
+        IncomingMessage<String> turn = new IncomingMessage<>(StringResponseHandler.instance);
+        List<ContentBlock> asReturned = List.of(new TextBlock("looking"), new ToolUseBlock("id_native", "normal_tool", "{}"));
+        turn.setContentBlocks(asReturned);
+        ExecuteToolsHarness harness = new ExecuteToolsHarness(new TestThinker(TEST_ROOT), List.of(call("normal_tool", "id_native")));
+        harness.setTurn(turn);
+        JobDispatcher.getInstance().submit(harness).get();
+        assertEquals(asReturned, turn.getContentBlocks(), "a turn that already holds its call as a block is left as it came");
+    }
+
     // ======================== Harness ========================
 
     private Map<String, ToolResultBlock> run(ToolCall... calls) throws Exception {
@@ -200,6 +232,12 @@ public class ToolResultReconciliationTest {
     private static class ExecuteToolsHarness extends AbstractDoer<Void, Message> {
         private final TestThinker thinker;
         private final List<ToolCall> toolCalls;
+        /** The assistant turn that made the calls, when a test supplies one; the conversation then ends with it. */
+        private IncomingMessage<?> turn;
+
+        void setTurn(IncomingMessage<?> turn) {
+            this.turn = turn;
+        }
 
         ExecuteToolsHarness(TestThinker thinker, List<ToolCall> toolCalls) {
             super(TEST_ROOT, "execute-tools-harness");
@@ -215,6 +253,9 @@ public class ToolResultReconciliationTest {
                 // declarations never append messages, so the last message stays the results
                 // turn under inspection
                 conversation.addTools(thinker.buildToolDefinitionBlocks());
+                if (turn != null) {
+                    conversation.addMessage(turn);
+                }
                 thinker.executeTools(toolCalls, conversation, JobDispatcher.getInstance(), "test-user", context, 0L);
                 List<Message> messages = conversation.getMessages();
                 return messages.get(messages.size() - 1);
@@ -271,7 +312,7 @@ public class ToolResultReconciliationTest {
     }
 
     @ToolName("normal_tool")
-    @ToolDescription("Test tool that returns a serializable output")
+    @LLMDescription("Test tool that returns a serializable output")
     public static class NormalTool extends AbstractTool<StubInput, StubOutput> {
         public NormalTool(Identifiable parent) {
             super(parent);
@@ -291,7 +332,7 @@ public class ToolResultReconciliationTest {
     }
 
     @ToolName("exploding_tool")
-    @ToolDescription("Test tool whose output throws during serialization")
+    @LLMDescription("Test tool whose output throws during serialization")
     public static class ExplodingTool extends AbstractTool<StubInput, ExplodingOutput> {
         public ExplodingTool(Identifiable parent) {
             super(parent);
@@ -311,7 +352,7 @@ public class ToolResultReconciliationTest {
     }
 
     @ToolName("llm_fail_tool")
-    @ToolDescription("Test tool that throws an LLM-readable correctable error")
+    @LLMDescription("Test tool that throws an LLM-readable correctable error")
     public static class LlmReadableFailTool extends AbstractTool<StubInput, StubOutput> {
         public LlmReadableFailTool(Identifiable parent) {
             super(parent);
@@ -331,7 +372,7 @@ public class ToolResultReconciliationTest {
     }
 
     @ToolName("runtime_fail_tool")
-    @ToolDescription("Test tool that throws a raw RuntimeException")
+    @LLMDescription("Test tool that throws a raw RuntimeException")
     public static class RuntimeFailTool extends AbstractTool<StubInput, StubOutput> {
         public RuntimeFailTool(Identifiable parent) {
             super(parent);
@@ -351,7 +392,7 @@ public class ToolResultReconciliationTest {
     }
 
     @ToolName("cancel_fail_tool")
-    @ToolDescription("Test tool that throws a CancellationException")
+    @LLMDescription("Test tool that throws a CancellationException")
     public static class CancelFailTool extends AbstractTool<StubInput, StubOutput> {
         public CancelFailTool(Identifiable parent) {
             super(parent);
