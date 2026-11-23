@@ -13,13 +13,15 @@ group `ai.redouble`; a published version is never changed in place.
   the assistant turn as a `ToolUseBlock` with the new component `fromText` set. The turn's
   text already holds the call, so that block is not sent to a model and counts no tokens.
   `ToolUseBlock` keeps its three-argument constructor, and a conversation of a model with a
-  tool channel is unchanged.
+  tool channel is unchanged
+  ([#46](https://github.com/redouble-ai/nucleo/issues/46)).
 - A tool, a type and a field are named and described the same way. `@LLMDescription` on a
   tool class is the tool's description, as it already is for a type and a field, and the new
   marker `@ReadOnly` declares a tool read-only. `@DisplayName` may now stand on a field, whose
   JSON Schema carries it as `title`. `@ToolDescription` is deprecated, for removal in 1.0: a
   tool that carries it is read as before, and a tool that carries both descriptions is
-  described by `@LLMDescription`.
+  described by `@LLMDescription`
+  ([#45](https://github.com/redouble-ai/nucleo/issues/45)).
 - What a tool tells the model can be changed without a release. A deployment sets an
   `AnnotationResolver` with `Annotations.setResolver`, and from then on the description of a
   tool, of a class or field of its input and output (`@LLMDescription`, `@LLMExample`), the
@@ -31,7 +33,8 @@ group `ai.redouble`; a published version is never changed in place.
   and whether a tool is read-only is never stored. A
   tool served over MCP carries the stored text. `Annotations.changed()` tells Nucleo the
   store changed, and `ClassToolProvider.annotationKeys()` lists what can be stored for a
-  tool. With no resolver set nothing changes.
+  tool. With no resolver set nothing changes
+  ([#44](https://github.com/redouble-ai/nucleo/issues/44)).
 - A thinker finds the right tool in a catalog of hundreds. A thinker with more than 30 tools
   to ask for (`SommelierSettings.listedTools`) is no longer shown them: its `request_tools`
   names no tool, and it has a new tool, `find_tools`, to which its model states what it
@@ -41,16 +44,17 @@ group `ai.redouble`; a published version is never changed in place.
   5.5 and stronger models, and a deployment names another model with a `ModelRole` or sets
   its own `Sommelier` on `ToolHub`. A thinker with 30 tools or fewer is unchanged. For a
   thinker with more, the definition of `request_tools` changes: it no longer enumerates the
-  catalog.
+  catalog ([#43](https://github.com/redouble-ai/nucleo/issues/43)).
 - A search tool tells the model how much it found. `SearchResultArtifact`, alias
   `search_result`, is a new artifact a tool returns in place of a bare list: the total of
   matching rows in the whole store, and one window of them as a `ListArtifact`. The model is
   shown the total and the list's digest whatever the size of the window, and every row is
-  held under its own reference.
+  held under its own reference ([#39](https://github.com/redouble-ai/nucleo/issues/39)).
 - A model reads the rows of a list it holds. A list is shown to a model as its count and
   first few rows, and until now the model had no way to see the others. Every thinker has a
   new tool, `read_rows`: the model names the list, the first row and how many, ten by
-  default, and sees those rows in full from then on.
+  default, and sees those rows in full from then on
+  ([#40](https://github.com/redouble-ai/nucleo/issues/40)).
 - A date in a tool result reaches the model as a date. Every `java.time` value was written
   in Jackson's numeric form, so a model read `[ 2021, 7, 28 ]` for a date and
   `1779987029.597415000` for a timestamp, while the tool's schema told it to write
@@ -63,18 +67,20 @@ group `ai.redouble`; a published version is never changed in place.
   Anything that stores or sends
   what `NucleoJsonSerializer` writes carries the new text from now on: a consumer outside
   Java that read a timestamp as a number reads a string. Values stored in the numeric forms
-  are still read.
+  are still read ([#41](https://github.com/redouble-ai/nucleo/issues/41)).
 - A tool whose base class declares its own type parameters gets its real input type. The
   input and output of a tool were read by position from the first generic superclass, so a
   tool extending `AbstractLookupTool<Row, Input>` was published with the schema of `Row`
   and failed every call from a model with a `ClassCastException`. They are now the types
-  bound to `I` and `O` of `Tool<I, O>`, traced through the hierarchy.
+  bound to `I` and `O` of `Tool<I, O>`, traced through the hierarchy
+  ([#42](https://github.com/redouble-ai/nucleo/issues/42)).
 - The artifacts a called thinker selects reach the thinker that called it. A thinker that ran
   as another thinker's tool answered with references the calling model could read and its
   registry did not hold: an artifact tool given one answered that the artifact was not found,
   and a calling answer that named one left without it. The called thinker's answer is now
   written for the calling model with the selected objects in the place of `artifact_refs`,
-  each as `{"@ref": ...}`, and that write registers them in the calling conversation.
+  each as `{"@ref": ...}`, and that write registers them in the calling conversation
+  ([#50](https://github.com/redouble-ai/nucleo/issues/50)).
 - An answer that names a reference its registry does not hold is refused. Such a reference
   was logged and skipped, and the answer left with fewer artifacts than it named. The model
   is now told which reference names nothing and asked again, under the same budget as a
@@ -94,7 +100,8 @@ group `ai.redouble`; a published version is never changed in place.
 - A thinker publishes no reasoning notification for a reply that carries no reasoning. A
   `SingleObjectiveThinker` published one titled "Reasoning" with a null message after every
   such reply: a model whose thinking is native that wrote no thinking block, or a reply that
-  was its JSON and nothing else.
+  was its JSON and nothing else
+  ([#49](https://github.com/redouble-ai/nucleo/issues/49)).
 - Breaking: `SingleObjectiveThinker.logReasoning` is gone. Both thinkers publish through
   `AbstractThinker.publishReasoning(response, title, context)`; a subclass that overrode
   `logReasoning` overrides that method.
@@ -191,7 +198,8 @@ group `ai.redouble`; a published version is never changed in place.
   reading. Breaking: `ArtifactResponse.canonicalizeArtifactRefs` takes the references found
   in the reply in place of an answer text; `ThinkerOutput.resolveArtifacts` resolves
   `artifact_refs` and reads no text, so an answer object built in code selects what its list
-  names; `ChatAnswer.toString()` is no longer its JSON.
+  names; `ChatAnswer.toString()` is no longer its JSON
+  ([#48](https://github.com/redouble-ai/nucleo/issues/48)).
 - The discovery learns a new entry's thinking mode from the provider. A new model was
   written with the mode of its older relative and pinged with thinking off, so
   `claude-haiku-5-5` inherited `EXTENDED`, was reported reachable, and refused the first
@@ -237,7 +245,8 @@ group `ai.redouble`; a published version is never changed in place.
   a string and a map; the model writes `{"answer": {"message_text": "..."}}` where it wrote
   `{"answer": "..."}`; a reader of `ContentStreamEvent.getArtifacts()` receives the selection
   where it received the registry. `SingleObjectiveThinker.resolveArtifacts` moved to
-  `ThinkerOutput.resolveArtifacts(registry)`.
+  `ThinkerOutput.resolveArtifacts(registry)`
+  ([#47](https://github.com/redouble-ai/nucleo/issues/47)).
 
 - A provider fault that outlasts a job's retries is no longer retried again by every job
   above it. When a model call spent its upstream retries, the doer or thinker awaiting it
