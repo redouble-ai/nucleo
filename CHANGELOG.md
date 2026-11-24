@@ -11,7 +11,9 @@ group `ai.redouble`; a published version is never changed in place.
   middle or shown in full. `@LLMSummarizable(summarizer = ...)` names a `FieldSummarizer<T>`,
   a new interface that `Summarizer` now extends for text. The serializer hands that class the
   field's value, whatever its type, when the value is longer than `threshold`, and uses no
-  other summarizer for the field. A field that names none behaves as before.
+  other summarizer for the field. A field that names none behaves as before. A summarizer
+  that throws, returns null or cannot be made never fails the serialization: the failure is
+  logged, the value is cut short as plain text is, and failing that it is written whole.
 
 ## 0.1.5 (2026-11-23)
 

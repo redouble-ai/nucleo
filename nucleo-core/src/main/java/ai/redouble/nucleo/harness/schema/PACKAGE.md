@@ -117,7 +117,10 @@ A field's own summarizer is a class that implements `FieldSummarizer<T>`, where 
 field's type, and has a public no-argument constructor. It is the one case in which a field
 that is no text is shortened: the value is handed to your class when it is longer than
 `threshold`, which is the length of a text and, for any other value, the length of its JSON.
-A field that names a summarizer is never given to any other.
+A field that names a summarizer is never given to the summarizer of the serialization.
+Summarizing saves tokens and never fails a serialization: when your class throws, returns
+null or cannot be made, the failure is logged, the value is cut short as plain text is, and
+when that fails too it is written whole.
 
 `size` sets how long a summary may be: `BRIEF`, `SHORT` or `PARAGRAPHS`. On an artifact, a
 model that needs the full value of a summarized field can ask for it with the

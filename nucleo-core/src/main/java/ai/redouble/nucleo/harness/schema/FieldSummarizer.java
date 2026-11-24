@@ -16,6 +16,10 @@ package ai.redouble.nucleo.harness.schema;
  * no-argument constructor; one instance serves the field for the life of the process, so
  * it keeps no state.
  *
+ * <p>Summarizing saves tokens and never fails a serialization. When the class throws,
+ * returns null or cannot be made, the failure is logged and the value is cut short as
+ * plain text is; when that fails too, the value is written whole.
+ *
  * <p>{@link Summarizer} is this interface for text, and is what a serialization uses for
  * every field that names no summarizer of its own.
  *
