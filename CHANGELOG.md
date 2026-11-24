@@ -3,7 +3,7 @@
 Every release of Nucleo, newest first. Released artifacts are on Maven Central under the
 group `ai.redouble`; a published version is never changed in place.
 
-## Unreleased
+## 0.1.5 (2026-11-23)
 
 - The demo's first discovery orders each grade by a measured run. A catalog a discovery had
   just written had no order, so every grade was served by its cheapest callable model, often
@@ -18,7 +18,6 @@ group `ai.redouble`; a published version is never changed in place.
   `discover` command also writes its module's `models.json` when no file exists yet, where it
   used to stop and ask for `--out`. `NucleoSpringApplication.run` has an overload that takes
   the application's own command for the `discover` argument.
-
 - A benchmark in a deployment whose strongest grade has no order chooses the model it measures
   against. The reference run of a `Grade.CEILING` job and the judge used to run on that
   grade's cheapest callable entry, the picker's choice for a grade with no order. They now
@@ -27,7 +26,6 @@ group `ai.redouble`; a published version is never changed in place.
   on that entry fails, the benchmark runs it on the next. A grade with an order is served as
   before, by the order's first callable entry. `ClientProvider.vendor(ModelSpec)` is new and
   says who made an entry's model; its default reads the vendor a Bedrock wire id names.
-
 - A thinker on a model that writes its tool calls as text survives compaction and restore.
   Such a model has no tool channel, so its assistant turn held text and no `ToolUseBlock`,
   while each result was a `ToolResultBlock` under the id Nucleo gave the call. Compaction
