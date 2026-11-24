@@ -24,6 +24,10 @@ import java.util.*;
  * @since 0.1 (2026-06-21)
  */
 public abstract class AnthropicProvider<E extends AnthropicSDKClient> extends AbstractClientProvider<E> {
+    /** Every entry of an Anthropic provider is Anthropic's model, whichever endpoint serves it. */
+    @Override
+    public String vendor(ModelSpec spec) {return "anthropic";}
+
     /** Claude is asked to think adaptively, as the current models think, or with a budget, as the earlier ones do. */
     @Override
     public List<ThinkingMode> thinkingModes() {return List.of(ThinkingMode.ADAPTIVE, ThinkingMode.EXTENDED);}

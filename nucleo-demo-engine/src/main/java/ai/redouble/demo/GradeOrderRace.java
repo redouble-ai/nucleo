@@ -20,7 +20,7 @@ import java.util.concurrent.*;
 /**
  * The race a first discovery orders the grades by: the demo's benchmark, one run on every model
  * the deployment can call, on the query the demo ships for it ({@link #QUERY_RESOURCE}), judged
- * by the strongest model the deployment serves; then each grade's order by {@link GradeOrder},
+ * by the entry the benchmark's {@code Yardstick} ranks first in the strongest grade; then each grade's order by {@link GradeOrder},
  * written to the catalog file in one edit. A catalog a discovery has just created has no order,
  * and the runtime would serve each grade with its cheapest entry; this puts the entries that
  * were just seen doing the agent's work first.

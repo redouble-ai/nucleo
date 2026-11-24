@@ -90,6 +90,11 @@ public class Benchmark<I, O> extends AbstractDoer<I, O> {
     private BenchmarkReport report;
     private String judgeModel;
     private String judgeFailure;
+    /** The vendors whose models are measured against first where the strongest grade has no order. */
+    public static final List<String> YARDSTICK_VENDORS = List.of("anthropic", "openai");
+    private List<String> yardstickVendors = YARDSTICK_VENDORS;
+    /** The entry the judges are pinned to: the one the reference answered on, or the first yardstick; null leaves the judge to the picker. */
+    private ModelSpec judgePin;
 
     /**
      * @param factory builds one fresh instance of the job per run; the benchmark sets its input and pin
@@ -114,6 +119,40 @@ public class Benchmark<I, O> extends AbstractDoer<I, O> {
     /** A score in code next to the judge's, for outputs comparable to the reference without a model. */
     public void setScorer(Scorer<O> scorer) {
         this.scorer = scorer;
+    }
+
+    /** The vendors to measure against first instead of {@link #YARDSTICK_VENDORS}, in lower case; see {@link Yardstick}. */
+    public void setYardstickVendors(List<String> yardstickVendors) {
+        this.yardstickVendors = yardstickVendors;
+    }
+
+    /**
+     * The entries of the strongest grade to measure against, the first choice first, when the
+     * deployment has put that grade in no order ({@link Yardstick}); empty when it has, and the
+     * order's first callable entry, the picker's own choice, is the yardstick.
+     */
+    List<ModelSpec> yardsticks() {
+        Grade ceiling = ModelPickers.ceiling();
+        CatalogPins pins = Models.pins();
+        if (pins != null && pins.grades().containsKey(ceiling)) {
+            return List.of();
+        }
+        Map<String, ModelSpec> byId = new LinkedHashMap<>();
+        List<Yardstick.Candidate> field = new ArrayList<>();
+        for (ModelSpec spec : candidates(ceiling)) {
+            // an entry the deployment's envelope refuses is no yardstick: pinned, it would fail where the picker walks past it
+            if (spec.kind() != ModelKind.LLM || !JobDispatcher.getInstance().getComplianceEnvelope().permits(spec)) {
+                continue;
+            }
+            byId.put(spec.getId(), spec);
+            Double price = spec.isPriced() && spec.getOutputPricePerMillion() != null ? spec.getInputPricePerMillion() + spec.getOutputPricePerMillion() : null;
+            field.add(new Yardstick.Candidate(spec.getId(), spec.getIdentity(), ClientProviders.find(spec.getProviderKey()).vendor(spec), price));
+        }
+        List<ModelSpec> ranked = new ArrayList<>();
+        for (String id : Yardstick.rank(field, yardstickVendors)) {
+            ranked.add(byId.get(id));
+        }
+        return ranked;
     }
 
     /** The report of the last run; null before the benchmark has executed. */
@@ -243,25 +282,54 @@ public class Benchmark<I, O> extends AbstractDoer<I, O> {
         context.publish("Running the reference on the strongest model", 5);
         nextStep();
         List<Run<O>> all = new ArrayList<>();
-        Run<O> referenceRun = new Run<>(null, reference, 0);
-        reference.setInput(input);
-        referenceRun.handle = submitInCurrentStep(reference, referenceRun.place(REFERENCE));
-        all.add(referenceRun);
+        // where the strongest grade has no order, the benchmark names the entry it measures
+        // against (Yardstick) and, when that entry's reference run fails, turns to the next;
+        // a reference of a lower grade, or of an ordered strongest grade, is the picker's
+        List<ModelSpec> yardsticks = yardsticks();
+        boolean atCeiling = reference.getGrade() == Grade.CEILING;
+        List<ModelSpec> tries = new ArrayList<>();
+        if (atCeiling && !yardsticks.isEmpty()) {
+            tries.addAll(yardsticks);
+        }
+        else {
+            tries.add(null);
+            judgePin = yardsticks.isEmpty() ? null : yardsticks.get(0);
+        }
+        Run<O> referenceRun = null;
         String truth = null;
-        try {
-            referenceRun.output = referenceRun.handle.get();
-            referenceRun.row.setSucceeded(true);
-            truth = transcript(referenceRun);
+        for (int attempt = 0; attempt < tries.size() && truth == null; attempt++) {
+            context.checkCancellation();
+            ModelSpec yardstick = tries.get(attempt);
+            ModelDependentTool<I, O> job = attempt == 0 ? reference : factory.get();
+            job.setInput(input);
+            if (yardstick != null) {
+                job.pinModel(yardstick);
+            }
+            referenceRun = new Run<>(null, job, 0);
+            referenceRun.handle = submitInCurrentStep(job, referenceRun.place(REFERENCE));
+            try {
+                referenceRun.output = referenceRun.handle.get();
+                referenceRun.row.setSucceeded(true);
+                truth = transcript(referenceRun);
+                judgeFailure = null;
+                if (yardstick != null) {
+                    judgePin = yardstick;
+                }
+            }
+            catch (ExecutionException e) {
+                Throwable cause = e.getCause() != null ? e.getCause() : e;
+                referenceRun.row.setFailure(reason(cause));
+                judgeFailure = "the reference run failed, so there is nothing to judge against: " + reason(cause);
+                if (attempt + 1 < tries.size()) {
+                    log.warn("The reference run on {} failed; running it on {}", yardstick.getId(), tries.get(attempt + 1).getId(), cause);
+                }
+            }
+            catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new SystemException("benchmark", "interrupted while waiting for the reference run", e);
+            }
         }
-        catch (ExecutionException e) {
-            Throwable cause = e.getCause() != null ? e.getCause() : e;
-            referenceRun.row.setFailure(reason(cause));
-            judgeFailure = "the reference run failed, so there is nothing to judge against: " + reason(cause);
-        }
-        catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new SystemException("benchmark", "interrupted while waiting for the reference run", e);
-        }
+        all.add(referenceRun);
         context.publish("Submitting " + raced.size() + " models x " + runs + " runs", 10);
         nextStep();
         for (ModelSpec candidate : raced) {
@@ -470,6 +538,9 @@ public class Benchmark<I, O> extends AbstractDoer<I, O> {
         judgeInput.setCandidate(transcript(run));
         JudgeTool judge = newJudge();
         judge.setInput(judgeInput);
+        if (judgePin != null) {
+            judge.pinModel(judgePin);
+        }
         return judge;
     }
 

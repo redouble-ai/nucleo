@@ -41,6 +41,9 @@ public class OpenAIProvider extends AbstractClientProvider<OpenAISDKClient> impl
 
     @Override
     public String platform() {return "openai";}
+    /** OpenAI's own endpoint serves OpenAI's models and no other. */
+    @Override
+    public String vendor(ModelSpec spec) {return "openai";}
     @Override
     public String credentialId() {return SECRET_ID;}
 

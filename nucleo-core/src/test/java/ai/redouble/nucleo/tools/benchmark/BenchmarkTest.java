@@ -79,6 +79,10 @@ class BenchmarkTest {
             super(parent, Grade.SMALL);
         }
 
+        EchoTool(Identifiable parent, Grade grade) {
+            super(parent, grade);
+        }
+
         @Override
         public JobRequirements getRequirements() {
             JobRequirements req = new JobRequirements();
@@ -414,8 +418,69 @@ class BenchmarkTest {
         assertTrue(report.getJudgeFailure().contains("nothing to judge against"), report.getJudgeFailure());
     }
 
+    /** A benchmark of a job on the strongest grade, in a deployment whose strongest grade has no order: the yardsticks are the test's. */
+    private static Benchmark<Question, Answer> unordered(Identifiable workflow, List<ModelSpec> yardsticks) {
+        Benchmark<Question, Answer> benchmark = new Benchmark<>(workflow, () -> new EchoTool(workflow, Grade.CEILING), 1) {
+            @Override
+            List<ModelSpec> yardsticks() {
+                return yardsticks;
+            }
+
+            @Override
+            protected JudgeTool newJudge() {
+                return new RuleJudge(this, "no favourite");
+            }
+        };
+        benchmark.setCandidates(List.of(TestModels.grade(Grade.MEDIUM)));
+        return benchmark;
+    }
+
     @Test
-    void aJudgeThatFailsCostsItsOwnRowsScoreAndNoOther() throws Exception {
+    void whereTheStrongestGradeHasNoOrderTheReferenceAndTheJudgeRunOnTheFirstYardstick() throws Exception {
+        Identifiable workflow = Job.workflow("test-user", "benchmark-yardstick");
+        ModelSpec small = TestModels.small();
+        ModelSpec medium = TestModels.grade(Grade.MEDIUM);
+        Benchmark<Question, Answer> benchmark = unordered(workflow, List.of(medium, small));
+        benchmark.setInput(question(null));
+        assertEquals(medium.getId(), JobDispatcher.getInstance().submit(benchmark).get().getModel(), "the reference answers on the first yardstick");
+        BenchmarkReport report = benchmark.report();
+        assertEquals(medium.getId(), report.getRows().get(0).getModelId());
+        assertEquals(medium.getId(), report.getJudgeModel(), "the judge runs on the entry the reference answered on");
+        assertNull(report.getJudgeFailure());
+    }
+
+    @Test
+    void aYardstickWhoseReferenceRunFailsHandsTheReferenceAndTheJudgeToTheNext() throws Exception {
+        Identifiable workflow = Job.workflow("test-user", "benchmark-yardstick-fails");
+        ModelSpec small = TestModels.small();
+        ModelSpec medium = TestModels.grade(Grade.MEDIUM);
+        Benchmark<Question, Answer> benchmark = unordered(workflow, List.of(small, medium));
+        benchmark.setInput(question(small.getId()));
+        assertEquals(medium.getId(), JobDispatcher.getInstance().submit(benchmark).get().getModel(), "the first yardstick refused, the second answered");
+        BenchmarkReport report = benchmark.report();
+        BenchmarkReport.Row reference = report.getRows().get(0);
+        assertTrue(reference.isReference());
+        assertTrue(reference.isSucceeded(), reference.getFailure());
+        assertEquals(medium.getId(), reference.getModelId());
+        assertEquals(medium.getId(), report.getJudgeModel(), "the judge follows the reference onto the yardstick that answered");
+        assertNull(report.getJudgeFailure(), "the first yardstick's failure is not the benchmark's");
+        assertEquals(4.0, report.getRows().get(1).getJudgeScore());
+    }
+
+    @Test
+    void whenEveryYardstickFailsTheBenchmarkFailsAsAFailedReferenceDoes() {
+        Identifiable workflow = Job.workflow("test-user", "benchmark-yardsticks-all-fail");
+        ModelSpec small = TestModels.small();
+        Benchmark<Question, Answer> benchmark = unordered(workflow, List.of(small));
+        benchmark.setInput(question(small.getId()));
+        assertThrows(ExecutionException.class, () -> JobDispatcher.getInstance().submit(benchmark).get());
+        BenchmarkReport report = benchmark.report();
+        assertFalse(report.getRows().get(0).isSucceeded());
+        assertTrue(report.getJudgeFailure().contains("nothing to judge against"), report.getJudgeFailure());
+    }
+
+    @Test
+    void aJudgeThatFailsCostsItsOwnRowsScoreAndNoOther()throws Exception {
         Identifiable workflow = Job.workflow("test-user", "benchmark-flaky-judge");
         ModelSpec small = TestModels.small();
         ModelSpec medium = TestModels.grade(Grade.MEDIUM);

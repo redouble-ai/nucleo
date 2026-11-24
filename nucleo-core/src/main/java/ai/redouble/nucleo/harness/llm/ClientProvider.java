@@ -136,6 +136,16 @@ public interface ClientProvider<E extends Client> {
     String platform();
 
     /**
+     * Who made the model behind an entry of this provider, in lower case ({@code anthropic},
+     * {@code openai}), or null when the provider cannot tell. A provider that serves one
+     * vendor's models answers that vendor; the default reads the vendor a wire id names in
+     * front of the model, which every Bedrock id does and a deployment name does not.
+     */
+    default String vendor(ModelSpec spec) {
+        return ModelLineage.vendorOf(spec.getWireModelId());
+    }
+
+    /**
      * The catalog identity of a model this provider's account lists under a wire id: the name
      * that stays the same across channels and endpoint spellings ({@code opus-4.7} for both
      * {@code us.anthropic.claude-opus-4-7} and {@code claude-opus-4-7-20260301}). A provider

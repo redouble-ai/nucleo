@@ -321,7 +321,8 @@ role the process runs under: whatever the AWS default chains resolve).
 - `POST /benchmark` - the demo agent wrapped in `DemoBenchmark`, the runtime's `Benchmark`
   whose judges wait behind the same person the raced agents do: the body is
   `{query, runs}`; the agent answers the query once on the strongest model the deployment
-  serves (the reference, resolved through `Grade.CEILING` exactly as the judge is) and then
+  serves (the reference, resolved through `Grade.CEILING` exactly as the judge is; where the
+  strongest grade has no order, the runtime's `Yardstick` chooses its entry) and then
   `runs` times on every open model of every grade whose provider holds a credential - the
   whole ladder, MICRO to the strongest, since the interesting result is the spread across
   rungs - and the strongest model judges every answer blind; the page sorts the table by the
@@ -430,7 +431,10 @@ A discovery that creates the catalog file orders the grades in it, from the comm
 (`DemoDiscovery`) and from the page's button (`CatalogAdmin.discover`) alike; one that finds
 the file there changes no order. `GradeOrderRace` runs `DemoBenchmark` once on every callable
 model of every rung, on the query in the engine's resource
-`ai/redouble/demo/grade-order-query.txt`, and `GradeOrder` reads the report: within a grade
+`ai/redouble/demo/grade-order-query.txt`. No grade has an order yet, so the reference and
+the judge run on the entry the runtime's `Yardstick` ranks first in the strongest grade: an
+Anthropic or OpenAI model when the account has one, the newest version, the dearest.
+`GradeOrder` reads the report: within a grade
 the judge's mean score, highest first, then the mean cost of a run, cheapest first; then the
 entries that are versions of one model (`ModelLineage`'s family of the catalog identity) are
 put newest first in the places that family earned. An entry with a failed run or no score is

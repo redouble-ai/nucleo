@@ -13,6 +13,7 @@ import ai.redouble.nucleo.harness.models.discovery.*;
 import ai.redouble.nucleo.harness.tokens.*;
 import java.io.*;
 import java.util.*;
+import java.util.regex.*;
 
 /**
  * Serves the OpenAI surface ({@code /openai/v1}) of an Azure AI Foundry resource, on the
@@ -52,6 +53,17 @@ public class AzureFoundryOpenAIProvider extends AbstractClientProvider<AzureFoun
 
     @Override
     public String platform() {return "azure";}
+    /**
+     * Foundry serves many vendors and a deployment name carries none, so the vendor is read off
+     * the catalog identity: OpenAI's models are the {@code gpt-} line and the {@code o} series
+     * ({@code o3}, {@code o4-mini}). Null for every other model, whose maker Foundry does not say.
+     */
+    @Override
+    public String vendor(ModelSpec spec) {
+        return OPENAI_IDENTITY.matcher(spec.getIdentity()).find() ? "openai" : null;
+    }
+
+    private static final Pattern OPENAI_IDENTITY = Pattern.compile("^(gpt-|o\\d)");
     @Override
     public String credentialId() {return AzureFoundryOpenAIClient.SECRET_ID;}
 

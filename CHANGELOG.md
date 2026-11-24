@@ -16,6 +16,15 @@ group `ai.redouble`; a published version is never changed in place.
   used to stop and ask for `--out`. `NucleoSpringApplication.run` has an overload that takes
   the application's own command for the `discover` argument.
 
+- A benchmark in a deployment whose strongest grade has no order chooses the model it measures
+  against. The reference run of a `Grade.CEILING` job and the judge used to run on that
+  grade's cheapest callable entry, the picker's choice for a grade with no order. They now
+  run on the entry the new `Yardstick` ranks first: an Anthropic or OpenAI model before any
+  other, the newest version of a model, then the dearer list price. When the reference run
+  on that entry fails, the benchmark runs it on the next. A grade with an order is served as
+  before, by the order's first callable entry. `ClientProvider.vendor(ModelSpec)` is new and
+  says who made an entry's model; its default reads the vendor a Bedrock wire id names.
+
 - A thinker on a model that writes its tool calls as text survives compaction and restore.
   Such a model has no tool channel, so its assistant turn held text and no `ToolUseBlock`,
   while each result was a `ToolResultBlock` under the id Nucleo gave the call. Compaction

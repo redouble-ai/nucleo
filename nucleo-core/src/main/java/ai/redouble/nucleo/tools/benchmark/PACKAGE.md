@@ -30,6 +30,16 @@ work is one model call (together, the `ModelDependentTool`s of
    misread costs at least 3, and up to 3 for shown work. Nothing the judge reads names the
    model on either side.
 
+**Which model is the strongest.** A deployment that has put its strongest grade in an order
+has said so: the order's first callable entry runs the judge, and the reference of a job on
+`Grade.CEILING`. Where that grade has no order the picker would serve its cheapest entry, so
+the benchmark chooses for itself (`Yardstick`): an entry of Anthropic or OpenAI before any
+other, the newest version of a model before an older one, the dearer list price before the
+cheaper. Each rule ranks and none excludes, so a grade with no such vendor, or no prices, is
+still ranked by the rules that apply. When the reference run on the chosen entry fails, the
+benchmark runs it on the next, and the judge runs on the entry the reference answered on.
+`setYardstickVendors` names other vendors to prefer.
+
 The benchmark returns what the reference returned, so a workflow that wraps a step in a
 benchmark gets the answer it would have got without one. The measurements come back beside
 it, as a `BenchmarkReport` from `report()`: one row per run with the model, whether it

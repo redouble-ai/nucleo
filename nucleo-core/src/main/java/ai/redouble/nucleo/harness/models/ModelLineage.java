@@ -87,6 +87,17 @@ public record ModelLineage(String family, String version) {
         return INSTRUCT_SUFFIX.matcher(id).replaceFirst("");
     }
 
+    /**
+     * The vendor a wire id names in front of the model, as Bedrock spells every id
+     * ({@code anthropic} in {@code us.anthropic.claude-opus-5-5}, {@code openai},
+     * {@code moonshotai}); null for an id that carries none, as a vendor's own endpoint spells
+     * them.
+     */
+    public static String vendorOf(String wireId) {
+        Matcher prefix = VENDOR_PREFIX.matcher(bare(wireId));
+        return prefix.find() ? prefix.group().substring(0, prefix.group().length() - 1) : null;
+    }
+
     public boolean sameFamily(ModelLineage other) {
         return family.equals(other.family);
     }

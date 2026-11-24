@@ -35,6 +35,9 @@ public class OpenAIChatCompletionsProvider extends AbstractClientProvider<OpenAI
 
     @Override
     public String platform() {return "openai";}
+    /** OpenAI's own endpoint serves OpenAI's models and no other. */
+    @Override
+    public String vendor(ModelSpec spec) {return "openai";}
     @Override
     public String credentialId() {return OpenAIProvider.SECRET_ID;}
 
