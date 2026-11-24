@@ -5,6 +5,17 @@ group `ai.redouble`; a published version is never changed in place.
 
 ## Unreleased
 
+- The demo's first discovery orders each grade by a measured run. A catalog a discovery had
+  just written had no order, so every grade was served by its cheapest callable model, often
+  one that cannot follow a reply format. The discovery that creates `models.json`, from the
+  page's button or the `discover` command, now runs the demo's benchmark once on every
+  callable model and writes each grade's order: the judge's best score first, the cheaper run
+  among equal scores, and a newer version of a model above an older one. A model whose run
+  failed is in no order. A discovery into a file that exists changes no order. The demo's
+  `discover` command also writes its module's `models.json` when no file exists yet, where it
+  used to stop and ask for `--out`. `NucleoSpringApplication.run` has an overload that takes
+  the application's own command for the `discover` argument.
+
 - A thinker on a model that writes its tool calls as text survives compaction and restore.
   Such a model has no tool channel, so its assistant turn held text and no `ToolUseBlock`,
   while each result was a `ToolResultBlock` under the id Nucleo gave the call. Compaction

@@ -193,7 +193,11 @@ role the process runs under: whatever the AWS default chains resolve).
   no provider holds a credential, and when every connected provider was already discovered
   with these exact credentials. Answers
   `{report, file, entries, scope, providers, classifiedBy, classified, classifiedDropped, nonZdr,
-  unserved, classifierFailure, status}`: `providers` is each queried provider's outcome (listed
+  unserved, classifierFailure, order, status}`: `order` is what ordering the grades did when
+  this discovery created the file (its judge, how many models ran, how many are in no order,
+  the race's cost, each grade's order, each placed entry's score, or the reason nothing was
+  ordered) and null when the file existed, and the call answers once that race is over;
+  `providers` is each queried provider's outcome (listed
   count, how many of the listed stayed unclassified, or the failure), `classified` names the
   entries the discovery's own classifier wrote - the strongest callable model grades the listings
   nothing could inherit a shape from, under the deterministic gates the discovery doc states,
@@ -407,16 +411,33 @@ prices came out the same.
 
 ## Discover mode
 
-`java -jar target/nucleo-demo.jar discover`, run in `nucleo-demo`, runs `CatalogDiscovery` instead of
-the web server, on the same credentials bound the same way, and exits with the discovery's
-exit code: the demo's `main` names its catalog file (`DemoHome.configure`) and then makes one
-call to the starter's `NucleoSpringApplication.run`, which provides the command. The starter's
-`NucleoRuntime` stays down in that mode: the discovery seals its own permitting envelope to ask
-what the account can call, and a started dispatcher would have sealed the refusing default
-first. The discovery writes the file `-Dnucleo.models` names, which `main` has set to this
-module's `src/main/resources/models.json`, whatever directory the command runs in: the same
-file the web demo reads and the page edits, gitignored because no account's catalog is a
-default. `AGENTS.md` at the repository root walks the setup.
+`java -jar target/nucleo-demo.jar discover`, run in `nucleo-demo`, runs the engine's
+`DemoDiscovery` instead of the web server, on the same credentials bound the same way, and
+exits with the discovery's exit code: the demo's `main` finds its catalog file
+(`DemoHome.configure`) and then makes one call to the starter's `NucleoSpringApplication.run`,
+which provides the argument and the context without a web server, handing it `DemoDiscovery`
+as the command. The starter's `NucleoRuntime` stays down in that mode: the command seals the
+discovery's permitting envelope to ask what the account can call, and a started dispatcher
+would have sealed the refusing default first. `DemoDiscovery` runs `CatalogDiscovery` on the
+file `--out` names, else the one `-Dnucleo.models` names, else this module's
+`src/main/resources/models.json`, whatever directory the command runs in: the same file the
+web demo reads and the page edits, gitignored because no account's catalog is a default.
+`AGENTS.md` at the repository root walks the setup.
+
+## Ordering the grades at a first discovery
+
+A discovery that creates the catalog file orders the grades in it, from the command
+(`DemoDiscovery`) and from the page's button (`CatalogAdmin.discover`) alike; one that finds
+the file there changes no order. `GradeOrderRace` runs `DemoBenchmark` once on every callable
+model of every rung, on the query in the engine's resource
+`ai/redouble/demo/grade-order-query.txt`, and `GradeOrder` reads the report: within a grade
+the judge's mean score, highest first, then the mean cost of a run, cheapest first; then the
+entries that are versions of one model (`ModelLineage`'s family of the catalog identity) are
+put newest first in the places that family earned. An entry with a failed run or no score is
+in no order. The orders are written in one edit (`DemoCatalog.orders`). A race that ranks
+nothing writes no order and its outcome carries the reason; the command prints the outcome
+after the discovery's report, and the page shows it in the discovery's result
+(`DiscoverOutcome.order`). `GradeOrderTest` pins the rule and the reading of a report.
 
 ## Skills
 

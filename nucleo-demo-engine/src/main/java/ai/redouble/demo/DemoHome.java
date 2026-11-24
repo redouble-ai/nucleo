@@ -124,6 +124,15 @@ public final class DemoHome {
     }
 
     /**
+     * Makes the given file the one this process writes its catalog to and runs on: the file a
+     * discovery command was told to write, once it exists. Adopted in the same call.
+     */
+    public static synchronized void name(Path file) {
+        catalogFile = file.toAbsolutePath();
+        adopt();
+    }
+
+    /**
      * The first edit's seat: an edit is a person's action, so it may create the deployment's
      * file - the shipped defaults written into the module's {@code models.json} for the edit to
      * land in, adopted by the runtime. A file already there is the person's, left as it is and

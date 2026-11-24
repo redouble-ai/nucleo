@@ -134,8 +134,14 @@ public class CatalogAdmin {
      * credential) is written to the demo's catalog file ({@link DemoHome#catalogFile()}, its
      * module's {@code src/main/resources/models.json}) and {@link Models#reload()} adopts it live.
      * A process outside its module has no such file and is refused before anything is pinged.
+     *
+     * <p>A discovery that creates the file also orders the grades ({@link GradeOrderRace}): a
+     * catalog just written has no order, so each grade would be served by its cheapest entry.
+     * A discovery into a file that exists leaves every order as it stands.
+     *
+     * @param owner the user the ordering race's workflow belongs to
      */
-    public DiscoverOutcome discover() {
+    public DiscoverOutcome discover(String owner) {
         Set<String> scope = new LinkedHashSet<>();
         boolean anyConfigured = false;
         for (ClientProvider<?> provider : ClientProviders.all().values()) {
@@ -161,6 +167,7 @@ public class CatalogAdmin {
                     + " file to write a discovery to. Run the demo from its checkout, or name a file with -D"
                     + JsonModelsBackend.PROPERTY + ".");
         }
+        boolean first = !Files.isRegularFile(out);
         CatalogDiscovery.Result result = CatalogDiscovery.run(false, scope);
         try {
             Files.writeString(out, NucleoJsonSerializer.write(result.catalog()), StandardCharsets.UTF_8);
@@ -172,6 +179,7 @@ public class CatalogAdmin {
         // adopts as well as reloads: on a first run no file existed and nothing had named one,
         // so the write above is what creates the deployment's catalog
         DemoHome.adopt();
+        GradeOrderOutcome order = first ? GradeOrderRace.run(catalog, owner) : null;
         List<ProviderOutcome> outcomes = new ArrayList<>();
         for (CatalogDiscovery.ProviderReport report : result.providers()) {
             if (!scope.contains(report.key())) {
@@ -191,7 +199,7 @@ public class CatalogAdmin {
         return new DiscoverOutcome(result.report(), out.toAbsolutePath().toString(),
                 result.catalog().get("models").size(), List.copyOf(scope), outcomes,
                 result.classifiedBy(), result.classified(), result.classifiedDropped(), result.nonZdr(), result.unserved(),
-                result.classifierFailure(), status());
+                result.classifierFailure(), order, status());
     }
 
     /**

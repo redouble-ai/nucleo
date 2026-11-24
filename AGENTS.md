@@ -95,8 +95,21 @@ Every command from here to step 6 runs in `nucleo-demo`.
 
 The discovery lists every provider the credentials configure, pings every open entry once (a one-word
 prompt, a one-word embed), merges what the account lists into the catalog, validates the
-result by loading it, and writes it. Expect a minute; every ping is one cheap call. The
-report begins at the line `Catalog discovery <timestamp>` and has these sections:
+result by loading it, and writes it. Expect a minute; every ping is one cheap call.
+
+A run that creates the file also orders the grades in it, since a catalog with no order
+serves each grade with its cheapest entry (step 5). Every callable model answers one agent
+query, the strongest model the account serves judges the answers, and each grade's order is
+written to the file's `pins`: the best score first, the cheaper run first among equal scores,
+and a newer version of a model above an older one whatever their scores. A model whose run
+failed or was not scored is in no order. Expect another minute and the cost of one agent run
+per model. The command prints the outcome after the discovery's report, beginning at the line
+`Benchmark:`, with each grade's order and the score behind each entry, or
+`Grades not ordered:` and the reason, in which case step 5 is yours to do. A run that finds
+the file already there changes no order, and neither does `--report-only`, which writes
+nothing.
+
+The discovery's report begins at the line `Catalog discovery <timestamp>` and has these sections:
 
 - `Providers:` one line per provider on the classpath. `listed N models` means the credential
   worked and the account's listing was read. `NOT CONFIGURED - provide ...` names the property
@@ -192,7 +205,10 @@ The catalog's `pins` put each grade's entries in the deployment's order. A reque
 is served by the first entry of that order the deployment can call that accepts what the
 request declares it sends: images, or documents such as a PDF sent whole. The first entry is
 the grade's default, and the rest are its fallbacks, for a missing credential and for inputs
-the default does not accept. Without an order the demo still runs:
+the default does not accept. The discovery that created the file wrote an order for every
+grade it could measure (step 3), so this step is for changing it: a model the person prefers,
+an order measured on a query of their own, a grade the race could not rank. Without an order
+the demo still runs:
 - each grade is served by its cheapest callable entry, input plus output list price per million;
 - a grade with nothing callable is served by the nearest grade above it;
 - a grade above everything callable is served by the strongest there is, so a deployment with

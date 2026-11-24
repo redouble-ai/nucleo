@@ -149,12 +149,7 @@ public class DemoResource {
         }
         Identifiable workflow = Job.workflow("anonymous", "benchmark");
         Benchmark<DemoQuery, DemoAnswer> benchmark = new DemoBenchmark(workflow, input.runs());
-        List<ModelSpec> raced = new ArrayList<>();
-        for (Grade rung : Grade.values()) {
-            if (rung.isRung()) {
-                raced.addAll(Benchmark.candidates(rung));
-            }
-        }
+        List<ModelSpec> raced = DemoBenchmark.everyRung();
         if (raced.isEmpty()) {
             throw refusal(Response.Status.INTERNAL_SERVER_ERROR,
                     "No model to race: a benchmark needs at least one open entry whose provider is configured; provide a credential (POST /connect or the environment) and run the discovery");
@@ -225,12 +220,14 @@ public class DemoResource {
      * The discovery, on a click instead of a terminal: the shared {@link CatalogAdmin} lists and
      * pings only the providers whose credentials are new or changed this session, writes the result
      * to the deployment's {@code models.json} and adopts it live. The click is the authorization.
+     * A discovery that creates the file also orders the grades by one benchmark run per callable
+     * model, and answers when that race is over.
      */
     @POST
     @Path("discover")
     @Produces(MediaType.APPLICATION_JSON)
     public DiscoverOutcome discover() {
-        return mapped(admin::discover);
+        return mapped(() -> admin.discover("anonymous"));
     }
 
     /**

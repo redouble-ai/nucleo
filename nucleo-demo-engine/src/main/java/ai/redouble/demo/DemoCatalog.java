@@ -275,6 +275,27 @@ public class DemoCatalog {
         });
     }
 
+    /**
+     * Several grades' orders in one edit: each grade named takes the order given, and a grade
+     * not named keeps what it has. The loader's rules apply as in {@link #order}, the file is
+     * validated by loading before it is written, and adopted live.
+     *
+     * @throws IllegalArgumentException when an entry is not one the loader accepts in its grade's order
+     * @throws IllegalStateException    when the process has no file to edit or create
+     */
+    public Status orders(Map<Grade, List<String>> orders) {
+        return edit(catalog -> {
+            ObjectNode pins = pinsOf(catalog);
+            orders.forEach((grade, ids) -> {
+                ArrayNode order = pins.putArray(grade.name());
+                for (String id : ids) {
+                    entryOf(catalog, id);
+                    order.add(id);
+                }
+            });
+        });
+    }
+
     /** Takes the entry out of every grade's order, dropping an order it leaves empty and the pins object when nothing is left. */
     private static void leaveOrders(ObjectNode catalog, String id) {
         if (!catalog.path("pins").isObject()) {

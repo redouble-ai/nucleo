@@ -10,6 +10,8 @@ import ai.redouble.nucleo.harness.*;
 import ai.redouble.nucleo.harness.models.*;
 import ai.redouble.nucleo.tools.benchmark.*;
 
+import java.util.*;
+
 /**
  * The demo's benchmark of {@link DemoAgent}: the reference answers on the strongest model the
  * deployment serves - resolved through {@link Grade#CEILING}, the same way the judge is - while
@@ -32,6 +34,15 @@ public final class DemoBenchmark extends Benchmark<DemoQuery, DemoAnswer> {
             agent.setGrade(Grade.CEILING);
             return agent;
         }, runs);
+    }
+
+    /** Every model the deployment can call, of every rung: the field the demo races. */
+    public static List<ModelSpec> everyRung() {
+        List<ModelSpec> raced = new ArrayList<>();
+        for (Grade rung : Grade.rungs()) {
+            raced.addAll(Benchmark.candidates(rung));
+        }
+        return raced;
     }
 
     @Override

@@ -282,6 +282,41 @@ class DemoCatalogTest {
         }
     }
 
+    /** Several grades take their orders in one edit, and a grade the edit does not name keeps the order it had. */
+    @Test
+    void severalGradesAreOrderedInOneEditAndTheOthersKeepTheirs(@TempDir Path dir) throws Exception {
+        String property = System.getProperty(JsonModelsBackend.PROPERTY);
+        Path file = dir.resolve("models.json");
+        Files.writeString(file, new String(DemoCatalogTest.class.getResourceAsStream("/models.json").readAllBytes(), StandardCharsets.UTF_8));
+        System.setProperty(JsonModelsBackend.PROPERTY, file.toString());
+        Models.reload();
+        try {
+            CATALOG.order("XL", List.of("claude-opus-5-bedrock"));
+            Map<Grade, List<String>> orders = new LinkedHashMap<>();
+            orders.put(Grade.MICRO, List.of("nova-micro"));
+            orders.put(Grade.SMALL, List.of("claude-haiku-4-5-bedrock"));
+            DemoCatalog.Status status = CATALOG.orders(orders);
+            assertEquals(List.of("nova-micro"), status.orders().get("MICRO"));
+            assertEquals(List.of("claude-haiku-4-5-bedrock"), status.orders().get("SMALL"));
+            assertEquals(List.of("claude-opus-5-bedrock"), status.orders().get("XL"), "a grade the edit did not name keeps its order");
+            assertEquals(List.of("nova-micro"), Models.pins().grades().get(Grade.MICRO), "and the runtime adopted it live");
+            String before = Files.readString(file);
+            IllegalArgumentException unknown = assertThrows(IllegalArgumentException.class,
+                    () -> CATALOG.orders(Map.of(Grade.MEDIUM, List.of("no-such"))));
+            assertTrue(unknown.getMessage().contains("No entry 'no-such'"), unknown.getMessage());
+            assertEquals(before, Files.readString(file), "a refused edit wrote nothing");
+        }
+        finally {
+            if (property != null) {
+                System.setProperty(JsonModelsBackend.PROPERTY, property);
+            }
+            else {
+                System.clearProperty(JsonModelsBackend.PROPERTY);
+            }
+            Models.reload();
+        }
+    }
+
     /** The grade and status edit alone, as the page sends it; the prices and the confirmation stay as they are. */
     private static DemoCatalog.Status edit(String id, String grade, String status) {
         return CATALOG.editEntry(id, grade, status, null, null, null);

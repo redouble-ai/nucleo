@@ -43,6 +43,10 @@ models exist, what they cost and which one serves each grade of work
 Discover models fills it from your account's own listings, pinging each model once, which
 costs a few cents
 ([Discovering an account's models](../../../../../../../nucleo-core/src/main/java/ai/redouble/nucleo/harness/models/discovery/PACKAGE.md)).
+The discovery that creates the catalog file also orders each grade: every callable model
+answers one agent query, the strongest one judges, and within a grade the best score comes
+first, the cheaper run among equal scores, and a newer version of a model above an older one.
+A later discovery leaves the orders as they are.
 In the table you set each grade's order, the models it prefers from first to last, by
 dragging rows; you choose the embeddings model and the decision model, move a model to
 another grade, disable one, and type a model's list prices. Each change is written to the

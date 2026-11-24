@@ -208,11 +208,13 @@ public class DemoController {
      * The discovery, on a click instead of a terminal: the shared {@link CatalogAdmin} lists and
      * pings only the providers whose credentials are new or changed this session, writes the
      * result to the deployment's {@code models.json} and adopts it live. The click is the
-     * authorization: the pings spend a few cents on the newly connected accounts.
+     * authorization: the pings spend a few cents on the newly connected accounts. A discovery
+     * that creates the file also orders the grades by one benchmark run per callable model, and
+     * answers when that race is over.
      */
     @PostMapping("/discover")
-    public DiscoverOutcome discover() {
-        return mapped(admin::discover);
+    public DiscoverOutcome discover(Principal principal) {
+        return mapped(() -> admin.discover(user(principal)));
     }
 
     /**
@@ -392,12 +394,7 @@ public class DemoController {
         }
         Identifiable workflow = Job.workflow(user(principal), "benchmark");
         Benchmark<DemoQuery, DemoAnswer> benchmark = new DemoBenchmark(workflow, input.runs());
-        List<ModelSpec> raced = new ArrayList<>();
-        for (Grade rung : Grade.values()) {
-            if (rung.isRung()) {
-                raced.addAll(Benchmark.candidates(rung));
-            }
-        }
+        List<ModelSpec> raced = DemoBenchmark.everyRung();
         // known before a byte is sent: refuse with a status instead of opening a stream that can only fail
         if (raced.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,

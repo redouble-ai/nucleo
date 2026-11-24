@@ -22,8 +22,9 @@ import java.io.*;
  * {@code application.yaml}; the dispatcher's lifecycle is the starter's {@code NucleoRuntime}
  * bean; everything else runs on the shipped defaults, AWS through the AWS SDK's own
  * resolution, and each grade served from the first catalog entry a configured provider can
- * call. {@code discover} as the first argument runs the catalog discovery instead of the web
- * server and exits, which the starter's entry point provides. The demo itself - the agent,
+ * call. {@code discover} as the first argument runs the demo's discovery command
+ * ({@link DemoDiscovery}) instead of the web server and exits: the starter's entry point
+ * provides the argument and the context, the engine the command. The demo itself - the agent,
  * the workflows, the index, the corpus, the page - is {@code nucleo-demo-engine}, a module
  * with no web framework in it; the beans below are this host handing the engine to Spring.
  *
@@ -40,7 +41,8 @@ public class NucleoDemoApplication {
         // before anything reads a catalog, so the web run and the discovery command alike read and
         // write it
         DemoHome.configure(NucleoDemoApplication.class, "application.yaml");
-        NucleoSpringApplication.run(NucleoDemoApplication.class, args);
+        NucleoSpringApplication.run(NucleoDemoApplication.class,
+                discovery -> DemoDiscovery.run(new DemoCatalog("nucleo-demo", DISCOVER_COMMAND), discovery), args);
     }
 
     @Bean

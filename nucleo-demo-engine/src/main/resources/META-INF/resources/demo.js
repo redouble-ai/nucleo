@@ -289,7 +289,9 @@ KEV_API_KEY=$(openssl rand -hex 24) modal deploy kev_serve.py</pre>
       <div class="muted brief" style="flex:1 1 320px">Asks the connected providers what they serve, pings each model,
         writes <code>models.json</code> (models and limits - never a key) and reloads the catalog live, so the
         steps below use the result at once. Incremental: a connection already discovered this session is
-        skipped, only new or changed credentials are queried. A ping per model: a few cents, a minute or two.</div>
+        skipped, only new or changed credentials are queried. A ping per model: a few cents, a minute or two.
+        The discovery that creates the file also orders each grade: every callable model answers one agent query,
+        the strongest one judges, and the best answers serve first. That adds one agent run per model.</div>
     </form><div class="result" id="discover-result"></div>`;
   }
   // callable entries first; an entry whose provider holds no credential, or that the runtime
@@ -652,6 +654,13 @@ $('setup-body').addEventListener('submit', async event => {
         ${d.classified && d.classified.length ? `<li><b>${d.classified.length} listed models the catalog had no shape for were
           classified by <code>${esc(d.classifiedBy)}</code></b>. The strongest model you can call wrote their entries,
           each pinged live and carrying a note naming what to verify:${ids(d.classified)}</li>` : ''}
+        ${d.order && !d.order.failure ? `<li><b>Each grade is ordered by a measured run.</b> This discovery created the catalog, so
+          ${d.order.measured} callable models each answered one agent query, judged by <code>${esc(d.order.judge)}</code>${d.order.cost === null || d.order.cost === undefined ? '' : `, for ${money(d.order.cost, d.order.currency)}`}.
+          Within a grade the best score comes first, price breaks a tie, and a newer version of a model stands above an older one.
+          ${d.order.leftOut > 0 ? `${d.order.leftOut} model${d.order.leftOut > 1 ? 's are' : ' is'} in no order: the run failed or was not scored.` : ''}
+          Change the order in the models table, or by step 7's benchmark on a query of your own.
+          <ul>${Object.entries(d.order.orders).map(([grade, ordered]) => `<li>${esc(grade)}: ${ordered.map(id => `<code>${esc(id)}</code> <span class="muted">${dec(d.order.scores[id])}</span>`).join(', ')}</li>`).join('')}</ul></li>` : ''}
+        ${d.order && d.order.failure ? `<li><span style="color:var(--bad)">The grades were not ordered: ${esc(d.order.failure)}</span> Each grade is served by its cheapest callable model until you order it in the models table or by step 7's benchmark.</li>` : ''}
         ${skipped > 0 ? `<li>${skipped} connection${skipped > 1 ? 's' : ''} discovered earlier this session ${skipped > 1 ? 'were' : 'was'} left as ${skipped > 1 ? 'they were' : 'it was'}.</li>` : ''}</ul>
         The steps below use it now.</div>`;
     } catch (e) {
