@@ -37,6 +37,9 @@ import java.lang.annotation.*;
  *
  * {@literal @}LLMSummarizable(value = "clinical description", llmSafe = false)
  * private String clinicalConsequence;
+ *
+ * {@literal @}LLMSummarizable(value = "stack trace", threshold = 500, summarizer = TopFrames.class)
+ * private String stackTrace;
  * </pre>
  *
  * @author Andrey Santrosyan
@@ -106,4 +109,18 @@ public @interface LLMSummarizable {
      * documents.
      */
     SummarySize size() default SummarySize.SHORT;
+
+    /**
+     * The class that summarizes this field, for a value whose structure a general summary
+     * would lose: JSON, a stack trace, a list of identifiers. When stated, the serializer
+     * hands the field's value to an instance of it, whatever the value's type, and no other
+     * summarizer is used for the field. The value is summarized when it is longer than
+     * {@link #threshold()}: the length of a text, and for any other value the length of
+     * its JSON. The class has a public no-argument constructor.
+     *
+     * <p>Default: {@link FieldSummarizer.None}, which states none. A text field is then
+     * summarized by the serialization's {@link Summarizer}, and a field of another type
+     * is written whole.
+     */
+    Class<? extends FieldSummarizer<?>> summarizer() default FieldSummarizer.None.class;
 }

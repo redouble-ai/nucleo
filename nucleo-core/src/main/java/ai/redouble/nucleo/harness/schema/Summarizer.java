@@ -18,11 +18,15 @@ package ai.redouble.nucleo.harness.schema;
  *       never from resource-bearing Tools.</li>
  * </ul>
  *
+ * <p>A field that names its own {@link FieldSummarizer} with
+ * {@link LLMSummarizable#summarizer()} is summarized by that class and never reaches this
+ * strategy.
+ *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-04-03)
  */
 @FunctionalInterface
-public interface Summarizer {
+public interface Summarizer extends FieldSummarizer<String> {
     /**
      * Summarize text that exceeds the annotation threshold.
      *
@@ -30,5 +34,6 @@ public interface Summarizer {
      * @param annotation the @LLMSummarizable annotation from the field
      * @return summary string, typically in format "[SUMMARY: X chars] brief..."
      */
+    @Override
     String summarize(String text, LLMSummarizable annotation);
 }

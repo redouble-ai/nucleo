@@ -3,6 +3,16 @@
 Every release of Nucleo, newest first. Released artifacts are on Maven Central under the
 group `ai.redouble`; a published version is never changed in place.
 
+## Unreleased
+
+- A field can name the class that summarizes it. `@LLMSummarizable` shortened a long text in
+  one of three general ways and wrote a field of any other type whole, so a value with a
+  structure of its own (JSON, a stack trace, a list of identifiers) was either cut in the
+  middle or shown in full. `@LLMSummarizable(summarizer = ...)` names a `FieldSummarizer<T>`,
+  a new interface that `Summarizer` now extends for text. The serializer hands that class the
+  field's value, whatever its type, when the value is longer than `threshold`, and uses no
+  other summarizer for the field. A field that names none behaves as before.
+
 ## 0.1.5 (2026-11-23)
 
 - The demo's first discovery orders each grade by a measured run. A catalog a discovery had

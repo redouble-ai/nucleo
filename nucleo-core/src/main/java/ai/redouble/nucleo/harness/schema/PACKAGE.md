@@ -111,6 +111,13 @@ may be shortened depends on what the data is:
 | Prose worth summarizing: web pages, patents, abstracts | `@LLMSummarizable("web page content")` | a summary written by a model |
 | Text a paraphrase would corrupt: clinical records, precisely formatted text | `@LLMSummarizable(value = "clinical note", llmSafe = false)` | the text cut short, never reworded |
 | Data no model should rewrite: chemical structures, sequences, code | `@LLMSummarizable(staticSummary = "SMILES string")` | a fixed phrase in place of the value |
+| A value with a structure of its own: JSON, a stack trace, a list of identifiers | `@LLMSummarizable(value = "job input", summarizer = MySummarizer.class)` | what your class writes for the value |
+
+A field's own summarizer is a class that implements `FieldSummarizer<T>`, where `T` is the
+field's type, and has a public no-argument constructor. It is the one case in which a field
+that is no text is shortened: the value is handed to your class when it is longer than
+`threshold`, which is the length of a text and, for any other value, the length of its JSON.
+A field that names a summarizer is never given to any other.
 
 `size` sets how long a summary may be: `BRIEF`, `SHORT` or `PARAGRAPHS`. On an artifact, a
 model that needs the full value of a summarized field can ask for it with the

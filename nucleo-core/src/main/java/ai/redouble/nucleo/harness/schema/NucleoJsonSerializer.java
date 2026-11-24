@@ -419,6 +419,8 @@ public class NucleoJsonSerializer {
      * Modifies serializers for two concerns:
      * 1. Artifact fields: in LLM_REF mode, writes @ref instead of full content
      * 2. @LLMSummarizable String fields: in summarized modes, delegates to Summarizer
+     * 3. @LLMSummarizable fields of any type that name a FieldSummarizer: in summarized
+     *    modes, delegates to it
      */
     static class NucleoSerializerModifier extends BeanSerializerModifier {
         @Override
@@ -437,7 +439,7 @@ public class NucleoJsonSerializer {
                     continue;
                 }
                 LLMSummarizable anno = writer.getAnnotation(LLMSummarizable.class);
-                if (anno != null && (anno.preSummarized() || writer.getType().getRawClass() == String.class)) {
+                if (anno != null && (anno.preSummarized() || anno.summarizer() != FieldSummarizer.None.class || writer.getType().getRawClass() == String.class)) {
                     beanProperties.set(i, new SummarizablePropertyWriter(writer, anno));
                 }
             }
@@ -608,7 +610,8 @@ public class NucleoJsonSerializer {
     }
 
     /**
-     * Property writer that handles @LLMSummarizable String fields.
+     * Property writer that handles @LLMSummarizable fields: a String field, and a field
+     * of any type that names its own {@link FieldSummarizer}.
      * In summarized modes, checks cache (for artifacts) or calls Summarizer.
      * In standard mode, writes full text.
      */
@@ -616,6 +619,8 @@ public class NucleoJsonSerializer {
         private final BeanPropertyWriter delegate;
         private final LLMSummarizable annotation;
         private final String snakeCaseFieldName;
+        /** The summarizer the field names for itself; null when it names none. */
+        private final FieldSummarizer<?> fieldSummarizer;
 
         SummarizablePropertyWriter(BeanPropertyWriter delegate, LLMSummarizable annotation) {
             super(delegate);
@@ -623,6 +628,41 @@ public class NucleoJsonSerializer {
             this.annotation = annotation;
             // Pre-compute snake_case name for cache lookups
             this.snakeCaseFieldName = delegate.getName();
+            this.fieldSummarizer = annotation.summarizer() == FieldSummarizer.None.class ? null : instantiate(annotation.summarizer());
+        }
+
+        private static FieldSummarizer<?> instantiate(Class<? extends FieldSummarizer<?>> summarizerClass) {
+            try {
+                return summarizerClass.getConstructor().newInstance();
+            }
+            catch (ReflectiveOperationException e) {
+                throw new IllegalStateException("The summarizer " + summarizerClass.getName()
+                                                + " named by @LLMSummarizable needs a public no-argument constructor", e);
+            }
+        }
+
+        /**
+         * Writes a field that names its own summarizer: whole when the value is no longer
+         * than the threshold, and otherwise as that summarizer writes it. The length is
+         * that of a text, and for any other value that of its compact JSON. On an artifact the
+         * summary is kept, so the summarizer runs once for a value.
+         */
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        private void writeWithFieldSummarizer(Object bean, Object rawValue, JsonGenerator gen, SerializerProvider provider) throws Exception {
+            String text = rawValue instanceof String s ? s : NucleoJsonSerializer.writeCompact(rawValue);
+            if (text.length() <= annotation.threshold()) {
+                delegate.serializeAsField(bean, gen, provider);
+                return;
+            }
+            SummarizedField cached = bean instanceof Artifact artifact ? artifact.getCachedSummary(snakeCaseFieldName) : null;
+            if (cached == null) {
+                cached = new SummarizedField(text, ((FieldSummarizer) fieldSummarizer).summarize(rawValue, annotation));
+                if (bean instanceof Artifact artifact) {
+                    artifact.cacheSummary(snakeCaseFieldName, cached);
+                }
+            }
+            gen.writeFieldName(snakeCaseFieldName);
+            gen.writeString(cached.getSummary());
         }
 
         @Override
@@ -651,6 +691,10 @@ public class NucleoJsonSerializer {
                 }
                 gen.writeFieldName(snakeCaseFieldName);
                 writePreSummarized(rawValue, "", artifact, gen, provider);
+                return;
+            }
+            if (fieldSummarizer != null) {
+                writeWithFieldSummarizer(bean, rawValue, gen, provider);
                 return;
             }
             if (!(rawValue instanceof String text)) {

@@ -88,6 +88,7 @@ public class SummarizationToolPromptTest {
             @Override public boolean llmSafe() { return true; }
             @Override public boolean preSummarized() { return false; }
             @Override public SummarySize size() { return size; }
+            @Override public Class<? extends FieldSummarizer<?>> summarizer() { return FieldSummarizer.None.class; }
         };
     }
 }

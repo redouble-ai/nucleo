@@ -54,6 +54,7 @@ public final class MCPResultWalker {
         @Override public boolean llmSafe() { return true; }
         @Override public boolean preSummarized() { return false; }
         @Override public SummarySize size() { return SummarySize.SHORT; }
+        @Override public Class<? extends FieldSummarizer<?>> summarizer() { return FieldSummarizer.None.class; }
     };
 
     private MCPResultWalker() {
