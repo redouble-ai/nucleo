@@ -182,6 +182,23 @@ public class FieldSummarizerTest {
     }
 
     @Test
+    public void theSummarizerOfTheSerializationNeverFailsItEither() throws Exception {
+        Row row = new Row();
+        row.setNote("word ".repeat(400));
+        LLMSummarizable note = Row.class.getDeclaredField("note").getAnnotation(LLMSummarizable.class);
+        String cut = new TruncatingSummarizer().summarize(row.getNote(), note);
+        Summarizer throwing = (text, annotation) -> {
+            throw new IllegalStateException("this summarizer cannot summarize");
+        };
+        assertEquals(cut, NucleoJsonSerializer.readTree(NucleoJsonSerializer.writeSummarized(row, throwing)).get("note").asText(),
+                     "a field that names no summarizer is cut short when the summarizer handed to the serialization throws");
+        Row other = new Row();
+        other.setNote(row.getNote());
+        assertEquals(cut, NucleoJsonSerializer.readTree(NucleoJsonSerializer.writeSummarized(other, (text, annotation) -> null)).get("note").asText(),
+                     "and when it returns nothing");
+    }
+
+    @Test
     public void aSummarizerThatCannotBeMadeLeavesItsFieldCutAsPlainText() throws Exception {
         Broken broken = new Broken();
         broken.setText("word ".repeat(400));

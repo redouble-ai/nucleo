@@ -18,6 +18,10 @@ package ai.redouble.nucleo.harness.schema;
  *       never from resource-bearing Tools.</li>
  * </ul>
  *
+ * <p>Summarizing saves tokens and never fails a serialization. When an implementation
+ * throws or returns null, the failure is logged and the text is cut short as
+ * {@link TruncatingSummarizer} cuts it; when that fails too, the text is written whole.
+ *
  * <p>A field that names its own {@link FieldSummarizer} with
  * {@link LLMSummarizable#summarizer()} is summarized by that class and never reaches this
  * strategy.

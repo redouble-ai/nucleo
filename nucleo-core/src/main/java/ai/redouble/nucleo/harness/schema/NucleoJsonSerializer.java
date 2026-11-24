@@ -652,10 +652,9 @@ public class NucleoJsonSerializer {
          * that of a text, and for any other value that of its compact JSON. On an artifact the
          * summary is kept, so the summarizer runs once for a value.
          *
-         * <p>Summarizing saves tokens and is never a reason for a serialization to fail. A
-         * summarizer that throws, returns nothing or could not be made is logged and passed
-         * over: the value is then cut short as plain text is, and when that fails too it
-         * is written whole.
+         * <p>A summarizer that throws, returns nothing or could not be made is logged and
+         * passed over, as {@link #summaryOrNull} states: the value is then cut short as
+         * plain text is, and when that fails too it is written whole.
          */
         @SuppressWarnings({"unchecked", "rawtypes"})
         private void writeWithFieldSummarizer(Object bean, Object rawValue, JsonGenerator gen, SerializerProvider provider) throws Exception {
@@ -666,24 +665,7 @@ public class NucleoJsonSerializer {
             }
             SummarizedField cached = bean instanceof Artifact artifact ? artifact.getCachedSummary(snakeCaseFieldName) : null;
             if (cached == null) {
-                String summary = null;
-                if (fieldSummarizer != null) {
-                    try {
-                        summary = ((FieldSummarizer) fieldSummarizer).summarize(rawValue, annotation);
-                    }
-                    catch (RuntimeException e) {
-                        log.warn("The summarizer {} failed on {}.{}; the value is cut short as plain text",
-                                 fieldSummarizer.getClass().getName(), bean.getClass().getSimpleName(), delegate.getName(), e);
-                    }
-                }
-                if (summary == null) {
-                    try {
-                        summary = DEFAULT_SUMMARIZER.summarize(text, annotation);
-                    }
-                    catch (RuntimeException e) {
-                        log.warn("Cutting {}.{} short failed; the value is written whole", bean.getClass().getSimpleName(), delegate.getName(), e);
-                    }
-                }
+                String summary = summaryOrNull((FieldSummarizer) fieldSummarizer, rawValue, text, bean);
                 if (summary == null) {
                     delegate.serializeAsField(bean, gen, provider);
                     return;
@@ -695,6 +677,39 @@ public class NucleoJsonSerializer {
             }
             gen.writeFieldName(snakeCaseFieldName);
             gen.writeString(cached.getSummary());
+        }
+
+        /**
+         * The summary of a field's value, or null when none could be made and the value
+         * is to be written whole. Summarizing saves tokens and is never a reason for a
+         * serialization to fail, so the steps cascade: the given summarizer, which is
+         * null when the field's own could not be made; then the plain cut of the value's
+         * text. A step that throws or returns null is logged and passed over.
+         *
+         * @param summarizer the field's own summarizer or the one of the serialization
+         * @param value what that summarizer takes: the field's value
+         * @param text the value as text, which the plain cut takes
+         */
+        private <T> String summaryOrNull(FieldSummarizer<T> summarizer, T value, String text, Object bean) {
+            String summary = null;
+            if (summarizer != null) {
+                try {
+                    summary = summarizer.summarize(value, annotation);
+                }
+                catch (RuntimeException e) {
+                    log.warn("The summarizer {} failed on {}.{}; the value is cut short as plain text",
+                             summarizer.getClass().getName(), bean.getClass().getSimpleName(), delegate.getName(), e);
+                }
+            }
+            if (summary == null) {
+                try {
+                    summary = DEFAULT_SUMMARIZER.summarize(text, annotation);
+                }
+                catch (RuntimeException e) {
+                    log.warn("Cutting {}.{} short failed; the value is written whole", bean.getClass().getSimpleName(), delegate.getName(), e);
+                }
+            }
+            return summary;
         }
 
         @Override
@@ -757,7 +772,11 @@ public class NucleoJsonSerializer {
             if (summarizer == null) {
                 summarizer = DEFAULT_SUMMARIZER;
             }
-            String summary = summarizer.summarize(text, annotation);
+            String summary = summaryOrNull(summarizer, text, text, bean);
+            if (summary == null) {
+                delegate.serializeAsField(bean, gen, provider);
+                return;
+            }
 
             // Cache on artifact so subsequent serializations reuse the result
             if (bean instanceof Artifact artifact) {
