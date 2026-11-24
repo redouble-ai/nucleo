@@ -434,10 +434,16 @@ model of every rung, on the query in the engine's resource
 `ai/redouble/demo/grade-order-query.txt`. No grade has an order yet, so the reference and
 the judge run on the entry the runtime's `Yardstick` ranks first in the strongest grade: an
 Anthropic or OpenAI model when the account has one, the newest version, the dearest.
-`GradeOrder` reads the report: within a grade
-the judge's mean score, highest first, then the mean cost of a run, cheapest first; then the
-entries that are versions of one model (`ModelLineage`'s family of the catalog identity) are
-put newest first in the places that family earned. An entry with a failed run or no score is
+`GradeOrder` reads the report: within a grade the entries that answered the question (a score
+of `GradeOrder.PASS`, half marks, or more) stand before the ones that did not, so a familiar
+entry that scored nothing leads nothing. Among each, the familiar entries stand before the ones this
+discovery's classifying model wrote (`CatalogDiscovery.Result.classified()`), since a guessed
+grade can put a weak model in a strong grade and one easy question does not tell them apart.
+Each of the two groups stands by the judge's mean score, highest first, in tiers: a tier's best
+score and every score within `GradeOrder.TIE` (half a point) of it are one score. Within a
+tier the cheaper list price comes first, then the catalog id; then the entries that are
+versions of one model (`ModelLineage`'s family of the catalog identity) are put newest first
+in the places that family earned. An entry with a failed run or no score is
 in no order. The orders are written in one edit (`DemoCatalog.orders`). A race that ranks
 nothing writes no order and its outcome carries the reason; the command prints the outcome
 after the discovery's report, and the page shows it in the discovery's result

@@ -56,10 +56,10 @@ public final class DemoDiscovery {
         dispatcher.sealComplianceEnvelope(CatalogDiscovery.permitting());
         dispatcher.start();
         try {
-            CatalogDiscovery.execute(arguments.toArray(String[]::new));
+            CatalogDiscovery.Result result = CatalogDiscovery.execute(arguments.toArray(String[]::new));
             if (first && Files.isRegularFile(out)) {
                 DemoHome.name(out);
-                System.out.println(GradeOrderRace.describe(GradeOrderRace.run(catalog, OWNER)));
+                System.out.println(GradeOrderRace.describe(GradeOrderRace.run(catalog, OWNER, result.classified())));
             }
         }
         finally {

@@ -179,7 +179,7 @@ public class CatalogAdmin {
         // adopts as well as reloads: on a first run no file existed and nothing had named one,
         // so the write above is what creates the deployment's catalog
         DemoHome.adopt();
-        GradeOrderOutcome order = first ? GradeOrderRace.run(catalog, owner) : null;
+        GradeOrderOutcome order = first ? GradeOrderRace.run(catalog, owner, result.classified()) : null;
         List<ProviderOutcome> outcomes = new ArrayList<>();
         for (CatalogDiscovery.ProviderReport report : result.providers()) {
             if (!scope.contains(report.key())) {

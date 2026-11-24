@@ -310,8 +310,9 @@ public final class CatalogDiscovery {
      * unless told not to. The file written is the one {@code --out} names, else the one
      * {@code -Dnucleo.models} names; the runtime reads its catalog off the classpath, so where the
      * written file goes to be read - an application's {@code src/main/resources} - is the caller's.
+     * Returns the run's result, for a caller that goes on from it.
      */
-    public static void execute(String[] args) throws IOException {
+    public static Result execute(String[] args) throws IOException {
         Path out = JsonModelsBackend.namedFile();
         boolean reportOnly = false;
         boolean includeOlder = false;
@@ -336,11 +337,12 @@ public final class CatalogDiscovery {
             System.exit(1);
         }
         if (reportOnly) {
-            return;
+            return result;
         }
         Files.writeString(out, NucleoJsonSerializer.write(result.catalog()), StandardCharsets.UTF_8);
         System.out.println("Wrote " + out.toAbsolutePath() + " (" + result.catalog().get("models").size() + " entries"
                 + (result.catalog().has("pins") ? ", pins kept" : "") + ")");
+        return result;
     }
 
     Result discover() {

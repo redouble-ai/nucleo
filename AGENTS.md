@@ -100,8 +100,11 @@ result by loading it, and writes it. Expect a minute; every ping is one cheap ca
 A run that creates the file also orders the grades in it, since a catalog with no order
 serves each grade with its cheapest entry (step 5). Every callable model answers one agent
 query, the strongest model the account serves judges the answers, and each grade's order is
-written to the file's `pins`: the best score first, the cheaper run first among equal scores,
-and a newer version of a model above an older one whatever their scores. A model whose run
+written to the file's `pins`: the best score first, the cheaper list price first among scores
+within half a point of each other, and a newer version of a model above an older one whatever
+their scores. A model the catalog had no entry for, whose grade the discovery's classifying
+model guessed, stands behind the grade's familiar models whatever it scored, and a model that
+scored under half marks stands behind every model that did not. A model whose run
 failed or was not scored is in no order. Expect another minute and the cost of one agent run
 per model. The command prints the outcome after the discovery's report, beginning at the line
 `Benchmark:`, with each grade's order and the score behind each entry, or

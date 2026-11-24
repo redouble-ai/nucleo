@@ -23,8 +23,48 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class GradeOrderTest {
 
-    private static GradeOrder.Measured ran(String id, Grade grade, String identity, Double score, Double cost) {
-        return new GradeOrder.Measured(id, grade, identity, 0, score, cost);
+    private static GradeOrder.Measured ran(String id, Grade grade, String identity, Double score, Double price) {
+        return new GradeOrder.Measured(id, grade, identity, true, 0, score, price);
+    }
+
+    private static GradeOrder.Measured guessed(String id, Grade grade, String identity, Double score, Double price) {
+        return new GradeOrder.Measured(id, grade, identity, false, 0, score, price);
+    }
+
+    @Test
+    void scoresWithinHalfAPointOfATiersBestAreOneScoreAndPriceOrdersThem() {
+        Map<Grade, List<String>> orders = GradeOrder.of(List.of(
+                ran("ten-dear", Grade.MEDIUM, "alpha-1", 10.0, 12.0),
+                ran("nine-five-cheap", Grade.MEDIUM, "beta-1", 9.5, 0.75),
+                ran("nine", Grade.MEDIUM, "gamma-1", 9.0, 0.10),
+                ran("eight-five", Grade.MEDIUM, "delta-1", 8.5, 0.05),
+                ran("eight", Grade.MEDIUM, "epsilon-1", 8.0, 0.01)));
+        assertEquals(List.of("nine-five-cheap", "ten-dear", "eight-five", "nine", "eight"), orders.get(Grade.MEDIUM),
+                "10 and 9.5 tie and the cheaper leads; 9 is a full point under the best, so it starts the next tier with 8.5; 8 is alone");
+    }
+
+    @Test
+    void anUnfamiliarEntryStandsBehindEveryFamiliarOneThatAnsweredWhateverItScoredOrCosts() {
+        Map<Grade, List<String>> orders = GradeOrder.of(List.of(
+                guessed("guess-perfect", Grade.XL, "minimax-m2.5", 10.0, 1.5),
+                ran("known-good", Grade.XL, "opus-5.5", 9.5, 26.4),
+                ran("known-fair", Grade.XL, "alpha-1", 6.0, 30.0),
+                guessed("guess-good", Grade.XL, "kimi-k3.1", 9.5, 3.1),
+                guessed("only-guess", Grade.LARGE, "pixtral-large-2502", 9.5, 8.0)));
+        assertEquals(List.of("known-good", "known-fair", "guess-perfect", "guess-good"), orders.get(Grade.XL),
+                "the familiar entries by score, then the guessed ones by score and price");
+        assertEquals(List.of("only-guess"), orders.get(Grade.LARGE), "a grade that holds only guesses is still ordered");
+    }
+
+    @Test
+    void aFamiliarEntryThatDidNotAnswerLeadsNothing() {
+        Map<Grade, List<String>> orders = GradeOrder.of(List.of(
+                ran("known-zero", Grade.MICRO, "nova-micro", 0.0, 0.175),
+                guessed("guess-good", Grade.MICRO, "nova-2-lite", 9.5, 2.8),
+                guessed("guess-zero", Grade.MICRO, "gemma-3-4b-it", 0.0, 0.1),
+                ran("known-pass", Grade.MICRO, "alpha-1", 5.0, 9.0)));
+        assertEquals(List.of("known-pass", "guess-good", "known-zero", "guess-zero"), orders.get(Grade.MICRO),
+                "those that answered first, the familiar one ahead; then those that did not, the familiar one ahead again");
     }
 
     @Test
@@ -36,7 +76,7 @@ class GradeOrderTest {
                 ran("tie-cheap", Grade.SMALL, "delta-1", 7.0, 0.002),
                 ran("tie-unpriced", Grade.SMALL, "epsilon-1", 7.0, null)));
         assertEquals(List.of("dear-strong", "tie-cheap", "tie-dear", "tie-unpriced", "cheap-weak"), orders.get(Grade.SMALL),
-                "score first; among equal scores the cheaper run, and an unpriced one after every priced one");
+                "score first; among equal scores the cheaper list price, and an unpriced one after every priced one");
     }
 
     @Test
@@ -61,7 +101,7 @@ class GradeOrderTest {
     @Test
     void aFailedNewerVersionIsLeftOutAndTheOlderOneStandsInForIt() {
         Map<Grade, List<String>> orders = GradeOrder.of(List.of(
-                new GradeOrder.Measured("sonnet-new", Grade.MEDIUM, "sonnet-5.5", 1, null, null),
+                new GradeOrder.Measured("sonnet-new", Grade.MEDIUM, "sonnet-5.5", true, 1, null, null),
                 ran("sonnet-old", Grade.MEDIUM, "sonnet-5", 9.0, 0.02),
                 ran("unscored", Grade.MEDIUM, "zeta-1", null, 0.01)));
         assertEquals(List.of("sonnet-old"), orders.get(Grade.MEDIUM), "a failed run and an unscored one are in no order");
@@ -79,7 +119,7 @@ class GradeOrderTest {
     void aGradeWithNothingThatQualifiesHasNoOrderAndGradesComeInTheRungsOrder() {
         Map<Grade, List<String>> orders = GradeOrder.of(List.of(
                 ran("big", Grade.XL, "opus-5", 9.0, 0.09),
-                new GradeOrder.Measured("broken", Grade.MEDIUM, "sonnet-5", 1, null, null),
+                new GradeOrder.Measured("broken", Grade.MEDIUM, "sonnet-5", true, 1, null, null),
                 ran("small", Grade.MICRO, "nova-micro", 5.0, 0.001)));
         assertEquals(List.of(Grade.MICRO, Grade.XL), new ArrayList<>(orders.keySet()));
         assertFalse(orders.containsKey(Grade.MEDIUM));
@@ -116,7 +156,7 @@ class GradeOrderTest {
         report.getRows().add(row(0.001));
         report.getRows().add(row(0.01));
         report.getRows().add(row(null));
-        GradeOrderOutcome outcome = GradeOrderRace.rank(report, 3);
+        GradeOrderOutcome outcome = GradeOrderRace.rank(report, 3, List.of());
         assertNull(outcome.failure());
         assertEquals("claude-opus-5-bedrock", outcome.judge());
         assertEquals(3, outcome.measured());
@@ -136,7 +176,7 @@ class GradeOrderTest {
         BenchmarkReport report = new BenchmarkReport();
         report.setJudgeFailure("the reference run failed, so there is nothing to judge against: refused");
         report.getSummaries().add(summary("nova-micro", false, 0, null, 0.001));
-        GradeOrderOutcome outcome = GradeOrderRace.rank(report, 1);
+        GradeOrderOutcome outcome = GradeOrderRace.rank(report, 1, List.of());
         assertEquals("the reference run failed, so there is nothing to judge against: refused", outcome.failure());
         assertTrue(outcome.orders().isEmpty());
         assertEquals("Grades not ordered: " + outcome.failure(), GradeOrderRace.describe(outcome));

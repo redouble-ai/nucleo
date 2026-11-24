@@ -46,8 +46,10 @@ public final class GradeOrderRace {
      *
      * @param catalog the demo's catalog, whose file takes the orders
      * @param owner   the user the race's workflow belongs to
+     * @param guessed the catalog ids of the entries this discovery's classifying model wrote,
+     *                which stand behind the familiar entries of their grade
      */
-    public static GradeOrderOutcome run(DemoCatalog catalog, String owner) {
+    public static GradeOrderOutcome run(DemoCatalog catalog, String owner, Collection<String> guessed) {
         List<ModelSpec> raced = DemoBenchmark.everyRung();
         if (raced.isEmpty()) {
             return failed(null, 0, "no graded model is callable, so there is nothing to order");
@@ -69,7 +71,7 @@ public final class GradeOrderRace {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Interrupted while the race that orders the grades ran", e);
         }
-        GradeOrderOutcome outcome = rank(benchmark.report(), raced.size());
+        GradeOrderOutcome outcome = rank(benchmark.report(), raced.size(), guessed);
         if (outcome.failure() == null) {
             Map<Grade, List<String>> orders = new LinkedHashMap<>();
             outcome.orders().forEach((grade, ids) -> orders.put(Grade.valueOf(grade), ids));
@@ -79,7 +81,7 @@ public final class GradeOrderRace {
     }
 
     /** The race's report read as the grades' orders: what {@link #run} writes, or why nothing can be written. */
-    static GradeOrderOutcome rank(BenchmarkReport report, int raced) {
+    static GradeOrderOutcome rank(BenchmarkReport report, int raced, Collection<String> guessed) {
         List<GradeOrder.Measured> measured = new ArrayList<>();
         Map<String, Double> scores = new LinkedHashMap<>();
         Double cost = null;
@@ -95,8 +97,9 @@ public final class GradeOrderRace {
                 continue;
             }
             ModelSpec spec = Models.spec(summary.getModelId());
-            measured.add(new GradeOrder.Measured(spec.getId(), spec.getGrade(), spec.getIdentity(), summary.getFailed(),
-                    summary.getMeanJudgeScore(), summary.getMeanCost()));
+            Double price = spec.isPriced() && spec.getOutputPricePerMillion() != null ? spec.getInputPricePerMillion() + spec.getOutputPricePerMillion() : null;
+            measured.add(new GradeOrder.Measured(spec.getId(), spec.getGrade(), spec.getIdentity(), !guessed.contains(spec.getId()),
+                    summary.getFailed(), summary.getMeanJudgeScore(), price));
             if (summary.getFailed() == 0 && summary.getMeanJudgeScore() != null) {
                 scores.put(spec.getId(), summary.getMeanJudgeScore());
             }

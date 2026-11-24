@@ -9,9 +9,12 @@ group `ai.redouble`; a published version is never changed in place.
   just written had no order, so every grade was served by its cheapest callable model, often
   one that cannot follow a reply format. The discovery that creates `models.json`, from the
   page's button or the `discover` command, now runs the demo's benchmark once on every
-  callable model and writes each grade's order: the judge's best score first, the cheaper run
-  among equal scores, and a newer version of a model above an older one. A model whose run
-  failed is in no order. A discovery into a file that exists changes no order. The demo's
+  callable model and writes each grade's order: the judge's best score first, the cheaper list
+  price among scores within half a point of each other, and a newer version of a model above
+  an older one. A model the catalog had no entry for, whose grade the discovery's classifying
+  model guessed, stands behind the grade's familiar models, and a model that scored under half
+  marks stands behind every model that did not. A model whose run failed is in no
+  order. A discovery into a file that exists changes no order. The demo's
   `discover` command also writes its module's `models.json` when no file exists yet, where it
   used to stop and ask for `--out`. `NucleoSpringApplication.run` has an overload that takes
   the application's own command for the `discover` argument.

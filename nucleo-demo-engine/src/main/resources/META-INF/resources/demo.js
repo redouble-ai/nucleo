@@ -656,7 +656,8 @@ $('setup-body').addEventListener('submit', async event => {
           each pinged live and carrying a note naming what to verify:${ids(d.classified)}</li>` : ''}
         ${d.order && !d.order.failure ? `<li><b>Each grade is ordered by a measured run.</b> This discovery created the catalog, so
           ${d.order.measured} callable models each answered one agent query, judged by <code>${esc(d.order.judge)}</code>${d.order.cost === null || d.order.cost === undefined ? '' : `, for ${money(d.order.cost, d.order.currency)}`}.
-          Within a grade the best score comes first, price breaks a tie, and a newer version of a model stands above an older one.
+          Within a grade the best score comes first, the cheaper list price among scores within half a point of each other, and a newer version of a model stands above an older one.
+          A model the catalog had no entry for stands behind the familiar ones, since its grade is a guess, and a model that scored under half marks stands behind every model that did not.
           ${d.order.leftOut > 0 ? `${d.order.leftOut} model${d.order.leftOut > 1 ? 's are' : ' is'} in no order: the run failed or was not scored.` : ''}
           Change the order in the models table, or by step 7's benchmark on a query of your own.
           <ul>${Object.entries(d.order.orders).map(([grade, ordered]) => `<li>${esc(grade)}: ${ordered.map(id => `<code>${esc(id)}</code> <span class="muted">${dec(d.order.scores[id])}</span>`).join(', ')}</li>`).join('')}</ul></li>` : ''}
