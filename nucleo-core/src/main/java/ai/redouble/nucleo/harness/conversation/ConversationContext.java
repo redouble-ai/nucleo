@@ -1217,6 +1217,10 @@ public class ConversationContext implements Serializable {
             // The registry is data derived from tool results, not instruction, so it is a
             // user turn - never system content. It is rewritten as artifacts arrive, so no
             // stored prefix ends on it
+
+            // @TODO investigate the option of embedding the known parts of the artifact
+            // registry once they are known, so that they can be cached. There are some
+            // drawbacks, and it is not settled that this route is taken in the end
             result.add(ProcessedMessageData.textOnly(TurnRole.USER, registrySection, Cacheability.UNLIKELY));
         }
         return new PreparedConversation(systemText, cacheMainObjective, palette, result, registrySection.isEmpty() ? null : registrySection);
