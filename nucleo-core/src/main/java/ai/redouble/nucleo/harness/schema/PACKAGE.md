@@ -105,19 +105,21 @@ Some fields hold more than is worth showing a model in full: a web page, a paten
 specification, a protein sequence. Mark such a field `@LLMSummarizable` and, when its value
 is long, the model is shown a summary while the object keeps the whole value.
 
-The annotation goes on a field of an artifact, a class that implements `Artifact`
-([Artifacts](../artifacts/PACKAGE.md)), and nowhere else. A model that is shown a summary
-has to be able to read the whole value, and an artifact is what it can read back, by its
-reference, with the `get_artifact_field` tool
-([Artifact tools](../artifacts/tools/PACKAGE.md)). The field may be of any type: a text is
-summarized as it is, and any other value as the JSON it is written as. The placement is
-checked for you three times:
+The contract of the annotation:
 
-- at compile time, by the annotation processor in `nucleo-processor`, once it is on the
-  compiler's `annotationProcessorPaths`: a misplaced field is a compile error on its line;
-- in a Quarkus build, which fails naming every misplaced field;
-- when `JobDispatcher` starts, which reads the class files of the application and refuses
-  to start with a `SummarizableOutsideArtifactException` that names every misplaced field.
+1. It is legal only on a field declared in a class that implements `Artifact`
+   ([Artifacts](../artifacts/PACKAGE.md)).
+2. A model is always shown such a field as the summary its annotation describes, whatever
+   the type of the field and wherever the artifact sits in what the model is shown.
+3. The model can always read the full value, with the `get_artifact_field` tool
+   ([Artifact tools](../artifacts/tools/PACKAGE.md)).
+
+A misplaced annotation is an error that names the field:
+
+- at compile time, on the line of the field, once `nucleo-processor` is on the compiler's
+  `annotationProcessorPaths`;
+- in a Quarkus build;
+- when `JobDispatcher` starts, with a `SummarizableOutsideArtifactException`.
 
 How a value is summarized depends on what the data is:
 
@@ -134,19 +136,16 @@ other value, the length of its JSON. A field's own summarizer is a class that im
 constructor; the value is handed to it as it is. A field that names one is never sent to a
 model for its summary.
 
-You do not ask for summaries. A model's summary is made once, by a summarization job, when a
-thinker or a doer is about to send a conversation that holds the artifact, and from then on
-the model is shown that summary every time. A summary of any kind is kept on the artifact
-(`Artifact.getSummaries()`) and stored with a persisted conversation, beside the artifact,
-which is always stored with its whole value. Where no model's summary is made yet, as in a
-conversation's registry before its first call, the text is shown cut, marked with its full
-length, and nothing is kept. A text longer than 200,000 characters is cut and never sent to
-a model.
+You do not ask for summaries, and a field has one: a model is shown the same text every
+time, in a conversation that was saved and restored too. A model's summary is written when
+a conversation that holds the artifact is sent to a model, by a summarization job that
+appears in the run record as a child of the thinker or doer sending it. A text longer than
+200,000 characters is shown as its start and never sent to a model.
 
-Summarizing saves tokens and never fails a serialization. When a field's own summarizer or
-the summarization job throws or returns nothing, the failure is logged, nothing is kept and
-the value is shown cut for that write; the job is asked again the next time a conversation
-is sent. A cancelled job asks for no further summary.
+Summarizing never fails a call. When a field's own summarizer or the summarization job
+fails, the failure is logged and the value is shown as its start, marked with its full
+length, for that call; the next call asks again. A field that waits for a model's summary is
+shown the same way when its artifact is written before any call, in a log line for example.
 
 `size` sets how long a summary may be: `BRIEF`, `SHORT` or `PARAGRAPHS`.
 

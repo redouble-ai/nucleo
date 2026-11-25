@@ -204,12 +204,11 @@ limit, and every row is registered under its own reference. The tool sets all fo
 from its query.
 
 A field holding more than is worth showing a model in full - a page, a patent, a sequence - is
-marked `@LLMSummarizable`, and the model sees a summary while the artifact keeps the whole
-value ([Answers as Java objects](../schema/PACKAGE.md)). The annotation is legal only on a
-field of an artifact, since an artifact is what a model can read the whole value back from. A
-summary is made once, kept on the artifact (`Artifact.getSummaries()`) and stored with a
-persisted conversation beside the artifact's whole value, so the model is shown the same
-summary every time. A model that needs the whole value asks for it with `get_artifact_field`, and
+marked `@LLMSummarizable` ([Answers as Java objects](../schema/PACKAGE.md)). The annotation
+is legal only on a field of an artifact; a model is always shown such a field as the summary
+the annotation describes, the same text every time; and the model can always read the whole
+value, which the artifact keeps and a saved conversation stores. It asks for it with
+`get_artifact_field`, and
 `search_artifact_content` searches the text of every artifact; `read_rows` reads the rows of
 a list past the few its digest shows ([Artifact
 tools](tools/PACKAGE.md)).

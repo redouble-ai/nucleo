@@ -13,24 +13,27 @@ import java.lang.annotation.*;
 /**
  * Marks a field of an artifact that a model is shown as a summary when its value is long.
  *
- * <p>The annotation is legal only on a field declared in a class that implements
- * {@link Artifact}, because a model that is shown a summary must be able to read the
- * whole value, and an artifact is what it can read back by reference
- * ({@code get_artifact_field}). A field of any type may carry it. The placement is
- * checked three times: by the annotation processor of {@code nucleo-processor} at
- * compile time, by the Quarkus build, and when {@code JobDispatcher} starts, which
- * refuses to start with a {@link SummarizableOutsideArtifactException} that names every
- * misplaced field.
+ * <p>The contract:
+ * <ol>
+ *   <li>The annotation is legal only on a field declared in a class that implements
+ *       {@link Artifact}.</li>
+ *   <li>A model is always shown such a field as the summary this annotation describes,
+ *       whatever the type of the field and wherever the artifact sits in what the model
+ *       is shown.</li>
+ *   <li>The model can always read the full value, with {@code get_artifact_field}.</li>
+ * </ol>
  *
- * <p>The serializer makes the summary, working on the value as it would write it without
- * the annotation: a text as it is, any other value as its JSON. A value longer than the
- * {@link #threshold()} is shown as its summary, which is one of, in this order: the
- * {@link #staticSummary()}; what the field's own {@link #summarizer()} returns; a cut of
- * the text when {@link #llmSafe()} is false; a model's summary, made once before a
- * conversation is sent. Until a model's summary is made the text is shown cut. A summary
- * is kept on the artifact ({@link Artifact#getSummaries()}) and stored with a persisted
- * conversation, so a model is shown the same summary every time; the artifact itself
- * always holds, and is stored with, the whole value.
+ * <p>A misplaced annotation is an error that names the field: at compile time with
+ * {@code nucleo-processor} on the compiler's annotation processor path, in a Quarkus
+ * build, and when {@code JobDispatcher} starts
+ * ({@link SummarizableOutsideArtifactException}).
+ *
+ * <p>A value no longer than the {@link #threshold()} is shown whole. A longer one is
+ * shown as the first of these that applies: the {@link #staticSummary()}; what the
+ * {@link #summarizer()} class returns; the start of the text when {@link #llmSafe()} is
+ * false; a summary written by a model. A value that is not text is measured and
+ * summarized as its JSON. A field has one summary: a model is shown the same text every
+ * time, in a restored conversation too, and the artifact always holds the whole value.
  *
  * <p>The {@link #value()} hint describes the content type and is given to the model that
  * summarizes. A runtime warning is logged if it is empty.

@@ -21,14 +21,15 @@ names `OrderStatusTool`, or a host pushes providers through `ToolHub`.
 | `analyze_violation` | `AnalyzeViolationTool` | one LLM call | 6min | Judges whether a guardrail violation was the thinker's mistake or a hijack attempt |
 | `web_fetch` | `WebFetchTool` | HTTP client | 30s | Fetches a page and reduces it to readable text as a `WebPageArtifact` |
 
-`LLMSummarizer` is in this package but is not a tool: it makes a model's summary of an
-`@LLMSummarizable` field of an artifact, through `summarize_text` as a job that is a child of
-the thinker or doer about to send the conversation. The serializer decides which texts reach
-it: a field with a static summary or a summarizer of its own, content marked
-`llmSafe = false`, and a text past the 200K-char ceiling never do
+`LLMSummarizer` is in this package but is not a tool: it writes a model's summary of an
+`@LLMSummarizable` field of an artifact, through `summarize_text`, as a job that is a child
+of the thinker or doer sending the conversation. The field's annotation decides whether a
+text reaches it: a field with a static summary or a summarizer of its own, content marked
+`llmSafe = false`, and a text over 200,000 characters never do
 ([Answers as Java objects](../../harness/schema/PACKAGE.md)). Its result carries the
-`[SUMMARY: N chars]` prefix with the ORIGINAL length. When the job produces no summary it
-throws `SummarizationFailedException`, and the serializer shows the text cut.
+`[SUMMARY: N chars]` prefix with the length of the original. When the job produces no
+summary it throws `SummarizationFailedException`, and the model is shown the start of the
+text.
 
 ---
 

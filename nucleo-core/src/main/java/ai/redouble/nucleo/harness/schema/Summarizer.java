@@ -16,9 +16,8 @@ package ai.redouble.nucleo.harness.schema;
  *   <li>{@link TruncatingSummarizer} - the cut: the head of the text within the size's
  *       budget, marked with the full length. No external calls.</li>
  *   <li>{@code ai.redouble.nucleo.tools.builtin.LLMSummarizer} - a model's summary, made
- *       by a summarization job. It is handed to
- *       {@link NucleoJsonSerializer#makeSummaries} by the thinker or doer about to send a
- *       conversation, on its own thread, and throws when the job produces no summary.</li>
+ *       by a summarization job when a conversation is sent to a model. It throws when
+ *       the job produces no summary.</li>
  * </ul>
  *
  * <p>Summarizing saves tokens and never fails a serialization. When the model's

@@ -5,28 +5,29 @@ group `ai.redouble`; a published version is never changed in place.
 
 ## Unreleased
 
-- A model can always read the whole value behind a summary. `@LLMSummarizable` worked on any
-  object, so a model could be shown the summary of a field it had no way to read in full,
-  and the same field could be summarized in different ways depending on which code wrote it.
-  The annotation is now legal only on a field declared in a class that implements
-  `Artifact`, which a model reads back by reference with `get_artifact_field`. The field
-  may be of any type: a text is summarized as it is, any other value as the JSON it is
-  written as. The serializer is the one place a summary is made, in a fixed order: the
-  static phrase, the field's own summarizer, a cut for content marked `llmSafe = false` or
-  longer than 200,000 characters, and otherwise a model's summary, made once by a
-  summarization job when a thinker or doer builds its call to the model.
+- `@LLMSummarizable` has a contract, and keeps it. The annotation is legal only on a field
+  declared in a class that implements `Artifact`. A model is always shown such a field as
+  the summary its annotation describes, whatever the type of the field: a text is
+  summarized as it is, any other value as its JSON. And the model can always read the full
+  value, with `get_artifact_field`. Before, a model could be shown the summary of a field
+  it had no way to read in full, a field that was not text was sent whole, and a field
+  that asked for a model's summary was often shown as its first few hundred characters.
+  A field has one summary: the static phrase, else what the field's own summarizer
+  returns, else the start of the text for content marked `llmSafe = false` or longer than
+  200,000 characters, else a model's summary, written once by a summarization job when a
+  conversation is sent to a model.
 - A field can name the class that summarizes it. `@LLMSummarizable(summarizer = ...)` names
   a `FieldSummarizer<T>`, a new interface that `Summarizer` extends for text, for a value
   with a structure of its own: JSON, a stack trace, a list of identifiers. The serializer
   hands that class the field's value when it is longer than `threshold`, and the field is
   never sent to a model for its summary.
-- No summarizer fails a serialization. A field's summarizer or a summarization job that
-  throws or returns nothing is logged, nothing is kept, and the value is shown cut for that
-  write. A cancelled job asks for no further summary.
-- The placement is checked three times: at compile time by the annotation processor in the
-  new `nucleo-processor` module, once it is on the compiler's `annotationProcessorPaths`;
-  in a Quarkus build; and when `JobDispatcher` starts, which throws
-  `SummarizableOutsideArtifactException` naming every misplaced field.
+- No summarizer fails a call. When a field's summarizer or a summarization job fails, the
+  failure is logged, the value is shown as its start for that call, and the next call asks
+  again. A cancelled job asks for no further summary.
+- A misplaced `@LLMSummarizable` is an error that names the field: at compile time, once
+  the new `nucleo-processor` module is on the compiler's `annotationProcessorPaths`; in a
+  Quarkus build; and when `JobDispatcher` starts, with a
+  `SummarizableOutsideArtifactException`.
 - A persisted conversation keeps every artifact whole and the summaries a model was shown.
   A snapshot used to store a prompt object as the model saw it, summarized, so a restored
   conversation had lost the value. `ConversationPersistenceSnapshot` stores each artifact
