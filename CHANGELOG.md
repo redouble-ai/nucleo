@@ -5,18 +5,59 @@ group `ai.redouble`; a published version is never changed in place.
 
 ## Unreleased
 
-- A field can name the class that summarizes it. `@LLMSummarizable` shortened a long text in
-  one of three general ways and wrote a field of any other type whole, so a value with a
-  structure of its own (JSON, a stack trace, a list of identifiers) was either cut in the
-  middle or shown in full. `@LLMSummarizable(summarizer = ...)` names a `FieldSummarizer<T>`,
-  a new interface that `Summarizer` now extends for text. The serializer hands that class the
-  field's value, whatever its type, when the value is longer than `threshold`, and uses no
-  other summarizer for the field. A field that names none is summarized as before.
-- No summarizer fails a serialization. An exception from a `Summarizer` handed to
-  `writeSummarized` used to end the serialization. A summarizer that throws or returns null,
-  a field's own or the serialization's, and a field's class that cannot be made, are now
-  logged and passed over: the value is cut short as plain text is, and failing that it is
-  written whole.
+- A model can always read the whole value behind a summary. `@LLMSummarizable` worked on any
+  object, so a model could be shown the summary of a field it had no way to read in full,
+  and the same field could be summarized in different ways depending on which code wrote it.
+  The annotation is now legal only on a field declared in a class that implements
+  `Artifact`, which a model reads back by reference with `get_artifact_field`. The field
+  may be of any type: a text is summarized as it is, any other value as the JSON it is
+  written as. The serializer is the one place a summary is made, in a fixed order: the
+  static phrase, the field's own summarizer, a cut for content marked `llmSafe = false` or
+  longer than 200,000 characters, and otherwise a model's summary, made once by a
+  summarization job when a thinker or doer builds its call to the model.
+- A field can name the class that summarizes it. `@LLMSummarizable(summarizer = ...)` names
+  a `FieldSummarizer<T>`, a new interface that `Summarizer` extends for text, for a value
+  with a structure of its own: JSON, a stack trace, a list of identifiers. The serializer
+  hands that class the field's value when it is longer than `threshold`, and the field is
+  never sent to a model for its summary.
+- No summarizer fails a serialization. A field's summarizer or a summarization job that
+  throws or returns nothing is logged, nothing is kept, and the value is shown cut for that
+  write. A cancelled job asks for no further summary.
+- The placement is checked three times: at compile time by the annotation processor in the
+  new `nucleo-processor` module, once it is on the compiler's `annotationProcessorPaths`;
+  in a Quarkus build; and when `JobDispatcher` starts, which throws
+  `SummarizableOutsideArtifactException` naming every misplaced field.
+- A persisted conversation keeps every artifact whole and the summaries a model was shown.
+  A snapshot used to store a prompt object as the model saw it, summarized, so a restored
+  conversation had lost the value. `ConversationPersistenceSnapshot` stores each artifact
+  with its full values, the summaries kept on it beside the registry, and a prompt object
+  with its artifacts as references; a restored conversation asks for no summary again.
+  `toJson()` and `fromJson(String)` are its stored form.
+- `get_artifact_field` returns a field that is no text as its JSON, where it returned Java's
+  `toString()`, and reads a value inside a field by a path (`data/results/0/title`).
+  `search_artifact_content` searches the texts inside such fields and reports each match
+  under that path. Neither reads a field marked `@LLMContextIgnore`, which the registry
+  section no longer shows either.
+- A thinker's answer can be an artifact. An answer class that extends
+  `ArtifactThinkerOutput` is written by its model, with no reference of its own to fill in,
+  and reaches the thinker that called it as one artifact together with the artifacts it
+  holds and selected.
+- `LiteratureAggregationOutput`, `EPOClaimsOutput` and `EPODescriptionOutput` are artifacts.
+- Breaking: a class with an `@LLMSummarizable` field that is no artifact stops the
+  dispatcher from starting; make the class an artifact (extend `AbstractArtifact` or
+  `ArtifactThinkerOutput`, add a `@TypeAlias`) or remove the annotation.
+- Breaking: `NucleoJsonSerializer.writeSummarized` and `writeSummarizedWithRefs` no longer
+  take a `Summarizer`, and `ConversationContext.setSummarizer` and `getSummarizer` are
+  gone; drop the argument and the calls.
+- Breaking: `Artifact.getCachedSummary` and `cacheSummary` and the class `SummarizedField`
+  are replaced by `Artifact.getSummaries()`, an `ArtifactSummaries`; a class that
+  implements `Artifact` directly returns one, as `AbstractArtifact` does.
+- Breaking: `ContentBlockSnapshot.fromBlock` and `toBlock`, and `MessageSnapshot.fromMessage`
+  and `toMessage`, take the conversation's `ArtifactRegistry`. A store that serialized a
+  `ConversationPersistenceSnapshot` itself calls `toJson()` and `fromJson`.
+- Breaking: the schema keyword `x-nucleo-summarizable` and
+  `NucleoSchemaKeywords.SUMMARIZABLE` are removed; a consumer of a served schema makes no
+  summaries from it.
 
 ## 0.1.5 (2026-11-23)
 

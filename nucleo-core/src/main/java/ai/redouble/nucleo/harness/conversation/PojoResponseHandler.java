@@ -131,6 +131,18 @@ public class PojoResponseHandler<T > implements ResponseHandler<T> {
     private static PojoDefinition buildPojoDefinition(Class<?> pojoClass) {
         SchemaWalk walk = new SchemaWalk();
         PojoDefinition root = buildPojoDefinition(pojoClass, walk);
+        if (ArtifactRegistry.isWrittenByItsModel(pojoClass)) {
+            // The reply itself is the one artifact a model writes: it is asked for the
+            // fields and for no reference. The definition built above stays what a field
+            // of the same type points at, and there the type is a reference like any other.
+            PojoDefinition written = new PojoDefinition(root.getClassName(), root.getDescription());
+            root.getFields().forEach((name, field) -> {
+                if (!ArtifactRegistry.REF_FIELD.equals(name)) {
+                    written.addField(name, field);
+                }
+            });
+            root = written;
+        }
         root.setReferencedDefinitions(walk.referenced);
         return root;
     }
@@ -280,8 +292,9 @@ public class PojoResponseHandler<T > implements ResponseHandler<T> {
      * Records the field's Nucleo annotations as {@code x-nucleo-*} JSON Schema keywords.
      *
      * <p>These are facts about the DATA that a consuming harness needs and cannot derive
-     * for itself: how large a field can get and how it may be shortened, whether it belongs
-     * in a model's context at all, and what an artifact-typed field points at. A consumer
+     * for itself: whether a field belongs in a model's context at all, and what an
+     * artifact-typed field points at. How a long field is summarized is not among them: a
+     * summary is made in one place, by the serializer, for an artifact. A consumer
      * holding our classes reads the annotations directly; one that does not - a process on
      * the far side of an MCP boundary that could not resolve the concrete class - has only
      * the schema. What the consumer then DOES with the fact is its own policy.
@@ -291,17 +304,6 @@ public class PojoResponseHandler<T > implements ResponseHandler<T> {
      * the keywords before a schema is offered to one.
      */
     private static void applyNucleoExtensions(FieldDescriptor descriptor, Field field, Type resolvedType) {
-        LLMSummarizable summarizable = field.getAnnotation(LLMSummarizable.class);
-        if (summarizable != null) {
-            ObjectNode node = NucleoJsonSerializer.createObjectNode();
-            node.put("hint", summarizable.value());
-            node.put("size", summarizable.size().name());
-            node.put("threshold", summarizable.threshold());
-            node.put("llmSafe", summarizable.llmSafe());
-            node.put("preSummarized", summarizable.preSummarized());
-            node.put("staticSummary", summarizable.staticSummary());
-            descriptor.putExtension(NucleoSchemaKeywords.SUMMARIZABLE, node);
-        }
         if (field.isAnnotationPresent(LLMContextIgnore.class)) {
             descriptor.putExtension(NucleoSchemaKeywords.CONTEXT_IGNORE, BooleanNode.TRUE);
         }

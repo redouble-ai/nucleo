@@ -66,6 +66,10 @@ search, what to fetch and what to read in full, and answers with a
   research leaves open;
 - `articlesAnalyzed`, how many articles it read to write this.
 
+The answer is an artifact (`literature_aggregation`), so an agent that called the literature
+agent holds the whole review by reference: a `summary` or `researchGaps` that ran very long
+is shown to it as a summary, and it reads the whole text with `get_artifact_field`.
+
 It runs at grade XL, for at most 20 turns. Because a thinker is itself a tool, a larger agent
 can hold it like any other: list `LiteratureAggregator.class` in that agent's
 `declareDefaultTools()`, and the whole literature review runs as one tool call of the parent,

@@ -367,14 +367,17 @@ Artifacts use dual channels: LLM sees data for reasoning, but data travels intac
 `NucleoJsonSerializer.writeSummarizedWithRefs()` handles everything in one Jackson pass:
 - Discovers `Artifact` fields, registers them in the registry, assigns references
 - Replaces artifact fields with `{"@ref": "..."}`
-- Summarizes `@LLMSummarizable` fields via the provided `Summarizer`
 
 ```java
-Summarizer summarizer = new LLMSummarizer(this);
-String json = NucleoJsonSerializer.writeSummarizedWithRefs(result, registry, summarizer);
+String json = NucleoJsonSerializer.writeSummarizedWithRefs(result, registry);
 // CitationArtifact fields become {"@ref": "«artifact:link:cite~a1b2c3»"}
-// Long @LLMSummarizable fields become "[SUMMARY: 2847 chars] This comprehensive study..."
 ```
+
+A long `@LLMSummarizable` field is shown as its summary where the artifact itself is shown,
+in the registry dump below. A model's summaries are made before the conversation is sent:
+the `LLMCall` constructor calls `ConversationContext.summarizeArtifacts` with an
+`LLMSummarizer`, on the thread of the thinker or doer that builds the call
+([Inside the serializer](../schema/SERIALIZER.md)).
 
 ### Reference Format
 
@@ -422,8 +425,8 @@ blocks of the turn about to be sent in a frozen one (a copy of that turn, the li
 untouched), without being written to either; the one
 write-back is the conversion of a pending declaration to its definition, which is idempotent
 and changes nothing the model sees. A fresh estimate on every call, never accumulated state;
-the first render runs the configured `Summarizer` (typically `LLMSummarizer` set by the
-thinker) and populates the per-artifact summary cache, which later renders reuse.
+a render asks no model for a summary: it shows the summaries kept on each artifact, made
+when the call was built, and cuts a text whose summary is not made.
 
 ### API-Reported Tokens Live on the Response
 
@@ -527,11 +530,21 @@ question.
 ConversationContext
     ↓ toSnapshot()
 ConversationPersistenceSnapshot
-    ↓ Jackson ObjectMapper
+    ↓ toJson()
 JSON String
     ↓
 Database (SNAPSHOT_DATA column)
 ```
+
+`ConversationPersistenceSnapshot.toJson()` and `fromJson(String)` are the stored form; a store
+calls them and builds no JSON of its own. The snapshot holds every artifact of the registry
+with its whole values, and beside them, per artifact reference, the summaries kept on it
+(`artifactSummaries`), so a restored conversation shows a model the summaries it was shown
+before and asks for none again. A prompt object (`PojoBlock`) is stored through
+`NucleoJsonSerializer.writeStoredWithRefs`: every field whole, each artifact it holds as a
+reference. `toConversation` restores the registry first and each object then takes its
+artifacts back from it (`ArtifactRegistry.held`); an object whose artifact the registry no
+longer holds, or whose class is gone, is restored as its stored JSON.
 
 ### Dual Stores
 
@@ -557,7 +570,8 @@ rather than pretending with a no-op or an empty result.
 |----------|-------------------|
 | Message history | ResponseHandler (transient) |
 | Artifact registry | ModelBinding (re-minted by the next job's requirements) |
-| Main objective (keyed slots, in order) | Summarizer (reset by the owning thinker) |
+| Main objective (keyed slots, in order) | |
+| Artifact summaries (per reference) | |
 | Declared tools (persisted as converted definitions) | |
 | Seat declaration (grade, depth, interactive) + prior spec id | |
 | Metadata (title, workflowId) | |

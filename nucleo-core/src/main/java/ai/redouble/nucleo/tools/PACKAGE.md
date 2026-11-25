@@ -102,6 +102,38 @@ tool's description, and of its input's and output's fields, outside the code:
 `@ToolDescription`, the earlier way to describe a tool and mark it read-only, is deprecated
 and will be removed in 1.0. A tool that still carries it is read as before.
 
+### A result with a long field
+
+A tool whose result holds a text or a structure too long to show a model in full returns an
+artifact: the output class extends `AbstractArtifact`, carries a `@TypeAlias`, and marks the
+long field `@LLMSummarizable`. The model then holds the result by reference, sees the field
+as a summary, and reads the whole value with `get_artifact_field` when it needs it
+([Artifacts](../harness/artifacts/PACKAGE.md), [Answers as Java
+objects](../harness/schema/PACKAGE.md)). A tool that returns many items returns a
+`ListArtifact` of them. A thinker's answer with a long field extends
+`ArtifactThinkerOutput` for the same reason ([The thinker
+families](thinking/PACKAGE.md)).
+
+`@LLMSummarizable` on a field of a class that is no artifact is refused: the dispatcher does
+not start. To be told at compile time, on the line of the field, give the compiler the
+annotation processor:
+
+```xml
+<plugin>
+    <groupId>org.apache.maven.plugins</groupId>
+    <artifactId>maven-compiler-plugin</artifactId>
+    <configuration>
+        <annotationProcessorPaths>
+            <path>
+                <groupId>ai.redouble</groupId>
+                <artifactId>nucleo-processor</artifactId>
+                <version>${nucleo.version}</version>
+            </path>
+        </annotationProcessorPaths>
+    </configuration>
+</plugin>
+```
+
 ### Saying that a tool changes nothing
 
 A tool is assumed to change something unless it carries `@ReadOnly`. `OrderStatusTool`

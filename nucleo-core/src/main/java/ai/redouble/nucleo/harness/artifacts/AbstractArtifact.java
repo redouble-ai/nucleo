@@ -9,9 +9,6 @@ package ai.redouble.nucleo.harness.artifacts;
 import ai.redouble.nucleo.harness.schema.*;
 import com.fasterxml.jackson.annotation.*;
 
-import java.util.*;
-import java.util.concurrent.*;
-
 /**
  * Base class for all artifact entities that can be preserved across agent workflows.
  *
@@ -23,10 +20,9 @@ import java.util.concurrent.*;
  *   <li>uuid is a 6-character alphanumeric identifier</li>
  * </ul>
  *
- * <p>Implements summary caching from {@link Artifact}: the Jackson serializer lazily
- * populates the cache during {@code writeSummarized}/{@code writeSummarizedWithRefs} calls.
- * Subsequent serializations reuse cached summaries. Search and field access tools read
- * full text from the cached {@link SummarizedField} entries.
+ * <p>Holds the artifact's {@link ArtifactSummaries}: the serializer makes the summary of a
+ * long field once and every later write shows it. The full value stays in the field, which
+ * is where the artifact tools read it.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2025-11-13)
@@ -39,14 +35,12 @@ public abstract class AbstractArtifact implements Artifact {
     private String artifactRef;
 
     /**
-     * Cached summaries: snake_case field name -> SummarizedField.
-     * Populated lazily by the Jackson serializer during summarized serialization.
-     * Transient - not serialized with the artifact itself. Volatile with a synchronized
-     * first-write: an artifact conveyed across jobs can be serialized by two threads at
-     * once, and the lazy creation must not lose one thread's map.
+     * The kept summaries, no part of the artifact's JSON. Made with the artifact: an
+     * artifact conveyed across jobs is serialized by two threads at once, and both must
+     * meet the same instance.
      */
     @JsonIgnore
-    private transient volatile Map<String, SummarizedField> summaryCache;
+    private final transient ArtifactSummaries summaries = new ArtifactSummaries();
 
     @Override
     public String getArtifactRef() {
@@ -68,26 +62,9 @@ public abstract class AbstractArtifact implements Artifact {
     }
 
     @Override
-    public SummarizedField getCachedSummary(String fieldName) {
-        if (summaryCache == null) {
-            return null;
-        }
-        return summaryCache.get(fieldName);
-    }
-
-    @Override
-    public void cacheSummary(String fieldName, SummarizedField value) {
-        Map<String, SummarizedField> cache = summaryCache;
-        if (cache == null) {
-            synchronized (this) {
-                cache = summaryCache;
-                if (cache == null) {
-                    cache = new ConcurrentHashMap<>();
-                    summaryCache = cache;
-                }
-            }
-        }
-        cache.put(fieldName, value);
+    @JsonIgnore
+    public ArtifactSummaries getSummaries() {
+        return summaries;
     }
 
     @Override

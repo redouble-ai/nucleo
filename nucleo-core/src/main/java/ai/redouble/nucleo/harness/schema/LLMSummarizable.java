@@ -11,18 +11,29 @@ import ai.redouble.nucleo.harness.artifacts.*;
 import java.lang.annotation.*;
 
 /**
- * Controls whether a text field should be summarized when serialized for LLM consumption.
+ * Marks a field of an artifact that a model is shown as a summary when its value is long.
  *
- * <p>When a field's text exceeds the {@link #threshold()}, the serializer delegates to
- * the active {@link Summarizer} to produce a summary. Works on any
- * object - not limited to artifacts.
+ * <p>The annotation is legal only on a field declared in a class that implements
+ * {@link Artifact}, because a model that is shown a summary must be able to read the
+ * whole value, and an artifact is what it can read back by reference
+ * ({@code get_artifact_field}). A field of any type may carry it. The placement is
+ * checked three times: by the annotation processor of {@code nucleo-processor} at
+ * compile time, by the Quarkus build, and when {@code JobDispatcher} starts, which
+ * refuses to start with a {@link SummarizableOutsideArtifactException} that names every
+ * misplaced field.
  *
- * <p>For artifacts ({@link Artifact}), summaries are cached via
- * {@code getCachedSummary}/{@code cacheSummary} so they're computed once and reused.
- * For other objects, summaries are generated inline during serialization (no caching).
+ * <p>The serializer makes the summary, working on the value as it would write it without
+ * the annotation: a text as it is, any other value as its JSON. A value longer than the
+ * {@link #threshold()} is shown as its summary, which is one of, in this order: the
+ * {@link #staticSummary()}; what the field's own {@link #summarizer()} returns; a cut of
+ * the text when {@link #llmSafe()} is false; a model's summary, made once before a
+ * conversation is sent. Until a model's summary is made the text is shown cut. A summary
+ * is kept on the artifact ({@link Artifact#getSummaries()}) and stored with a persisted
+ * conversation, so a model is shown the same summary every time; the artifact itself
+ * always holds, and is stored with, the whole value.
  *
- * <p>The {@link #value()} hint describes the content type. It's passed to the Summarizer
- * for context-aware summarization. A runtime warning is logged if empty.
+ * <p>The {@link #value()} hint describes the content type and is given to the model that
+ * summarizes. A runtime warning is logged if it is empty.
  *
  * <p>Usage:
  * <pre>
@@ -50,15 +61,16 @@ import java.lang.annotation.*;
 @Documented
 public @interface LLMSummarizable {
     /**
-     * Content type hint for the Summarizer. Describes what the field contains
+     * Content type hint. Describes what the field contains
      * (e.g., "web page content", "patent claims", "scientific paper abstract").
-     * Passed to the Summarizer for context-aware summarization.
+     * Given to the model that summarizes the field.
      * A runtime warning is logged if empty.
      */
     String value() default "";
 
     /**
-     * Character threshold above which the field will be summarized.
+     * Length above which the field is shown as a summary: the characters of a text, and
+     * for any other value the characters of its compact JSON.
      * Default: 8000 characters (~2000 tokens)
      */
     int threshold() default 8000;
@@ -75,23 +87,20 @@ public @interface LLMSummarizable {
      * Whether this field's content can survive LLM paraphrasing without damage.
      * Set to false for structured data, precise clinical descriptions, formatted text,
      * or anything where LLM rewriting would corrupt the content.
-     * When false, summarizers use their conservative/lossless path (typically truncation).
+     * When false, the content never reaches a model for summarizing: it is shown cut to
+     * the {@link #size()}'s budget, marked with its full length.
      * Default: true (content is safe for LLM summarization)
      */
     boolean llmSafe() default true;
 
     /**
-     * When true, the serializer treats the field's value as already-summarized: instead
-     * of invoking the {@link Summarizer}, it consults the artifact's
-     * {@code summaryCache} keyed by JSON pointer into the value tree. Producers (e.g.
-     * the MCP walker) pre-populate the cache; the serializer just reads it.
+     * When true, the field's value is a tree (a map or a list) that keeps its shape for
+     * the model, and each text leaf of it longer than the {@link #threshold()} is shown as
+     * its own summary. A leaf's summary is kept under the field's name followed by the
+     * leaf's JSON pointer ({@code data/results/0/text}), which is also the path
+     * {@code get_artifact_field} reads the whole leaf by.
      *
-     * <p>Required for non-String fields (Map / List shapes) where threshold-based
-     * String summarization does not apply. The {@link #threshold()} is ignored when
-     * {@code preSummarized=true}; presence of a cache entry at a leaf's path is the
-     * sole trigger.
-     *
-     * <p>Default: {@code false} (existing String-field summarization behavior).
+     * <p>Default: {@code false}: the field's value is summarized as one.
      */
     boolean preSummarized() default false;
 
@@ -118,9 +127,9 @@ public @interface LLMSummarizable {
      * {@link #threshold()}: the length of a text, and for any other value the length of
      * its JSON. The class has a public no-argument constructor.
      *
-     * <p>Default: {@link FieldSummarizer.None}, which states none. A text field is then
-     * summarized by the serialization's {@link Summarizer}, and a field of another type
-     * is written whole.
+     * <p>Default: {@link FieldSummarizer.None}, which states none. The field's text, or
+     * the JSON of a field of another type, is then cut or summarized by a model, as the
+     * class documentation states.
      */
     Class<? extends FieldSummarizer<?>> summarizer() default FieldSummarizer.None.class;
 }

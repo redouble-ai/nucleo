@@ -19,7 +19,7 @@ public class SearchMatch  {
     @LLMDescription("The artifact reference containing the match")
     private String artifactRef;
 
-    @LLMDescription("The field path where match was found (e.g., 'abstractText', 'metadata.description')")
+    @LLMDescription("The path of the field the match was found in (e.g., 'abstract_text', 'data/results/0/title'); get_artifact_field takes it as its fieldName")
     private String fieldName;
 
     @LLMDescription("Text snippet with match and surrounding context")

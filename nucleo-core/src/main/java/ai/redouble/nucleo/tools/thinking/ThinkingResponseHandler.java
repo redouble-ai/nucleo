@@ -394,7 +394,10 @@ public class ThinkingResponseHandler<O> implements ResponseHandler<ThinkingRespo
     }
 
     /**
-     * The answer's artifacts and each tool call's are taken from the registry, and a
+     * The answer's artifacts and each tool call's are taken from the registry; an answer
+     * that is an {@link ArtifactThinkerOutput} is the one object kept as the model wrote
+     * it ({@link ArtifactRegistry#heldAnswer}), and an artifact in a tool call's input is
+     * always a reference. A
      * {@link ThinkerOutput} answer has the artifacts its references select resolved here
      * ({@link ThinkerOutput#resolveArtifacts}); a reference that names no artifact of the
      * registry is a violation. A violation
@@ -407,7 +410,7 @@ public class ThinkingResponseHandler<O> implements ResponseHandler<ThinkingRespo
         if (parsed == null) {
             return null;
         }
-        parsed.setAnswer(registry.held(parsed.getAnswer(), violations));
+        parsed.setAnswer(registry.heldAnswer(parsed.getAnswer(), violations));
         if (parsed.getAnswer() instanceof ThinkerOutput<?> output) {
             output.resolveArtifacts(registry, violations);
         }

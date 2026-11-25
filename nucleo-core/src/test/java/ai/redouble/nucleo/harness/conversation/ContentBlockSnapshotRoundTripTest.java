@@ -6,7 +6,9 @@
 
 package ai.redouble.nucleo.harness.conversation;
 
+import ai.redouble.nucleo.harness.artifacts.*;
 import ai.redouble.nucleo.harness.conversation.ContentBlocks.*;
+import ai.redouble.nucleo.harness.schema.*;
 import org.junit.jupiter.api.*;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -27,7 +29,53 @@ import static org.junit.jupiter.api.Assertions.*;
 class ContentBlockSnapshotRoundTripTest {
 
     private static ContentBlock roundTrip(ContentBlock block) {
-        return ContentBlockSnapshot.fromBlock(block).toBlock();
+        ArtifactRegistry registry = new ArtifactRegistry();
+        return ContentBlockSnapshot.fromBlock(block, registry).toBlock(registry);
+    }
+
+    private static Message roundTrip(Message message) {
+        ArtifactRegistry registry = new ArtifactRegistry();
+        return MessageSnapshot.fromMessage(message, registry).toMessage(StringResponseHandler.instance, null, registry);
+    }
+
+    @TypeAlias("test:snapshot:doc")
+    public static class Doc extends AbstractArtifact {
+        @LLMSummarizable(value = "a document", threshold = 10, llmSafe = false)
+        private String body;
+
+        public String getBody() { return body; }
+        public void setBody(String body) { this.body = body; }
+    }
+
+    public static class Brief {
+        private Doc doc;
+        @LLMContextIgnore
+        private String internalNote;
+
+        public Doc getDoc() { return doc; }
+        public void setDoc(Doc doc) { this.doc = doc; }
+        public String getInternalNote() { return internalNote; }
+        public void setInternalNote(String internalNote) { this.internalNote = internalNote; }
+    }
+
+    @Test
+    void aPromptObjectIsStoredWithItsArtifactsAsReferencesAndTakesThemBackFromTheRegistry() {
+        Doc doc = new Doc();
+        doc.setBody("the full body of a document, far past the threshold");
+        Brief brief = new Brief();
+        brief.setDoc(doc);
+        brief.setInternalNote("never shown to a model");
+        ArtifactRegistry registry = new ArtifactRegistry();
+        ContentBlockSnapshot stored = ContentBlockSnapshot.fromBlock(new PojoBlock(brief), registry);
+        assertSame(doc, registry.get(doc.getArtifactRef()), "storing the object registers the artifact it holds");
+        assertFalse(stored.getPojoJson().contains("the full body"), "the artifact's content is stored in the registry, never in the block: " + stored.getPojoJson());
+        assertFalse(stored.getPojoJson().contains("[SUMMARY"), "and no summary is stored in its place");
+        assertTrue(stored.getPojoJson().contains(doc.getArtifactRef()), "the block holds the reference");
+        Brief restored = (Brief) ((PojoBlock) stored.toBlock(registry)).pojo();
+        assertSame(doc, restored.getDoc(), "the restored object holds the registry's own artifact, with its full value");
+        assertEquals("never shown to a model", restored.getInternalNote(), "a field hidden from a model is stored all the same");
+        ContentBlock orphan = stored.toBlock(new ArtifactRegistry());
+        assertInstanceOf(JsonBlock.class, orphan, "an object whose artifact the registry does not hold is restored as its stored JSON");
     }
 
     @Test
@@ -35,12 +83,12 @@ class ContentBlockSnapshotRoundTripTest {
         IncomingMessage<String> answer = new IncomingMessage<>(StringResponseHandler.instance);
         answer.overwriteRawContent("the answer");
         answer.setActualOutputTokens(42);
-        Message restored = MessageSnapshot.fromMessage(answer).toMessage(StringResponseHandler.instance);
+        Message restored = roundTrip(answer);
         assertEquals(42, ((IncomingMessage<?>)restored).getActualOutputTokens(),
                 "the one per-message actual, what the answer took to generate, is kept with the message");
         IncomingMessage<String> unstamped = new IncomingMessage<>(StringResponseHandler.instance);
         unstamped.overwriteRawContent("no usage came back");
-        assertNull(((IncomingMessage<?>)MessageSnapshot.fromMessage(unstamped).toMessage(StringResponseHandler.instance)).getActualOutputTokens(),
+        assertNull(((IncomingMessage<?>)roundTrip(unstamped)).getActualOutputTokens(),
                 "and an answer the provider never accounted stays unaccounted, never zero");
     }
 
@@ -90,9 +138,9 @@ class ContentBlockSnapshotRoundTripTest {
         assertInstanceOf(PojoBlock.class, restored, "a resolvable class comes back as the typed pojo");
         assertEquals("port 5", ((Payload) ((PojoBlock) restored).pojo()).getLabel());
 
-        ContentBlockSnapshot renamed = ContentBlockSnapshot.fromBlock(new PojoBlock(payload));
+        ContentBlockSnapshot renamed = ContentBlockSnapshot.fromBlock(new PojoBlock(payload), new ArtifactRegistry());
         renamed.setPojoClass("ai.redouble.no.such.Payload");
-        ContentBlock degraded = renamed.toBlock();
+        ContentBlock degraded = renamed.toBlock(new ArtifactRegistry());
         assertInstanceOf(JsonBlock.class, degraded,
                 "a class the runtime no longer has degrades to its stored JSON instead of failing the whole restore");
         assertTrue(((JsonBlock) degraded).json().contains("port 5"), "the data itself is not lost");
@@ -112,7 +160,7 @@ class ContentBlockSnapshotRoundTripTest {
     void unknownStoredTypeIsRefused() {
         ContentBlockSnapshot snapshot = new ContentBlockSnapshot();
         snapshot.setType("hologram");
-        assertThrows(IllegalStateException.class, snapshot::toBlock,
+        assertThrows(IllegalStateException.class, () -> snapshot.toBlock(new ArtifactRegistry()),
                 "an unrecognized stored type is a corrupted snapshot, never silently skipped");
     }
 }

@@ -17,8 +17,10 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests the {@code @LLMSummarizable(preSummarized=true)} serializer path on
- * {@link MCPArtifact}. The walker pre-populates the artifact's summaryCache; the
- * serializer renders cached summaries at hit paths and full values elsewhere.
+ * {@link MCPArtifact}: the plain write keeps every leaf whole, the summarized write cuts
+ * each text leaf past the threshold and keeps the cut on the artifact under {@code data}
+ * and the leaf's JSON pointer, a summary already kept there is the one written, and a
+ * nested artifact is a reference in the write a prompt takes.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-05-09)
@@ -41,38 +43,38 @@ public class MCPArtifactSerializationTest {
     @Test
     public void standardWriteRendersFullTreeNoCacheLookup() {
         MCPArtifact artifact = artifactWithLongLeaf();
-        // Sanity: cache populated by walker
-        assertNotNull(artifact.getCachedSummary("/body"));
 
         String json = NucleoJsonSerializer.write(artifact);
 
         assertTrue(json.contains("\"title\""), "title should be present");
         assertTrue(json.contains("Hello"), "title value should be present");
-        // Standard write does NOT consult the cache - full body must appear verbatim
         assertTrue(json.contains(repeat("x", 1500)),
-                "standard write must render full long text, ignoring cache");
+                "standard write must render full long text");
+        assertTrue(artifact.getSummaries().all().isEmpty(), "and makes no summary");
     }
 
     @Test
-    public void writeSummarizedRendersCachedSummaryAtLongLeafPath() {
+    public void writeSummarizedCutsALongLeafAndKeepsTheCutUnderItsPointer() {
         MCPArtifact artifact = artifactWithLongLeaf();
-        String summary = artifact.getCachedSummary("/body").getSummary();
 
         String json = NucleoJsonSerializer.writeSummarized(artifact);
 
         assertTrue(json.contains("Hello"),
-                "short title leaf should render verbatim (cache miss falls through)");
+                "short title leaf should render verbatim");
+        String summary = artifact.getSummaries().get("data/body");
+        assertNotNull(summary, "the serializer keeps the leaf's summary under the field's name and the leaf's JSON pointer");
+        assertTrue(summary.startsWith("[SUMMARY: 1500 chars] xxx"), "a served text is never paraphrased: it is cut, marked with its length");
         assertTrue(json.contains(summary),
-                "long body leaf should render the cached summary, not full text");
+                "long body leaf should render the summary, not full text");
         assertFalse(json.contains(repeat("x", 1500)),
                 "full body text should not appear in summarized output");
+        assertEquals(repeat("x", 1500), artifact.getData().get("body"), "the artifact keeps the full text");
     }
 
     @Test
-    public void cacheMissLeavesValueIntact() {
-        // Manually create an artifact with NO cache entries; the same body length should
-        // pass through untouched in summarized mode (since preSummarized doesn't
-        // truncate, it only consults the cache).
+    public void anArtifactBuiltByHandIsSummarizedTheSameWay() {
+        // No walker is involved in a summary: the annotation on the data field decides,
+        // whoever filled the field.
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("body", repeat("y", 2000));
         MCPArtifact artifact = new MCPArtifact();
@@ -82,8 +84,8 @@ public class MCPArtifactSerializationTest {
 
         String json = NucleoJsonSerializer.writeSummarized(artifact);
 
-        assertTrue(json.contains(repeat("y", 2000)),
-                "without a cache entry, preSummarized lets the full value through");
+        assertFalse(json.contains(repeat("y", 2000)), "a leaf past the threshold is shown as its summary");
+        assertTrue(json.contains("[SUMMARY: 2000 chars]"), json);
     }
 
     @Test
@@ -170,13 +172,13 @@ public class MCPArtifactSerializationTest {
         artifact.setMcpHandle("test");
         artifact.setToolName("tool_a");
         artifact.setData(data);
-        artifact.cacheSummary("/outer/buried", new SummarizedField(repeat("z", 5000), "[BURIED-SUMMARY]"));
+        artifact.getSummaries().keep("data/outer/buried", "[BURIED-SUMMARY]");
 
         String json = NucleoJsonSerializer.writeSummarized(artifact);
 
         assertTrue(json.contains("[BURIED-SUMMARY]"),
-                "cached summary at deep path should render: " + json);
+                "a summary kept at a deep path, as a restored conversation holds it, is the one written: " + json);
         assertFalse(json.contains(repeat("z", 5000)),
-                "full text should not appear when cache is hit");
+                "full text should not appear when a summary is kept");
     }
 }

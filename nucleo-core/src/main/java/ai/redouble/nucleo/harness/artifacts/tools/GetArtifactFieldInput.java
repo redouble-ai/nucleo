@@ -21,7 +21,7 @@ public class GetArtifactFieldInput  {
     private String artifactRef;
 
     @LLMRequired
-    @LLMDescription("The field name to retrieve (e.g., 'content', 'abstractText', 'description')")
+    @LLMDescription("The field name to retrieve (e.g., 'content', 'abstract_text', 'description'). A value inside a field is addressed by the field name followed by a JSON pointer, as search_artifact_content reports it (e.g., 'data/results/0/title')")
     private String fieldName;
     @LLMDescription("Start position for partial extraction (0-based). If set, returns content from this offset instead of full field.")
     private Integer offset;

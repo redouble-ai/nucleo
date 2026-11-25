@@ -17,11 +17,11 @@ package ai.redouble.nucleo.harness.schema;
  * it keeps no state.
  *
  * <p>Summarizing saves tokens and never fails a serialization. When the class throws,
- * returns null or cannot be made, the failure is logged and the value is cut short as
- * plain text is; when that fails too, the value is written whole.
+ * returns null or cannot be made, the failure is logged, nothing is kept, and the value's
+ * text (its JSON, for a value that is no text) is shown cut for that write.
  *
- * <p>{@link Summarizer} is this interface for text, and is what a serialization uses for
- * every field that names no summarizer of its own.
+ * <p>{@link Summarizer} is this interface for text: the cut, and a model's summary, of a
+ * field that names no summarizer of its own.
  *
  * @author Andrey Santrosyan
  * @since 0.1.6 (2026-11-24)

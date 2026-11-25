@@ -53,6 +53,7 @@
 
     <modules>
         <module>nucleo-bom</module>
+        <module>nucleo-processor</module>
         <module>nucleo-core</module>
         <module>nucleo-provider-openai</module>
         <module>nucleo-provider-anthropic</module>
@@ -147,6 +148,21 @@
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-compiler-plugin</artifactId>
                     <version>3.13.0</version>
+                    <!-- Every module compiles with the runtime's own annotation checks, so a
+                         declaration the dispatcher would refuse at startup is refused here
+                         first. The compiler runs no processor it is not told of. The path
+                         gives the reactor no order: nucleo-core depends on the processor in
+                         test scope, and every module that can carry the annotations depends
+                         on nucleo-core, which is what builds the processor first. -->
+                    <configuration>
+                        <annotationProcessorPaths>
+                            <path>
+                                <groupId>ai.redouble</groupId>
+                                <artifactId>nucleo-processor</artifactId>
+                                <version>${project.version}</version>
+                            </path>
+                        </annotationProcessorPaths>
+                    </configuration>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>

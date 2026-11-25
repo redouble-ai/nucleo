@@ -32,7 +32,12 @@ public class NucleoSchemaKeywordsTest {
     public static class CitedThing extends AbstractArtifact {
         @LLMDescription("Digital object identifier")
         private String doi;
+        @LLMSummarizable(value = "abstract of a paper", size = SummarySize.BRIEF, llmSafe = false, threshold = 4000)
+        @LLMDescription("The abstract")
+        private String abstractText;
 
+        public String getAbstractText() { return abstractText; }
+        public void setAbstractText(String abstractText) { this.abstractText = abstractText; }
         public String getDoi() { return doi; }
         public void setDoi(String doi) { this.doi = doi; }
     }
@@ -43,7 +48,6 @@ public class NucleoSchemaKeywordsTest {
         @LLMDescription("What was asked")
         private String question;
 
-        @LLMSummarizable(value = "page content", size = SummarySize.BRIEF, llmSafe = false, threshold = 4000)
         @LLMDescription("The retrieved page")
         private String body;
 
@@ -108,16 +112,11 @@ public class NucleoSchemaKeywordsTest {
     }
 
     @Test
-    void summarizableIsPublishedAsDeclared() throws Exception {
-        JsonNode body = property(schemaOf(AnnotatedResult.class), "body");
-        JsonNode summarizable = body.get(NucleoSchemaKeywords.SUMMARIZABLE);
-        assertNotNull(summarizable, "a summarizable field must say so: " + body);
-        assertEquals("page content", summarizable.get("hint").asText());
-        assertEquals("BRIEF", summarizable.get("size").asText());
-        assertEquals(4000, summarizable.get("threshold").asInt());
-        assertFalse(summarizable.get("llmSafe").asBoolean(), "llmSafe=false is the fact that stops a paraphrase");
-        assertFalse(summarizable.get("preSummarized").asBoolean(), "preSummarized is published as declared");
-        assertEquals("", summarizable.get("staticSummary").asText(), "and so is staticSummary, empty when none");
+    void howAFieldIsSummarizedIsNotPublished() throws Exception {
+        JsonNode content = property(schemaOf(CitedThing.class), "abstract_text");
+        assertNotNull(content, "the artifact's summarizable field is in its schema");
+        content.fieldNames().forEachRemaining(keyword -> assertFalse(keyword.startsWith(NucleoSchemaKeywords.PREFIX),
+                "a summary is made in one place, by the serializer for an artifact, so no keyword tells a consumer to make one: " + keyword));
     }
 
     @Test

@@ -17,9 +17,9 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Verifies {@code @LLMContextIgnore}: a field stays in the schema and in the full
  * {@link NucleoJsonSerializer#write} (so the caller can populate it and it persists
- * for observability), but is omitted from the model-facing
- * {@link NucleoJsonSerializer#writeSummarizedWithRefs} (LLM_REF) render that goes
- * into the prompt.
+ * for observability), but is omitted from every write a model reads: the
+ * {@link NucleoJsonSerializer#writeSummarizedWithRefs} render that goes into the prompt
+ * and the {@link NucleoJsonSerializer#writeSummarized} render the registry section shows.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-06-14)
@@ -64,11 +64,13 @@ public class NucleoJsonSerializerContextIgnoreTest {
     }
 
     @Test
-    void summarizedRenderKeepsContextIgnoredField() {
-        // SUMMARIZED mode is not the prompt-context render (that is LLM_REF); the
-        // field is only dropped for LLM_REF, so summarized output still carries it.
+    void summarizedRenderDropsContextIgnoredField() {
+        // The summarized write is what the registry section shows a model of an artifact,
+        // so it is a write a model reads as much as the prompt is.
         String json = NucleoJsonSerializer.writeSummarized(sample());
-        assertTrue(json.contains("artifact_refs"), "SUMMARIZED mode is not the context render and must keep the field");
+        assertFalse(json.contains("artifact_refs"), "the summarized write is read by a model and must omit the field");
+        assertFalse(json.contains("edtwhl"), "and its value");
+        assertTrue(json.contains("process the list"), "while ordinary fields are kept");
     }
 
     @Test

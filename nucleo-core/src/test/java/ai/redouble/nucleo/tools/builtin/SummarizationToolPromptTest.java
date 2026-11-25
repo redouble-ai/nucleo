@@ -65,16 +65,6 @@ public class SummarizationToolPromptTest {
         assertTrue(shortLen < paragraphsLen, "SHORT truncation should produce less than PARAGRAPHS");
     }
 
-    @Test
-    public void truncatingSummarizerDefaultsToShortWhenAnnotationNull() {
-        TruncatingSummarizer summarizer = new TruncatingSummarizer();
-        String longText = "x".repeat(5000);
-        String resultNull = summarizer.summarize(longText, null);
-        String resultShort = summarizer.summarize(longText, makeAnnotation(SummarySize.SHORT));
-        assertEquals(resultShort.length(), resultNull.length(),
-            "null annotation should behave the same as SummarySize.SHORT");
-    }
-
     /**
      * Builds a synthetic {@link LLMSummarizable} carrying just a {@link SummarySize},
      * used to drive {@link TruncatingSummarizer} budget-derivation tests.

@@ -39,7 +39,6 @@ public class ToolDefinitionSchemaTest {
         @LLMDescription("What to look up")
         private String query;
 
-        @LLMSummarizable(value = "the document body", size = SummarySize.BRIEF)
         @LLMDescription("Text to work over")
         private String body;
 
@@ -110,7 +109,6 @@ public class ToolDefinitionSchemaTest {
     @Test
     void theProviderCarriesTheKeywords() {
         String schema = ClassToolProvider.of(AnnotatedTool.class).schemaJson();
-        assertTrue(schema.contains(NucleoSchemaKeywords.SUMMARIZABLE), schema);
         assertTrue(schema.contains(NucleoSchemaKeywords.CONTEXT_IGNORE), schema);
     }
 

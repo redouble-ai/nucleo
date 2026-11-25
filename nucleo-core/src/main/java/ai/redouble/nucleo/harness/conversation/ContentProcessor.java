@@ -23,34 +23,30 @@ import java.util.*;
  *   <li>Processing PojoBlocks through NucleoJsonSerializer.writeSummarizedWithRefs to replace artifacts with refs</li>
  *   <li>Registering artifacts in the conversation's registry</li>
  *   <li>Passing through other block types unchanged</li>
+ *   <li>Listing the registry's artifacts with their fields, long ones as their summaries</li>
  * </ul>
+ *
+ * <p>It makes no summary that needs a model: the listing shows the summaries the artifacts
+ * keep, which {@link ConversationContext#summarizeArtifacts} makes before a call is sent.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2025-11-13)
  */
 public class ContentProcessor {
+    /** What the registry's listing opens with: how a model reads the whole of what it is shown in part. */
+    static final String REGISTRY_HEADER = "\n\n=== ARTIFACT REGISTRY ===\n"
+            + "A long field shows a summary, marked [SUMMARY: N chars], in place of its value; N is the length of the whole value. "
+            + "Use get_artifact_field(ref, fieldName) to read a field whole. "
+            + "Use search_artifact_content(query) to search the whole values of every artifact.\n\n";
     private final ConversationContext context;
-    private final Summarizer summarizer;
 
     /**
-     * Creates a new ContentProcessor with default truncation summarizer.
+     * Creates a new ContentProcessor.
      *
      * @param context the conversation context containing the artifact registry
      */
     public ContentProcessor(ConversationContext context) {
         this.context = context;
-        this.summarizer = new TruncatingSummarizer();
-    }
-
-    /**
-     * Creates a new ContentProcessor with the specified summarizer.
-     *
-     * @param context the conversation context containing the artifact registry
-     * @param summarizer the summarization strategy
-     */
-    public ContentProcessor(ConversationContext context, Summarizer summarizer) {
-        this.context = context;
-        this.summarizer = summarizer;
     }
 
     /**
@@ -63,7 +59,7 @@ public class ContentProcessor {
      */
     public ContentBlock processForLLM(ContentBlock block) {
         if (block instanceof PojoBlock(Object pojo)) {
-            String json = NucleoJsonSerializer.writeSummarizedWithRefs(pojo, context.getArtifactRegistry(), summarizer);
+            String json = NucleoJsonSerializer.writeSummarizedWithRefs(pojo, context.getArtifactRegistry());
             return new JsonBlock(json);
         }
         return block;
@@ -104,9 +100,9 @@ public class ContentProcessor {
      * Generates the artifact registry section for appending to LLM context.
      * This should be added at the end of the conversation for cache efficiency.
      *
-     * <p>Each artifact is serialized through {@code NucleoJsonSerializer.writeSummarized}
-     * with this processor's summarizer, so long text fields appear as
-     * "[SUMMARY: X chars] Brief summary..." rather than full text.
+     * <p>Each artifact is serialized through {@code NucleoJsonSerializer.writeSummarized},
+     * so a long field appears as "[SUMMARY: X chars] Brief summary..." rather than its
+     * whole value, and a field marked {@code @LLMContextIgnore} does not appear.
      *
      * @return formatted string containing all artifacts in the registry
      */
@@ -116,13 +112,10 @@ public class ContentProcessor {
             return "";
         }
         StringBuilder sb = new StringBuilder();
-        sb.append("\n\n=== ARTIFACT REGISTRY ===\n");
-        sb.append("Long text fields show summaries with original length. ");
-        sb.append("Use get_artifact_field(ref, fieldName) for full content. ");
-        sb.append("Use search_artifact_content(query) to search across all artifact text.\n\n");
+        sb.append(REGISTRY_HEADER);
         for (Map.Entry<String, Artifact> entry : artifacts.entrySet()) {
             sb.append("--- ").append(entry.getKey()).append(" ---\n");
-            String artifactJson = NucleoJsonSerializer.writeSummarized(entry.getValue(), summarizer);
+            String artifactJson = NucleoJsonSerializer.writeSummarized(entry.getValue());
             sb.append(artifactJson);
             sb.append("\n\n");
         }

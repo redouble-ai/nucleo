@@ -16,9 +16,10 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests the {@link MCPResultWalker} pure walk behavior. Covers shape preservation,
- * promotion of over-threshold sub-objects, summary-cache population for long string
- * leaves, and JSON-pointer path escaping.
+ * Tests the {@link MCPResultWalker} pure walk behavior: shape preservation and promotion
+ * of over-threshold sub-objects. The walker summarizes nothing; the summary of a long
+ * text leaf is made by the serializer when the artifact is written for a model, and kept
+ * under the {@code data} field's name followed by the leaf's escaped JSON pointer.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-05-09)
@@ -48,37 +49,37 @@ public class MCPResultWalkerTest {
         assertEquals("Alice", data.get("name"));
         assertEquals(42, ((Number) data.get("count")).intValue());
         assertEquals(true, data.get("active"));
-        // No long leaves -> no cache entries
-        assertNull(artifact.getCachedSummary("/name"));
+        NucleoJsonSerializer.writeSummarized(artifact);
+        assertTrue(artifact.getSummaries().all().isEmpty(), "no long leaf, so no summary is ever kept");
     }
 
     @Test
-    public void longStringLeafPopulatesCacheKeepsFullText() throws Exception {
+    public void theWalkerKeepsALongLeafWholeAndTheSerializerSummarizesIt() throws Exception {
         String longText = repeat("x", 1500);
         ObjectNode raw = NucleoJsonSerializer.createObjectNode();
         raw.put("body", longText);
 
         MCPArtifact artifact = MCPResultWalker.walk(raw, HANDLE, "tool_a");
 
-        // Full text still present in data
         assertEquals(longText, artifact.getData().get("body"));
-        // Cache entry keyed by JSON pointer
-        SummarizedField cached = artifact.getCachedSummary("/body");
-        assertNotNull(cached, "long string should populate summaryCache at /body");
-        assertEquals(longText, cached.getFullText());
-        assertNotNull(cached.getSummary());
-        assertNotEquals(longText, cached.getSummary());
+        assertTrue(artifact.getSummaries().all().isEmpty(), "the walker makes no summary");
+        NucleoJsonSerializer.writeSummarized(artifact);
+        String summary = artifact.getSummaries().get("data/body");
+        assertNotNull(summary, "the serializer keeps the leaf's summary at data/body");
+        assertNotEquals(longText, summary);
+        assertEquals(longText, artifact.getData().get("body"), "and the full text stays in the artifact");
     }
 
     @Test
-    public void shortStringLeafLeavesCacheEmpty() throws Exception {
+    public void shortStringLeafIsNeverSummarized() throws Exception {
         ObjectNode raw = NucleoJsonSerializer.createObjectNode();
         raw.put("body", "short text");
 
         MCPArtifact artifact = MCPResultWalker.walk(raw, HANDLE, "tool_a");
 
         assertEquals("short text", artifact.getData().get("body"));
-        assertNull(artifact.getCachedSummary("/body"));
+        NucleoJsonSerializer.writeSummarized(artifact);
+        assertNull(artifact.getSummaries().get("data/body"));
     }
 
     @Test
@@ -100,12 +101,12 @@ public class MCPResultWalkerTest {
         assertEquals("test", nested.getMcpHandle());
         assertEquals("tool_a", nested.getToolName());
         assertEquals("X", nested.getData().get("title"));
-        // Long leaf inside nested artifact gets cached at its OWN root-relative path
-        assertNotNull(nested.getCachedSummary("/payload"),
-                "promoted sub-object's cache is keyed relative to its own root");
-        // Sibling stayed put; parent has no entry for /nested/payload (path resets in child)
         assertEquals("small", artifact.getData().get("sibling"));
-        assertNull(artifact.getCachedSummary("/nested/payload"));
+        NucleoJsonSerializer.writeSummarized(artifact);
+        // A long leaf inside the nested artifact is that artifact's own summary
+        assertNotNull(nested.getSummaries().get("data/payload"),
+                "a promoted sub-object keeps its leaf's summary itself, keyed from its own root");
+        assertNull(artifact.getSummaries().get("data/nested/payload"), "and the parent keeps none for it");
     }
 
     @Test
@@ -139,10 +140,10 @@ public class MCPResultWalkerTest {
 
         MCPArtifact artifact = MCPResultWalker.walk(raw, HANDLE, "tool_a");
 
-        // /items/0/text is long -> cache entry at that path
-        assertNotNull(artifact.getCachedSummary("/items/0/text"),
-                "array index paths should produce cache keys like /items/0/text");
-        assertNull(artifact.getCachedSummary("/items/1/text"));
+        NucleoJsonSerializer.writeSummarized(artifact);
+        assertNotNull(artifact.getSummaries().get("data/items/0/text"),
+                "an array index is a step of the pointer: data/items/0/text");
+        assertNull(artifact.getSummaries().get("data/items/1/text"));
         Object items = artifact.getData().get("items");
         assertInstanceOf(List.class, items);
     }
@@ -156,9 +157,10 @@ public class MCPResultWalkerTest {
 
         MCPArtifact artifact = MCPResultWalker.walk(raw, HANDLE, "tool_a");
 
-        assertNotNull(artifact.getCachedSummary("/a~1b"),
+        NucleoJsonSerializer.writeSummarized(artifact);
+        assertNotNull(artifact.getSummaries().get("data/a~1b"),
                 "'/' in key should be escaped to '~1' in JSON pointer");
-        assertNotNull(artifact.getCachedSummary("/c~0d"),
+        assertNotNull(artifact.getSummaries().get("data/c~0d"),
                 "'~' in key should be escaped to '~0' in JSON pointer");
     }
 

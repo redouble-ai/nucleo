@@ -88,6 +88,80 @@ public class ArtifactAccessToolsTest {
         assertFalse(tail.isTruncated());
     }
 
+    /** An artifact with a field that is no text, a field hidden from a model, and an artifact inside. */
+    @TypeAlias("test:access:record")
+    public static class Record extends AbstractArtifact {
+        @LLMSummarizable(value = "the measured rows", threshold = 10)
+        private java.util.List<java.util.Map<String, String>> rows;
+        @LLMContextIgnore
+        private String internalNote;
+        private WebPageArtifact source;
+
+        public java.util.List<java.util.Map<String, String>> getRows() { return rows; }
+        public void setRows(java.util.List<java.util.Map<String, String>> rows) { this.rows = rows; }
+        public String getInternalNote() { return internalNote; }
+        public void setInternalNote(String internalNote) { this.internalNote = internalNote; }
+        public WebPageArtifact getSource() { return source; }
+        public void setSource(WebPageArtifact source) { this.source = source; }
+    }
+
+    private static String read(ArtifactRegistry registry, String ref, String field) throws Exception {
+        GetArtifactFieldTool tool = new GetArtifactFieldTool(root());
+        tool.setArtifactRegistry(registry);
+        GetArtifactFieldInput input = new GetArtifactFieldInput();
+        input.setArtifactRef(ref);
+        input.setFieldName(field);
+        tool.setInput(input);
+        return JobDispatcher.getInstance().submit(tool).get().getContent();
+    }
+
+    @Test
+    void aFieldThatIsNoTextIsReadAsTheJsonItIsWrittenAs_andAValueInsideItByItsPath() throws Exception {
+        Record record = new Record();
+        record.setRows(java.util.List.of(java.util.Map.of("sample", "A-1"), java.util.Map.of("sample", "DEEP-NEEDLE")));
+        record.setInternalNote("HIDDEN-NEEDLE");
+        record.setSource(page("source", "the source page"));
+        ArtifactRegistry registry = TestModels.conversation(TestModels.small()).getArtifactRegistry();
+        String ref = registry.register(record);
+        String rows = read(registry, ref, "rows");
+        assertEquals(NucleoJsonSerializer.readTree("[{\"sample\":\"A-1\"},{\"sample\":\"DEEP-NEEDLE\"}]"), NucleoJsonSerializer.readTree(rows),
+                "the whole value, as the JSON the serializer writes for it, never a Java rendering of the list: " + rows);
+        assertEquals("DEEP-NEEDLE", read(registry, ref, "rows/1/sample"), "a value inside the field is read by the field's name and a JSON pointer");
+        GetArtifactFieldTool paged = new GetArtifactFieldTool(root());
+        paged.setArtifactRegistry(registry);
+        GetArtifactFieldInput page = new GetArtifactFieldInput();
+        page.setArtifactRef(ref);
+        page.setFieldName("rows");
+        page.setOffset(5);
+        page.setMaxChars(10);
+        paged.setInput(page);
+        GetArtifactFieldOutput part = JobDispatcher.getInstance().submit(paged).get();
+        assertEquals(rows.substring(5, 15), part.getContent(), "the JSON is paged through as a text is");
+        assertEquals(rows.length(), part.getLength());
+        assertTrue(part.isTruncated());
+        assertTrue(read(registry, ref, "source").contains(record.getSource().getArtifactRef()), "an artifact inside is read as its reference");
+        java.util.concurrent.ExecutionException hidden = assertThrows(java.util.concurrent.ExecutionException.class, () -> read(registry, ref, "internal_note"));
+        assertInstanceOf(ai.redouble.nucleo.harness.errors.InvalidInputException.class, hidden.getCause(), "a field marked @LLMContextIgnore is no field a model can read");
+        assertFalse(NucleoJsonSerializer.modelFacingFieldNames(Record.class).contains("internal_note"), "nor is it among the names a refusal lists as readable");
+        java.util.concurrent.ExecutionException nowhere = assertThrows(java.util.concurrent.ExecutionException.class, () -> read(registry, ref, "rows/7/sample"));
+        assertInstanceOf(ai.redouble.nucleo.harness.errors.InvalidInputException.class, nowhere.getCause(), "a path that leads nowhere inside the field is refused");
+
+        SearchArtifactContentTool search = new SearchArtifactContentTool(root());
+        search.setArtifactRegistry(registry);
+        SearchArtifactContentInput query = new SearchArtifactContentInput();
+        query.setQuery("DEEP-NEEDLE");
+        search.setInput(query);
+        SearchArtifactContentOutput found = JobDispatcher.getInstance().submit(search).get();
+        assertEquals(1, found.getMatches().size(), "a text inside a field that is no text is searched too");
+        assertEquals("rows/1/sample", found.getMatches().get(0).getFieldName(), "and the match names the path the read tool takes");
+        SearchArtifactContentTool hiddenSearch = new SearchArtifactContentTool(root());
+        hiddenSearch.setArtifactRegistry(registry);
+        SearchArtifactContentInput hiddenQuery = new SearchArtifactContentInput();
+        hiddenQuery.setQuery("HIDDEN-NEEDLE");
+        hiddenSearch.setInput(hiddenQuery);
+        assertEquals(0, JobDispatcher.getInstance().submit(hiddenSearch).get().getTotalMatches(), "a hidden field is not searched");
+    }
+
     @Test
     void anInventedReferenceIsAClosedTypedRefusal() {
         ArtifactRegistry registry = registryWith(page("real", "content"));

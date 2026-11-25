@@ -9,8 +9,10 @@ package ai.redouble.nucleo.harness.conversation;
 import ai.redouble.nucleo.harness.artifacts.*;
 import ai.redouble.nucleo.harness.conversation.ContentBlocks.*;
 import ai.redouble.nucleo.harness.models.*;
+import ai.redouble.nucleo.harness.schema.*;
 import com.fasterxml.jackson.databind.annotation.*;
 
+import java.io.*;
 import java.time.*;
 import java.util.*;
 import java.util.stream.*;
@@ -18,6 +20,13 @@ import java.util.stream.*;
 /**
  * Snapshot of a ConversationContext for persistence.
  * Preserves all conversation state including messages and main objective blocks.
+ *
+ * <p>The transcript is stored as it was sent, a tool result with the references and
+ * summaries the model saw. The artifacts are stored beside it whole, every field with its
+ * full value and a list with every row, together with the summaries they keep. A prompt
+ * object is stored with its artifacts as references and takes them back from the restored
+ * registry. A store keeps the text {@link #toJson} gives and reads it with
+ * {@link #fromJson}.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2025-11-15)
@@ -64,6 +73,13 @@ public class ConversationPersistenceSnapshot  {
     // Keys are artifact refs (e.g. «artifact:link:cite:pubmed~x1y2z3»), type resolved from the key.
     @JsonDeserialize(using = ArtifactMapDeserializer.class)
     private Map<String, Artifact> artifacts;
+    /**
+     * The summaries the conversation's artifacts keep, by artifact reference and then by
+     * the key the summary is kept under. Saved so that a restored conversation shows each
+     * long field as it showed it before the save: a summary a model wrote is different each
+     * time it is made, and making it again costs a call.
+     */
+    private Map<String, Map<String, String>> artifactSummaries;
     public ConversationPersistenceSnapshot() {}
     public static ConversationPersistenceSnapshot fromConversation(ConversationContext context) {
         ConversationPersistenceSnapshot snapshot = new ConversationPersistenceSnapshot();
@@ -75,18 +91,21 @@ public class ConversationPersistenceSnapshot  {
         snapshot.cacheMainObjective = context.isCacheMainObjective();
         snapshot.createdAt = context.getCreatedAt();
         snapshot.lastUpdatedAt = Instant.now();
+        // Blocks first: storing a prompt object registers the artifacts it holds, and the
+        // registry is read after them
+        ArtifactRegistry registry = context.getArtifactRegistry();
         // Preserve messages
         snapshot.messages = context.getMessages().stream()
-            .map(MessageSnapshot::fromMessage)
+            .map(message -> MessageSnapshot.fromMessage(message, registry))
             .collect(Collectors.toList());
         // Preserve the keyed objective map, in render order
         snapshot.mainObjective = new LinkedHashMap<>();
         context.getMainObjective().forEach((key, block) ->
-            snapshot.mainObjective.put(key, ContentBlockSnapshot.fromBlock(block)));
+            snapshot.mainObjective.put(key, ContentBlockSnapshot.fromBlock(block, registry)));
         // Preserve declared tools as converted definitions: a tool declared but never
         // rendered would otherwise vanish with the live object it was declared through
         snapshot.declaredTools = context.declaredToolDefinitions().stream()
-            .map(ContentBlockSnapshot::fromBlock)
+            .map(block -> ContentBlockSnapshot.fromBlock(block, registry))
             .collect(Collectors.toList());
         // The serving spec when one is resolved, else whatever prior the context carries
         snapshot.modelIdentifier = context.isModelResolved() ? context.getModel().getId() : context.getPriorSpecId();
@@ -97,12 +116,39 @@ public class ConversationPersistenceSnapshot  {
         }
         snapshot.depth = context.getDepth();
         snapshot.interactive = context.isInteractive();
-        // Preserve artifacts
-        ArtifactRegistry registry = context.getArtifactRegistry();
-        if (registry != null) {
-            snapshot.artifacts = new HashMap<>(registry.getAllArtifacts());
-        }
+        // Preserve artifacts: the top-level ones, each written whole with the artifacts it
+        // holds, and the summaries of every artifact, the held ones included
+        snapshot.artifacts = new HashMap<>(registry.getAllArtifacts());
+        snapshot.artifactSummaries = new TreeMap<>();
+        registry.getAllArtifactsIncludingReachable().forEach((ref, artifact) -> {
+            Map<String, String> kept = artifact.getSummaries().all();
+            if (!kept.isEmpty()) {
+                snapshot.artifactSummaries.put(ref, kept);
+            }
+        });
         return snapshot;
+    }
+
+    /**
+     * This snapshot as the text a store keeps: everything whole, the artifacts with their
+     * full values. It is the one form a snapshot is stored in; a write that summarizes
+     * ({@link NucleoJsonSerializer#writeSummarized}) would store summaries in place of
+     * values, and {@link #fromJson} would read them back as the values.
+     *
+     * @return the snapshot as JSON
+     */
+    public String toJson() {
+        return NucleoJsonSerializer.write(this);
+    }
+
+    /**
+     * The snapshot a store kept as {@link #toJson} text.
+     *
+     * @param json the stored text
+     * @throws IOException when the text is not a snapshot
+     */
+    public static ConversationPersistenceSnapshot fromJson(String json) throws IOException {
+        return NucleoJsonSerializer.parse(json, ConversationPersistenceSnapshot.class);
     }
     public ConversationContext toConversation(ResponseHandler<?> responseHandler) {
         ConversationContext context = new ConversationContext(conversationId);
@@ -121,6 +167,24 @@ public class ConversationPersistenceSnapshot  {
         if (createdAt != null) {
             context.setCreatedAt(createdAt);
         }
+        // Restore the artifact registry first: a stored prompt object holds its artifacts as
+        // references, and they are taken from here as the blocks are restored
+        if (artifacts != null) {
+            ArtifactRegistry restoredRegistry = new ArtifactRegistry();
+            for (Artifact artifact : artifacts.values()) {
+                restoredRegistry.register(artifact);
+            }
+            context.setArtifactRegistry(restoredRegistry);
+        }
+        ArtifactRegistry registry = context.getArtifactRegistry();
+        if (artifactSummaries != null) {
+            artifactSummaries.forEach((ref, kept) -> {
+                Artifact artifact = registry.get(ref);
+                if (artifact != null) {
+                    kept.forEach(artifact.getSummaries()::keep);
+                }
+            });
+        }
         // Restore messages, dropping any tool result whose request is not in the transcript.
         //
         // A provider refuses the WHOLE conversation when it finds one ("each tool_result block must
@@ -133,8 +197,8 @@ public class ConversationPersistenceSnapshot  {
             for (MessageSnapshot msgSnapshot : messages) {
                 if (msgSnapshot.getContentBlocks() != null) {
                     for (ContentBlockSnapshot block : msgSnapshot.getContentBlocks()) {
-                        if (block.toBlock() instanceof ToolUseBlock toolUse) {
-                            requestedToolUseIds.add(toolUse.toolUseId());
+                        if ("tool_use".equals(block.getType())) {
+                            requestedToolUseIds.add(block.getToolUseId());
                         }
                     }
                 }
@@ -150,7 +214,7 @@ public class ConversationPersistenceSnapshot  {
             for (int i = 0; i < messages.size(); i++) {
                 MessageSnapshot msgSnapshot = messages.get(i);
                 boolean earlierTurn = "outgoing".equals(msgSnapshot.getMessageType()) && i < messages.size() - 1;
-                Message message = msgSnapshot.toMessage(earlierTurn ? null : responseHandler, requestedToolUseIds);
+                Message message = msgSnapshot.toMessage(earlierTurn ? null : responseHandler, requestedToolUseIds, registry);
                 if (earlierTurn && "incoming".equals(messages.get(i + 1).getMessageType())) {
                     ((OutgoingMessage<?>) message).setAnsweredBeforeRestore(true);
                 }
@@ -163,7 +227,7 @@ public class ConversationPersistenceSnapshot  {
         if (mainObjective != null) {
             context.nukeMainObjective();
             mainObjective.forEach((key, blockSnapshot) ->
-                context.putObjectiveBlock(key, blockSnapshot.toBlock()));
+                context.putObjectiveBlock(key, blockSnapshot.toBlock(registry)));
         }
         else if (mainObjectiveBlocks != null) {
             // A snapshot from before the objective became a keyed map: anonymous blocks
@@ -172,7 +236,7 @@ public class ConversationPersistenceSnapshot  {
             context.nukeMainObjective();
             int slot = 0;
             for (ContentBlockSnapshot blockSnapshot : mainObjectiveBlocks) {
-                ContentBlock block = blockSnapshot.toBlock();
+                ContentBlock block = blockSnapshot.toBlock(registry);
                 if (block instanceof ToolDefinitionBlock td) {
                     context.addTool(td);
                 }
@@ -183,20 +247,20 @@ public class ConversationPersistenceSnapshot  {
         }
         if (declaredTools != null) {
             for (ContentBlockSnapshot blockSnapshot : declaredTools) {
-                if (blockSnapshot.toBlock() instanceof ToolDefinitionBlock td) {
+                if (blockSnapshot.toBlock(registry) instanceof ToolDefinitionBlock td) {
                     context.addTool(td);
                 }
             }
         }
-        // Restore artifact registry
-        if (artifacts != null) {
-            ArtifactRegistry restoredRegistry = new ArtifactRegistry();
-            for (Artifact artifact : artifacts.values()) {
-                restoredRegistry.register(artifact);
-            }
-            context.setArtifactRegistry(restoredRegistry);
-        }
         return context;
+    }
+
+    public Map<String, Map<String, String>> getArtifactSummaries() {
+        return artifactSummaries;
+    }
+
+    public void setArtifactSummaries(Map<String, Map<String, String>> artifactSummaries) {
+        this.artifactSummaries = artifactSummaries;
     }
     // Getters and setters
     public String getConversationId() {

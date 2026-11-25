@@ -9,7 +9,6 @@ package ai.redouble.nucleo.mcp;
 import ai.redouble.nucleo.harness.schema.*;
 import com.fasterxml.jackson.databind.*;
 
-import java.lang.annotation.*;
 import java.util.*;
 
 /**
@@ -24,47 +23,28 @@ import java.util.*;
  *       artifact-ref serializer collapses each nested instance to {@code {"@ref": ...}}
  *       in LLM-facing serialization, so the LLM sees structure without seeing the
  *       expanded payload of every sub-object.</li>
- *   <li>String leaf longer than {@link #LONG_TEXT_THRESHOLD} characters - the full
- *       text stays in {@code data}, and the artifact's inherited
- *       {@code summaryCache} gets an entry keyed by JSON pointer
- *       (e.g. {@code /results/0/fullText}) carrying a summary produced by
- *       {@link TruncatingSummarizer}. The serializer renders the summary in
- *       summarized modes; the full text remains available to
- *       {@code get_artifact_field} and search tools.</li>
- *   <li>Anything smaller passes through verbatim.</li>
+ *   <li>Anything else passes through verbatim, a long text included.</li>
  * </ul>
  *
- * <p>JSON pointer paths reset to the root inside each promoted nested artifact -
- * each artifact's cache is keyed relative to its own {@code data}.
+ * <p>The walker summarizes nothing. A long text leaf stays whole in {@code data}, and the
+ * serializer shows a model its summary, decided by the annotation on
+ * {@link MCPArtifact}'s {@code data} as every field's summary is.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-05-09)
  */
 public final class MCPResultWalker {
-    /** Strings longer than this get a summaryCache entry; full text stays in data. */
-    private static final int LONG_TEXT_THRESHOLD = 1000;
     /** Object values whose serialized form exceeds this become nested MCPArtifacts. */
     private static final int PROMOTE_OBJECT_THRESHOLD = 2000;
-    private static final Summarizer SUMMARIZER = new TruncatingSummarizer();
-    private static final LLMSummarizable WALKER_HINT = new LLMSummarizable() {
-        @Override public Class<? extends Annotation> annotationType() { return LLMSummarizable.class; }
-        @Override public String value() { return "MCP tool result text"; }
-        @Override public int threshold() { return LONG_TEXT_THRESHOLD; }
-        @Override public String staticSummary() { return ""; }
-        @Override public boolean llmSafe() { return true; }
-        @Override public boolean preSummarized() { return false; }
-        @Override public SummarySize size() { return SummarySize.SHORT; }
-        @Override public Class<? extends FieldSummarizer<?>> summarizer() { return FieldSummarizer.None.class; }
-    };
 
     private MCPResultWalker() {
     }
+
     /**
      * Walks the supplied tree and produces an {@link MCPArtifact}. Provenance fields
-     * populated; summary cache populated for any long string leaves; nested objects
-     * past the promotion threshold appear as nested {@link MCPArtifact} values inside
-     * {@code data}. {@code null} or null-node input produces an artifact with null
-     * {@code data}.
+     * populated; nested objects past the promotion threshold appear as nested
+     * {@link MCPArtifact} values inside {@code data}. {@code null} or null-node input
+     * produces an artifact with null {@code data}.
      */
     public static MCPArtifact walk(JsonNode raw, MCPHandle handle, String toolName) {
         MCPArtifact artifact = new MCPArtifact();
@@ -75,22 +55,22 @@ public final class MCPResultWalker {
         }
         Map<String, Object> data = new LinkedHashMap<>();
         if (raw.isObject()) {
-            walkObject(raw, "", data, artifact);
+            walkObject(raw, data, artifact);
         }
         else {
-            data.put("value", walkValue(raw, "/value", artifact));
+            data.put("value", walkValue(raw, artifact));
         }
         artifact.setData(data);
         return artifact;
     }
-    private static void walkObject(JsonNode obj, String pathPrefix, Map<String, Object> out, MCPArtifact root) {
+
+    private static void walkObject(JsonNode obj, Map<String, Object> out, MCPArtifact root) {
         for (Map.Entry<String, JsonNode> e : obj.properties()) {
-            String key = e.getKey();
-            String path = pathPrefix + "/" + escapeJsonPointer(key);
-            out.put(key, walkValue(e.getValue(), path, root));
+            out.put(e.getKey(), walkValue(e.getValue(), root));
         }
     }
-    private static Object walkValue(JsonNode node, String path, MCPArtifact root) {
+
+    private static Object walkValue(JsonNode node, MCPArtifact root) {
         if (node == null || node.isNull()) {
             return null;
         }
@@ -100,27 +80,23 @@ public final class MCPResultWalker {
                 nested.setMcpHandle(root.getMcpHandle());
                 nested.setToolName(root.getToolName());
                 Map<String, Object> nestedData = new LinkedHashMap<>();
-                walkObject(node, "", nestedData, nested);
+                walkObject(node, nestedData, nested);
                 nested.setData(nestedData);
                 return nested;
             }
             Map<String, Object> inline = new LinkedHashMap<>();
-            walkObject(node, path, inline, root);
+            walkObject(node, inline, root);
             return inline;
         }
         if (node.isArray()) {
             List<Object> list = new ArrayList<>(node.size());
             for (int i = 0; i < node.size(); i++) {
-                list.add(walkValue(node.get(i), path + "/" + i, root));
+                list.add(walkValue(node.get(i), root));
             }
             return list;
         }
         if (node.isTextual()) {
-            String text = node.asText();
-            if (text.length() > LONG_TEXT_THRESHOLD) {
-                root.cacheSummary(path, new SummarizedField(text, SUMMARIZER.summarize(text, WALKER_HINT)));
-            }
-            return text;
+            return node.asText();
         }
         if (node.isNumber()) {
             return node.numberValue();
@@ -130,14 +106,8 @@ public final class MCPResultWalker {
         }
         return node.toString();
     }
+
     private static boolean shouldPromote(JsonNode obj) {
         return NucleoJsonSerializer.write(obj).length() > PROMOTE_OBJECT_THRESHOLD;
-    }
-    /** Per RFC 6901: '~' -> '~0', '/' -> '~1'. */
-    private static String escapeJsonPointer(String key) {
-        if (key.indexOf('~') < 0 && key.indexOf('/') < 0) {
-            return key;
-        }
-        return key.replace("~", "~0").replace("/", "~1");
     }
 }

@@ -7,11 +7,14 @@
 package ai.redouble.nucleo.harness.schema;
 
 /**
- * Default summarizer that truncates text to a character budget derived from the
- * {@link LLMSummarizable#size()} annotation, preserving word boundaries.
+ * The cut: a text shortened to a character budget derived from
+ * {@link LLMSummarizable#size()}, at a word boundary, marked with the length of the whole.
  *
- * <p>Checks {@link LLMSummarizable#staticSummary()} first - if set, uses that as the
- * summary label. Otherwise truncates the text content.
+ * <p>It is what the serializer shows for a field whose content must not be paraphrased
+ * ({@link LLMSummarizable#llmSafe()} false), for a text too long to hand to a model, and
+ * for any field whose summary is not made yet. It does only that: the fixed phrase of
+ * {@link LLMSummarizable#staticSummary()} is the serializer's decision, made before a
+ * cut is considered.
  *
  * <p>Always safe to use from any context (Tools, Thinkers, Doers) - no external calls,
  * no blocking, no resource requirements.
@@ -22,19 +25,13 @@ package ai.redouble.nucleo.harness.schema;
 public class TruncatingSummarizer implements Summarizer {
     @Override
     public String summarize(String text, LLMSummarizable annotation) {
-        int length = text.length();
-        if (annotation != null && annotation.staticSummary() != null && !annotation.staticSummary().isEmpty()) {
-            return String.format("[SUMMARY: %d chars] %s", length, annotation.staticSummary());
-        }
-        SummarySize size = annotation != null ? annotation.size() : SummarySize.SHORT;
-        String truncated = truncateText(text, charBudgetFor(size));
-        return String.format("[SUMMARY: %d chars] %s", length, truncated);
+        String truncated = truncateText(text, charBudgetFor(annotation.size()));
+        return String.format("[SUMMARY: %d chars] %s", text.length(), truncated);
     }
 
     /**
      * Character budget per size. Matches the LLM summarizer's expected output length
-     * for the same size so the truncation fallback and the LLM happy path produce
-     * comparably sized output.
+     * for the same size so the cut and a model's summary are of comparable size.
      */
     private static int charBudgetFor(SummarySize size) {
         return switch (size) {

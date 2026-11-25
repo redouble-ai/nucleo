@@ -413,8 +413,6 @@ public abstract class AbstractThinker<I extends ThinkerInput, O extends ThinkerO
 
             // Set JobContext so conversation can publish events
             conversation.setJobContext(context);
-            // LLM-quality summarization for artifacts in this conversation
-            conversation.setSummarizer(new LLMSummarizer(this));
             // Merge any conveyed seed into the conversation registry: same object
             // instances, refs intact - the custody hop a fan-out doer or other
             // framework caller performed before submitting this thinker.
@@ -756,11 +754,10 @@ public abstract class AbstractThinker<I extends ThinkerInput, O extends ThinkerO
                 // Wait for this tool to complete
                 Object result = handle.get();
 
-                // Serialize result: discovers artifacts, registers them, replaces with @ref, summarizes
+                // Serialize result: discovers artifacts, registers them, replaces with @ref
                 String resultJson;
                 if (result != null) {
-                    Summarizer summarizer = new LLMSummarizer(this);
-                    resultJson = NucleoJsonSerializer.writeSummarizedWithRefs(result, conversation.getArtifactRegistry(), summarizer);
+                    resultJson = NucleoJsonSerializer.writeSummarizedWithRefs(result, conversation.getArtifactRegistry());
                 }
                 else {
                     resultJson = "[Tool returned no result]";

@@ -80,10 +80,10 @@ public class MCPArtifactRehydratorTest {
     void summariesDoNotCrossSoTheConsumerDecidesItsOwn() {
         ServedThing sent = new ServedThing();
         sent.setLabel("Compound X");
-        sent.cacheSummary("label", new SummarizedField("full text", "summary"));
+        sent.getSummaries().keep("label", "summary");
 
         ServedThing received = (ServedThing)MCPArtifactRehydrator.rehydrate(served(sent));
-        assertNull(received.getCachedSummary("label"),
+        assertNull(received.getSummaries().get("label"),
                 "an arriving artifact is newly born: summarization is the consuming harness's policy");
     }
 

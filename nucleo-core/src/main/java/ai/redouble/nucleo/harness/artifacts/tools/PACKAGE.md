@@ -18,7 +18,12 @@ itself: the artifact your code receives stays the one the tool produced.
 
 The model names an artifact by its reference and a field by its name, in snake_case or
 camelCase as it prefers; fields the artifact inherits count too. The tool returns the field's
-content, its full length, and whether more remains. A long field comes back in parts: at most
+content, its full length, and whether more remains. The content is the whole value in the
+form the model was shown a summary of: a text as it is, and any other value, a list or a map
+or an object, as its JSON, with an artifact inside it as its reference. A value inside a
+field is read by a path, the field's name followed by the JSON pointer to the value, such as
+`data/results/0/title`. A field marked `@LLMContextIgnore` is no field for this tool. A long
+field comes back in parts: at most
 `max_chars` characters (10,000 unless the model asks for another amount), starting at
 `offset` (the beginning unless it asks otherwise), so the model can read a very long field
 part by part.
@@ -27,15 +32,17 @@ A reference that names no artifact in this conversation is refused with
 `ResourceNotFoundException`, a mistake the model can correct: a model that invents or
 misremembers a reference never receives another artifact's content. A field name the artifact
 does not have is refused with `InvalidInputException`, whose message lists the fields the
-artifact does have. A field that exists and holds null returns no content, because null is
+artifact does have, and so is a path that leads to nothing inside a field. A field that exists and holds null returns no content, because null is
 what the data is.
 
 ## `search_artifact_content`: finding text across artifacts
 
-The model gives a string, and the tool finds it - exactly, ignoring case - in every text field
-of every artifact in the registry, including the iterands of a list and artifacts nested inside
-others. Each match comes back with the reference of its artifact, the field, the position, and
-a snippet of the surrounding text. Two optional filters narrow the search: `artifact_ref` to one
+The model gives a string, and the tool finds it - exactly, ignoring case - in every text
+of every artifact in the registry, including the iterands of a list, artifacts nested inside
+others, and the texts inside a field that is a list or a map. A field marked
+`@LLMContextIgnore` is not searched. Each match comes back with the reference of its artifact,
+the path of the text, which is what `get_artifact_field` takes as the field name, the
+position, and a snippet of the surrounding text. Two optional filters narrow the search: `artifact_ref` to one
 artifact, and `artifact_type` to artifacts whose class name contains the given word, such as
 `citation` or `webpage`.
 

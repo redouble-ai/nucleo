@@ -17,9 +17,13 @@ import java.time.*;
 /**
  * Tool for retrieving full content of a specific artifact field.
  *
- * <p>Use when you need complete text that was summarized in context.
- * The tool reads the field directly from the live artifact via reflection,
- * accepting either snake_case or camelCase field names.
+ * <p>Use when you need complete text that was summarized in context. This is how a model
+ * reads the whole of a field it was shown a summary of. The value is served as the
+ * serializer writes it: a text as it is, any other value as its JSON, an artifact inside it
+ * as its reference. The name is taken in snake_case or camelCase, and a value inside a
+ * field is addressed by the field's name followed by a JSON pointer
+ * ({@code data/results/0/title}). A field marked {@code @LLMContextIgnore} is no field
+ * here.
  *
  * <p>Failures are typed refusals, never flags in the output: a reference the registry does
  * not resolve is {@link ResourceNotFoundException} (closed - a hallucinated ref never
@@ -33,7 +37,7 @@ import java.time.*;
  */
 @DisplayName(value = "Get Artifact Field", action = "Retrieving artifact field content")
 @ToolName("get_artifact_field")
-@LLMDescription("Get the full content of a specific field from an artifact. Use when you need the complete text that was summarized in context.")
+@LLMDescription("Get the full content of a specific field from an artifact. Use when you need the complete value of a field that is shown as a [SUMMARY: N chars] summary. A value that is not text is returned as JSON.")
 @ReadOnly
 @ToolWeight(type = ToolType.IN_MEMORY)
 public class GetArtifactFieldTool extends AbstractTool<GetArtifactFieldInput, GetArtifactFieldOutput> implements ArtifactRegistryAware {
@@ -75,14 +79,9 @@ public class GetArtifactFieldTool extends AbstractTool<GetArtifactFieldInput, Ge
             throw new ResourceNotFoundException("artifact", input.getArtifactRef());
         }
         context.publish("Extracting field", 50);
-        // The name resolves snake_case or camelCase against the class hierarchy; a name that
-        // resolves to nothing is the model's to fix, so the refusal lists the addressable fields
-        java.lang.reflect.Field field = ReflectiveFields.find(artifact.getClass(), input.getFieldName());
-        if (field == null) {
-            throw new InvalidInputException("fieldName", input.getFieldName(),
-                    "a field of " + artifact.getClass().getSimpleName() + ": " + ReflectiveFields.fieldNames(artifact.getClass()));
-        }
-        String content = readField(artifact, field);
+        // A name that resolves to nothing is the model's to fix, so the refusal lists the
+        // fields that can be read
+        String content = ModelFacingFields.read(artifact, input.getFieldName());
         GetArtifactFieldOutput output = new GetArtifactFieldOutput();
         output.setFieldName(input.getFieldName());
         if (content == null) {
@@ -100,17 +99,5 @@ public class GetArtifactFieldTool extends AbstractTool<GetArtifactFieldInput, Ge
         output.setTruncated(end < content.length());
         context.publish("Complete", 100);
         return output;
-    }
-
-    /** The field's value as text, null when the artifact holds none. */
-    private String readField(Artifact artifact, java.lang.reflect.Field field) {
-        try {
-            Object value = field.get(artifact);
-            return value != null ? value.toString() : null;
-        }
-        catch (IllegalAccessException e) {
-            throw new IllegalStateException("Field " + field.getName() + " on "
-                    + artifact.getClass().getSimpleName() + " resolved but could not be read", e);
-        }
     }
 }

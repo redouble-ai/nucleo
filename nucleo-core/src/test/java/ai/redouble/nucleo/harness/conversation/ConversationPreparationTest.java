@@ -6,6 +6,7 @@
 
 package ai.redouble.nucleo.harness.conversation;
 
+import ai.redouble.nucleo.harness.artifacts.*;
 import ai.redouble.nucleo.harness.conversation.ContentBlocks.*;
 import ai.redouble.nucleo.harness.errors.*;
 import ai.redouble.nucleo.harness.llm.*;
@@ -367,8 +368,8 @@ public class ConversationPreparationTest {
         ConversationPersistenceSnapshot snapshot = new ConversationPersistenceSnapshot();
         snapshot.setConversationId("legacy-conv");
         snapshot.setMainObjectiveBlocks(List.of(
-                ContentBlockSnapshot.fromBlock(new ContentBlocks.TextBlock(OBJECTIVE)),
-                ContentBlockSnapshot.fromBlock(new ContentBlocks.ToolDefinitionBlock("legacy_tool", "from before", "{}"))));
+                ContentBlockSnapshot.fromBlock(new ContentBlocks.TextBlock(OBJECTIVE), new ArtifactRegistry()),
+                ContentBlockSnapshot.fromBlock(new ContentBlocks.ToolDefinitionBlock("legacy_tool", "from before", "{}"), new ArtifactRegistry())));
 
         ConversationContext restored = snapshot.toConversation(StringResponseHandler.instance);
         restored.getMessages().add(message("user", USER_TURN));

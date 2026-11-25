@@ -103,8 +103,23 @@ takes the reasoning from there and does not ask for the field.
 
 Some fields hold more than is worth showing a model in full: a web page, a patent
 specification, a protein sequence. Mark such a field `@LLMSummarizable` and, when its value
-is long, the model is shown a shortened form while your code keeps the whole value. How it
-may be shortened depends on what the data is:
+is long, the model is shown a summary while the object keeps the whole value.
+
+The annotation goes on a field of an artifact, a class that implements `Artifact`
+([Artifacts](../artifacts/PACKAGE.md)), and nowhere else. A model that is shown a summary
+has to be able to read the whole value, and an artifact is what it can read back, by its
+reference, with the `get_artifact_field` tool
+([Artifact tools](../artifacts/tools/PACKAGE.md)). The field may be of any type: a text is
+summarized as it is, and any other value as the JSON it is written as. The placement is
+checked for you three times:
+
+- at compile time, by the annotation processor in `nucleo-processor`, once it is on the
+  compiler's `annotationProcessorPaths`: a misplaced field is a compile error on its line;
+- in a Quarkus build, which fails naming every misplaced field;
+- when `JobDispatcher` starts, which reads the class files of the application and refuses
+  to start with a `SummarizableOutsideArtifactException` that names every misplaced field.
+
+How a value is summarized depends on what the data is:
 
 | The field holds | Declare | The model sees |
 |---|---|---|
@@ -113,26 +128,38 @@ may be shortened depends on what the data is:
 | Data no model should rewrite: chemical structures, sequences, code | `@LLMSummarizable(staticSummary = "SMILES string")` | a fixed phrase in place of the value |
 | A value with a structure of its own: JSON, a stack trace, a list of identifiers | `@LLMSummarizable(value = "job input", summarizer = MySummarizer.class)` | what your class writes for the value |
 
-A field's own summarizer is a class that implements `FieldSummarizer<T>`, where `T` is the
-field's type, and has a public no-argument constructor. It is the one case in which a field
-that is no text is shortened: the value is handed to your class when it is longer than
-`threshold`, which is the length of a text and, for any other value, the length of its JSON.
-A field that names a summarizer is never given to the summarizer of the serialization.
+A value is summarized when it is longer than `threshold`: the length of a text and, for any
+other value, the length of its JSON. A field's own summarizer is a class that implements
+`FieldSummarizer<T>`, where `T` is the field's type, and has a public no-argument
+constructor; the value is handed to it as it is. A field that names one is never sent to a
+model for its summary.
 
-Summarizing saves tokens and never fails a serialization. When a summarizer throws or
-returns null, whether it is a field's own or the one the serialization was given, or when a
-field's class cannot be made, the failure is logged, the value is cut short as plain text
-is, and when that fails too it is written whole.
+You do not ask for summaries. A model's summary is made once, by a summarization job, when a
+thinker or a doer is about to send a conversation that holds the artifact, and from then on
+the model is shown that summary every time. A summary of any kind is kept on the artifact
+(`Artifact.getSummaries()`) and stored with a persisted conversation, beside the artifact,
+which is always stored with its whole value. Where no model's summary is made yet, as in a
+conversation's registry before its first call, the text is shown cut, marked with its full
+length, and nothing is kept. A text longer than 200,000 characters is cut and never sent to
+a model.
 
-`size` sets how long a summary may be: `BRIEF`, `SHORT` or `PARAGRAPHS`. On an artifact, a
-model that needs the full value of a summarized field can ask for it with the
-`get_artifact_field` tool ([Artifact tools](../artifacts/tools/PACKAGE.md)).
+Summarizing saves tokens and never fails a serialization. When a field's own summarizer or
+the summarization job throws or returns nothing, the failure is logged, nothing is kept and
+the value is shown cut for that write; the job is asked again the next time a conversation
+is sent. A cancelled job asks for no further summary.
+
+`size` sets how long a summary may be: `BRIEF`, `SHORT` or `PARAGRAPHS`.
+
+A value that is a tree, such as the result of an MCP tool, can keep its shape for the model:
+with `preSummarized = true` each text leaf longer than `threshold` is shown as its own
+summary, and the rest of the tree is shown as it is.
 
 ## Keeping a field from the model
 
 `@LLMContextIgnore` leaves a field out of everything the model is shown: an internal id, a
-raw payload, a value only your code needs. The field stays on the object and travels with
-it.
+raw payload, a value only your code needs. That covers the prompt, the listing of an
+artifact in the conversation's registry, and what the artifact tools read and search. The
+field stays on the object, travels with it and is stored with a persisted conversation.
 
 ## How it works inside
 

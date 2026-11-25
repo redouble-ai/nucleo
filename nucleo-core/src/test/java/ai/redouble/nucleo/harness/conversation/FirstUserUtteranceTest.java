@@ -6,6 +6,7 @@
 
 package ai.redouble.nucleo.harness.conversation;
 
+import ai.redouble.nucleo.harness.artifacts.*;
 import ai.redouble.nucleo.harness.models.*;
 import org.junit.jupiter.api.*;
 
@@ -74,7 +75,7 @@ public class FirstUserUtteranceTest {
     }
 
     private static Message roundTrip(Message message) {
-        return MessageSnapshot.fromMessage(message).toMessage(StringResponseHandler.instance);
+        return MessageSnapshot.fromMessage(message, new ArtifactRegistry()).toMessage(StringResponseHandler.instance, null, new ArtifactRegistry());
     }
 
     private static OutgoingMessage<String> preamble(String text) {

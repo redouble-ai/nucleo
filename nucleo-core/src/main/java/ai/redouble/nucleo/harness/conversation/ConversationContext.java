@@ -180,13 +180,6 @@ public class ConversationContext implements Serializable {
     private OutputDeclaration outputDeclaration;
 
     private transient JobContext<?> jobContext;
-    /**
-     * Summarizer used when serializing this conversation's content for the LLM.
-     * Set by the owning thinker (typically the LLM-backed summarizer in
-     * {@code tools.builtin} with the thinker as parent).
-     * Transient because it holds a runtime identifiable; null after restore until reset.
-     */
-    private transient Summarizer summarizer;
     // Persistence fields
     private final String conversationId;
     private String workflowId;
@@ -312,17 +305,30 @@ public class ConversationContext implements Serializable {
     }
 
     /**
-     * Sets the summarizer used when content is serialized for the LLM.
-     * The owning thinker should call this with the LLM-backed summarizer
-     * ({@code ai.redouble.nucleo.tools.builtin.LLMSummarizer}) so the artifact
-     * registry gets LLM-quality summaries instead of plain truncation.
+     * Makes and keeps the summaries of every artifact this conversation shows a model,
+     * asking the given summarizer for the ones that need a model. This is the one place a
+     * conversation asks a model for a summary: every rendering of the conversation shows
+     * the summaries that are kept and cuts, for that rendering alone, the text of a field
+     * whose summary is not made yet.
+     *
+     * <p>The caller is the thinker or doer about to send the conversation, on its own
+     * thread, since the summarizer submits jobs and waits for them. Nothing is frozen and
+     * no turn is added; the artifacts the prompt holds are registered, as a rendering
+     * registers them.
+     *
+     * @param model asks a model for the summary of one text; it throws when it cannot
      */
-    public void setSummarizer(Summarizer summarizer) {
-        this.summarizer = summarizer;
-    }
-
-    public Summarizer getSummarizer() {
-        return summarizer;
+    public void summarizeArtifacts(Summarizer model) {
+        ContentProcessor processor = new ContentProcessor(this);
+        processor.processForLLM(new ArrayList<>(mainObjective.values()));
+        for (Message message : new ArrayList<>(messages)) {
+            if (message instanceof OutgoingMessage<?> outgoing) {
+                processor.processForLLM(outgoing.getContentBlocks());
+            }
+        }
+        for (Artifact artifact : new ArrayList<>(artifactRegistry.getAllArtifacts().values())) {
+            NucleoJsonSerializer.makeSummaries(artifact, model);
+        }
     }
 
     /**
@@ -1114,12 +1120,6 @@ public class ConversationContext implements Serializable {
         return carried;
     }
 
-    private ContentProcessor createContentProcessor() {
-        return summarizer != null
-            ? new ContentProcessor(this, summarizer)
-            : new ContentProcessor(this);
-    }
-
     /**
      * Prepares all conversation messages for LLM consumption.
      *
@@ -1185,7 +1185,7 @@ public class ConversationContext implements Serializable {
         LinkedHashMap<String, ContentBlock> head = new LinkedHashMap<>(mainObjective);
         List<Message> stream = new ArrayList<>(messages);
         placeFrameworkVoice(head, stream, false);
-        ContentProcessor processor = createContentProcessor();
+        ContentProcessor processor = new ContentProcessor(this);
         List<ContentBlock> objectiveBlocks = new ArrayList<>(head.values());
         ResponseRequirements requirements = new ResponseRequirements(formatter.supportsNativeToolCalling(), thinkingActive);
         objectiveBlocks.addAll(replyFormatPosition(head, objectiveBlocks), replyFormatDefinitions(stream, requirements));

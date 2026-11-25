@@ -24,7 +24,12 @@ This is the agent most applications write, and the one in [Your first
 agent](../../../../../../../../../nucleo-examples/src/main/java/ai/redouble/examples/agent/PACKAGE.md).
 Its input extends `ThinkerInput`, which carries the question (`query`), how hard to work
 (`depth`) and the artifacts it is handed (`artifactRefs`). Its answer extends `ThinkerOutput`,
-which carries the model's reasoning and the artifacts the answer selected. The thinker turns
+which carries the model's reasoning and the artifacts the answer selected. An answer with a
+long field, a report or a synthesis, extends `ArtifactThinkerOutput` instead and marks the
+field `@LLMSummarizable`: the answer is then an artifact. Its model writes its fields like
+any answer's, the one case in which a model writes an artifact, and the thinker that called
+it holds it by reference, sees the long field as a summary and reads it whole with
+`get_artifact_field`. The thinker turns
 until the model gives a final answer that fits the answer class and passes the declared
 checks, or until its iteration limit, and returns that answer as the job's result.
 

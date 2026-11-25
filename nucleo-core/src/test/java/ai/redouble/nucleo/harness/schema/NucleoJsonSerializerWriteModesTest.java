@@ -18,30 +18,40 @@ import java.util.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * The three write modes of {@link NucleoJsonSerializer} on a plain object, as the package
- * documentation states them: {@code write} reproduces every field; the summarized modes hand a
- * {@code @LLMSummarizable} String past its threshold to the summarizer (the shipped default
- * truncates, labelled with the original length) and leave every other field alone, a non-String
- * field included unless it is {@code preSummarized}, in which case an artifact's cached summary is
- * written at the leaf its JSON pointer names; the annotation itself is handed to the summarizer,
- * which is where {@code llmSafe} is honoured; a field without a hint is warned about once;
- * {@code writeSummarizedWithRefs} additionally replaces an artifact with its reference and
- * registers it, and an artifact with no reference and no registry is a framework fault. A
- * serialization failure is reported by describing the object's fields by size, never by
- * reproducing them.
+ * The write modes of {@link NucleoJsonSerializer}, as the package documentation states
+ * them: {@code write} reproduces every field; the summarized modes show an artifact's
+ * {@code @LLMSummarizable} field past its threshold as a summary (a cut, labelled with the
+ * original length, until a model's summary is made) and leave every other field alone; a
+ * fixed phrase stands in for the text; content marked {@code llmSafe = false} is cut and
+ * never reaches a model; a {@code preSummarized} tree is summarized leaf by leaf, each
+ * summary kept under the field's name and the leaf's JSON pointer; a field without a hint
+ * is warned about once; {@code writeSummarizedWithRefs} additionally replaces an artifact
+ * with its reference and registers it, and an artifact with no reference and no registry
+ * is a framework fault; the model-facing fields of one artifact are its serialized form
+ * without what {@code @LLMContextIgnore} hides, whole and with held artifacts as
+ * references; the stored form of a prompt object keeps every field. A serialization
+ * failure is reported by describing the object's fields by size, never by reproducing them.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-09-16)
  */
 class NucleoJsonSerializerWriteModesTest {
 
-    public static class Page {
+    @TypeAlias("test:modes:page")
+    public static class Page extends AbstractArtifact {
         @LLMSummarizable(value = "page text", threshold = 20, size = SummarySize.BRIEF)
         private String body;
         @LLMSummarizable(value = "not a string", threshold = 1)
         private List<String> lines;
         private String title;
+        @LLMContextIgnore
+        private String internalNote = "kept from the model";
+        private Held attachment;
 
+        public String getInternalNote() { return internalNote; }
+        public void setInternalNote(String internalNote) { this.internalNote = internalNote; }
+        public Held getAttachment() { return attachment; }
+        public void setAttachment(Held attachment) { this.attachment = attachment; }
         public String getBody() { return body; }
         public void setBody(String body) { this.body = body; }
         public List<String> getLines() { return lines; }
@@ -50,7 +60,8 @@ class NucleoJsonSerializerWriteModesTest {
         public void setTitle(String title) { this.title = title; }
     }
 
-    public static class Labelled {
+    @TypeAlias("test:modes:labelled")
+    public static class Labelled extends AbstractArtifact {
         @LLMSummarizable(value = "a sequence", threshold = 5, staticSummary = "an amino acid sequence")
         private String sequence;
 
@@ -73,7 +84,8 @@ class NucleoJsonSerializerWriteModesTest {
         public String label;
     }
 
-    public static class Fragile {
+    @TypeAlias("test:modes:fragile")
+    public static class Fragile extends AbstractArtifact {
         @LLMSummarizable(value = "a formatted table", threshold = 5, llmSafe = false)
         private String table = "| a | b |\n| 1 | 2 |";
 
@@ -81,7 +93,8 @@ class NucleoJsonSerializerWriteModesTest {
         public void setTable(String table) { this.table = table; }
     }
 
-    public static class Hintless {
+    @TypeAlias("test:modes:hintless")
+    public static class Hintless extends AbstractArtifact {
         @LLMSummarizable(threshold = 5)
         private String body = "a body with no hint declared";
 
@@ -91,7 +104,7 @@ class NucleoJsonSerializerWriteModesTest {
 
     @TypeAlias("test:bundle")
     public static class Bundle extends AbstractArtifact {
-        @LLMSummarizable(value = "a served result", preSummarized = true)
+        @LLMSummarizable(value = "a served result", preSummarized = true, threshold = 20, llmSafe = false)
         private Map<String, Object> data;
 
         public Map<String, Object> getData() { return data; }
@@ -124,11 +137,12 @@ class NucleoJsonSerializerWriteModesTest {
     void summarizedModesTruncateALongStringByDefaultAndLeaveTheRestAlone() {
         String label = "[SUMMARY: " + page().getBody().length() + " chars]";
         String json = NucleoJsonSerializer.writeSummarized(page());
-        assertTrue(json.contains(label), "the default summarizer labels the summary with the original length: " + json);
-        assertFalse(json.contains("OMEGA"), "and truncates to the size's budget, so the tail of the body is gone: " + json);
+        assertTrue(json.contains(label), "with no model's summary made yet, the cut labels itself with the original length: " + json);
+        assertFalse(json.contains("OMEGA"), "and keeps the size's budget, so the tail of the body is gone: " + json);
         assertTrue(json.contains("well past the twenty"), "while the head of the body is kept");
-        assertTrue(json.contains("\"short\""), "a field below its threshold is written in full");
-        assertTrue(json.contains("\"one\"") && json.contains("\"two\""), "a non-String summarizable field is not summarized");
+        assertTrue(json.contains("\"short\""), "a field that is not annotated is written in full");
+        assertTrue(json.contains("[SUMMARY: 13 chars] [\\\"one\\\",\\\"two\\\"]"), "a list past its threshold is one summary of its JSON: " + json);
+        assertFalse(json.contains("kept from the model"), "a field marked @LLMContextIgnore is not shown: " + json);
         String compact = NucleoJsonSerializer.writeSummarizedCompact(page());
         assertFalse(compact.contains("\n"), "the compact form carries no formatting whitespace");
         assertTrue(compact.contains(label), "and summarizes the same way");
@@ -144,21 +158,54 @@ class NucleoJsonSerializerWriteModesTest {
     }
 
     @Test
-    void theProvidedSummarizerIsTheOneCalled() {
-        Summarizer marker = (text, annotation) -> "[" + annotation.value() + ": " + text.length() + "]";
-        String json = NucleoJsonSerializer.writeSummarized(page(), marker);
-        assertTrue(json.contains("[page text: " + page().getBody().length() + "]"), "the caller's summarizer, with the field's hint: " + json);
+    void aModelIsHandedTheTextAndTheAnnotationOfAFieldThatNeedsOne() {
+        Page page = page();
+        NucleoJsonSerializer.makeSummaries(page, (text, annotation) -> "[" + annotation.value() + ": " + text.length() + "]");
+        String json = NucleoJsonSerializer.writeSummarized(page);
+        assertTrue(json.contains("[page text: " + page.getBody().length() + "]"), "the model's summary, made with the field's hint: " + json);
     }
 
     @Test
-    void theAnnotationReachesTheSummarizerWhichIsWhereLlmSafeIsHonoured() {
-        List<Boolean> seen = new ArrayList<>();
-        Summarizer recorder = (text, annotation) -> {
-            seen.add(annotation.llmSafe());
-            return "[recorded]";
-        };
-        NucleoJsonSerializer.writeSummarized(new Fragile(), recorder);
-        assertEquals(List.of(false), seen, "the serializer hands the annotation over as declared; what llmSafe=false changes is the summarizer's decision");
+    void contentThatMustNotBeParaphrasedIsCutAndNeverReachesAModel() {
+        Fragile fragile = new Fragile();
+        NucleoJsonSerializer.makeSummaries(fragile, (text, annotation) -> fail("llmSafe = false content must not be sent to a model"));
+        assertTrue(NucleoJsonSerializer.writeSummarized(fragile).contains("[SUMMARY: 19 chars] | a | b |"), "the cut quotes the original text");
+        assertNotNull(fragile.getSummaries().get("table"), "and is kept, being the field's summary for good");
+    }
+
+    @Test
+    void theModelFacingFieldsOfAnArtifactAreItsSerializedFormWholeWithHeldArtifactsAsReferences() {
+        Page page = page();
+        page.setAttachment(new Held("held body"));
+        page.getAttachment().setArtifactRef("«artifact:test:modes~h1»");
+        com.fasterxml.jackson.databind.node.ObjectNode fields = NucleoJsonSerializer.modelFacingFields(page);
+        assertEquals(page.getBody(), fields.get("body").asText(), "a long field is whole here: this is what a model reads a field back from");
+        assertEquals(2, fields.get("lines").size(), "a list is the JSON array it is written as");
+        assertFalse(fields.has("internal_note"), "a field marked @LLMContextIgnore is not readable by a model");
+        assertEquals("«artifact:test:modes~h1»", fields.get("attachment").get("@ref").asText(), "an artifact it holds is its reference");
+        assertEquals(Set.of("artifact_ref", "body", "lines", "title", "attachment"), NucleoJsonSerializer.modelFacingFieldNames(Page.class),
+                "the names a model may ask for, in the spelling they are serialized in");
+    }
+
+    @Test
+    void theStoredFormOfAnObjectKeepsEveryFieldWholeAndItsArtifactsAsReferences() {
+        ArtifactRegistry registry = new ArtifactRegistry();
+        Holder holder = new Holder();
+        holder.held = new Held("secret body");
+        holder.label = "outer";
+        String stored = NucleoJsonSerializer.writeStoredWithRefs(holder, registry);
+        assertTrue(stored.contains("\"@ref\"") && !stored.contains("secret body"), "the artifact is stored in the registry, and here as its reference: " + stored);
+        assertSame(holder.held, registry.get(holder.held.getArtifactRef()), "the write registers it");
+        Stamped stamped = new Stamped();
+        assertTrue(NucleoJsonSerializer.writeStoredWithRefs(stamped, registry).contains("kept from the model"),
+                "a field hidden from a model is still stored: the object is read back from this text");
+        assertFalse(NucleoJsonSerializer.writeSummarizedWithRefs(stamped, registry).contains("kept from the model"));
+    }
+
+    public static class Stamped {
+        @LLMContextIgnore
+        public String internalNote = "kept from the model";
+        public String label = "shown";
     }
 
     @Test
@@ -181,7 +228,7 @@ class NucleoJsonSerializerWriteModesTest {
     }
 
     @Test
-    void aPreSummarizedFieldWritesTheCachedSummaryAtItsPointerAndTheRestAsItIs() {
+    void aPreSummarizedFieldSummarizesEachLongLeafUnderItsPointerAndWritesTheRestAsItIs() {
         Bundle bundle = new Bundle();
         Map<String, Object> deep = new LinkedHashMap<>();
         deep.put("text", "the full long text of the served page");
@@ -190,11 +237,14 @@ class NucleoJsonSerializerWriteModesTest {
         data.put("deep", deep);
         data.put("list", List.of("a"));
         bundle.setData(data);
-        bundle.cacheSummary("/deep/text", new SummarizedField("the full long text of the served page", "[cached]"));
         String json = NucleoJsonSerializer.writeSummarizedCompact(bundle);
-        assertTrue(json.contains("\"text\":\"[cached]\""), "the leaf with a cached summary is written as the summary: " + json);
-        assertFalse(json.contains("full long text"), "and its value is not reproduced");
-        assertTrue(json.contains("\"n\":1") && json.contains("\"list\":[\"a\"]"), "leaves without one are written as they are");
+        assertTrue(json.contains("\"text\":\"[SUMMARY: 37 chars] the full long text of the served page\""), "a text leaf past the threshold is written as its summary: " + json);
+        assertEquals(Set.of("data/deep/text"), bundle.getSummaries().all().keySet(), "kept under the field's name and the leaf's JSON pointer");
+        assertTrue(json.contains("\"n\":1") && json.contains("\"list\":[\"a\"]"), "every other leaf is written as it is");
+        Bundle restored = new Bundle();
+        restored.setData(data);
+        restored.getSummaries().keep("data/deep/text", "[kept]");
+        assertTrue(NucleoJsonSerializer.writeSummarizedCompact(restored).contains("\"text\":\"[kept]\""), "a summary already kept under that key is the one written");
         assertTrue(NucleoJsonSerializer.writeCompact(bundle).contains("full long text"), "the plain write reproduces the value");
     }
 
@@ -219,7 +269,7 @@ class NucleoJsonSerializerWriteModesTest {
         assertTrue(json.contains("\"@ref\""), "the artifact becomes a reference: " + json);
         assertFalse(json.contains("secret body"), "its body stays out of the prompt");
         assertSame(holder.held, registry.get(holder.held.getArtifactRef()), "and it is registered under that reference");
-        assertTrue(NucleoJsonSerializer.writeSummarized(holder).contains("secret body"), "the summarized mode without refs writes the artifact in full");
+        assertTrue(NucleoJsonSerializer.writeSummarized(holder).contains("secret body"), "the summarized mode without refs writes the artifact inline");
     }
 
     @Test

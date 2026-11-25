@@ -179,6 +179,28 @@ public class LLMCallCorrectionTest {
         }
     }
 
+    /** An artifact whose long field is content no model may paraphrase, so its summary needs no job. */
+    @TypeAlias("test:llmcall:table")
+    public static class Table extends AbstractArtifact {
+        @LLMSummarizable(value = "a table of measurements", threshold = 20, llmSafe = false)
+        private String cells;
+
+        public String getCells() { return cells; }
+        public void setCells(String cells) { this.cells = cells; }
+    }
+
+    @Test
+    void buildingTheCallMakesTheSummariesOfTheConversationsArtifacts() {
+        ConversationContext conversation = conversationExpecting(new PojoResponseHandler<>(CitingAnswer.class));
+        Table table = new Table();
+        table.setCells("| a | b |\n".repeat(20));
+        conversation.getArtifactRegistry().register(table);
+        assertNull(table.getSummaries().get("cells"), "registering an artifact summarizes nothing");
+        new CitingCall(conversation, new CannedClient("{}"));
+        assertNotNull(table.getSummaries().get("cells"),
+                "the summaries are made when the call is built, on its builder's thread, so the call renders the conversation with every summary already kept");
+    }
+
     @Test
     void anArtifactInTheAnswerIsTheRegistrysOwn_whateverTheModelWroteBesideItsReference() throws Exception {
         ConversationContext conversation = conversationExpecting(new PojoResponseHandler<>(CitingAnswer.class));

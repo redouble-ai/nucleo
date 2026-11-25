@@ -150,7 +150,7 @@ public final class LiveOpenAIChatProbe {
 
         @Override
         public void save(ConversationPersistenceSnapshot snapshot, String user) {
-            json.put(snapshot.getConversationId(), NucleoJsonSerializer.write(snapshot));
+            json.put(snapshot.getConversationId(), snapshot.toJson());
             saves.merge(snapshot.getConversationId(), 1, Integer::sum);
         }
 
@@ -161,7 +161,7 @@ public final class LiveOpenAIChatProbe {
                 return null;
             }
             try {
-                return NucleoJsonSerializer.parse(text, ConversationPersistenceSnapshot.class);
+                return ConversationPersistenceSnapshot.fromJson(text);
             }
             catch (IOException e) {
                 throw new IllegalStateException("the stored snapshot does not parse", e);

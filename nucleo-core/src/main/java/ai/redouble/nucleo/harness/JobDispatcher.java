@@ -18,6 +18,7 @@ import ai.redouble.nucleo.harness.errors.retry.*;
 import ai.redouble.nucleo.harness.llm.*;
 import ai.redouble.nucleo.harness.models.*;
 import ai.redouble.nucleo.harness.observability.*;
+import ai.redouble.nucleo.harness.schema.*;
 import org.slf4j.*;
 
 import java.time.*;
@@ -578,6 +579,10 @@ public enum JobDispatcher {
     /**
      * Starts the dispatcher.
      * Schedulers are started on demand when jobs are submitted.
+     *
+     * @throws SummarizableOutsideArtifactException when a field on the application's
+     *         classpath carries {@code @LLMSummarizable} and its class is no artifact
+     *         ({@link SummarizablePlacement}); the dispatcher stays stopped
      */
     public void start() {
         if (!state.compareAndSet(State.STOPPED, State.STARTING)) {
@@ -593,6 +598,10 @@ public enum JobDispatcher {
 
         try {
             log.info("Starting JobDispatcher");
+
+            // A field summarized outside an artifact would show a model a summary it could
+            // never read past; refused here, before anything runs
+            SummarizablePlacement.check();
 
             // Start message bus
             messageBus.start();

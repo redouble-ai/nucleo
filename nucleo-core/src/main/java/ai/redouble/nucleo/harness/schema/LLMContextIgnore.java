@@ -11,10 +11,11 @@ import java.lang.annotation.*;
 /**
  * Marks a field that the LLM may WRITE but must never READ back. The field stays
  * in the schema (so the model can populate it when calling a tool) and in the
- * full {@code write()} serialization (so it persists for observability), but it
- * is omitted from the model-facing serialization
- * ({@link ai.redouble.nucleo.harness.schema.NucleoJsonSerializer#writeSummarizedWithRefs} - the
- * {@code LLM_REF} mode that renders content into the prompt context).
+ * full {@code write()} serialization and the stored form of a conversation (so it
+ * persists), but it is omitted from every serialization a model reads: the prompt
+ * ({@link NucleoJsonSerializer#writeSummarizedWithRefs}), the registry section's listing
+ * of an artifact ({@link NucleoJsonSerializer#writeSummarized}), and the fields the
+ * artifact tools read and search ({@link NucleoJsonSerializer#modelFacingFields}).
  *
  * <p>Use for a control input the caller declares but the callee should not have
  * echoed back into its own context. The motivating case is

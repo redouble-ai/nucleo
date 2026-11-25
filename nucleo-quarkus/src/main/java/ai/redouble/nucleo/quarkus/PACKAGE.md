@@ -13,7 +13,10 @@ and it wires the same things:
 - a cost ledger records what each workflow spends and is the dispatcher's spend gate
   ([Observers, cost and the spend cap](../../../../../../../../nucleo-core/src/main/java/ai/redouble/nucleo/harness/observability/PACKAGE.md));
 - the jobs that use the application's database can be counted;
-- the application builds to a native image with no native configuration of its own.
+- the application builds to a native image with no native configuration of its own;
+- the build fails, naming the field, when `@LLMSummarizable` stands on a field of a class
+  that is no artifact
+  ([Answers as Java objects](../../../../../../../../nucleo-core/src/main/java/ai/redouble/nucleo/harness/schema/PACKAGE.md)).
 
 It needs `quarkus-arc` and MicroProfile Config and no web framework, so it serves a REST
 application and a batch process the same way. It is a Quarkus extension: this runtime module

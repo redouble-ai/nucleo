@@ -6,15 +6,18 @@
 
 package ai.redouble.nucleo.ext.patent.epo;
 
+import ai.redouble.nucleo.harness.artifacts.*;
 import ai.redouble.nucleo.harness.schema.*;
 
 /**
- * Output from EPO patent claims retrieval.
+ * Output from EPO patent claims retrieval. An artifact, so that a model shown a summary
+ * of long claims can read them whole by the reference.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-02-02)
  */
-public class EPOClaimsOutput  {
+@TypeAlias("patent:claims")
+public class EPOClaimsOutput extends AbstractArtifact {
     @LLMDescription("Full text of the patent claims")
     @LLMSummarizable(value = "patent claims from EPO", size = SummarySize.PARAGRAPHS)
     private String claims;

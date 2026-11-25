@@ -53,6 +53,15 @@
 
     <build>
         <plugins>
+            <!-- A build tool that depends on no runtime module: it can carry none of the
+                 runtime's annotations, and nothing would build the processor before it -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <annotationProcessorPaths combine.self="override"/>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>

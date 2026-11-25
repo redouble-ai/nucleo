@@ -243,8 +243,10 @@ To keep conversations across restarts, give the service a store:
 first. Both are interfaces your application implements over the storage it already has;
 every call names the user acting, and a conversation belongs to its user. The service saves
 at each boundary of the exchange: a user message in, an answer out, or an exchange that
-ended abnormally. A restored conversation brings back its messages, objective, tools,
-artifacts and declarations; the thinker that resumes it supplies the rest, and the next
+ended abnormally. A store writes what `ConversationPersistenceSnapshot.toJson()` gives it and
+reads it back with `fromJson`. A restored conversation brings back its messages, objective,
+tools, artifacts and declarations. Each artifact comes back with its whole values and with the
+summaries a model was shown of it, so none is made a second time; the thinker that resumes it supplies the rest, and the next
 call picks its model again. Only a last turn still waiting for its answer takes the
 response handler the restore is given. A restored turn that the model answered before the
 save carries none, and renders as it did while the conversation was live: its content, then

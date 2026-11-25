@@ -6,9 +6,12 @@
 
 package ai.redouble.nucleo.harness.conversation;
 
+import ai.redouble.nucleo.harness.artifacts.*;
 import ai.redouble.nucleo.harness.conversation.ContentBlocks.*;
 import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.prompt.skill.*;
+
+import java.util.*;
 
 /**
  * Snapshot of a ContentBlock for persistence.
@@ -45,7 +48,15 @@ public class ContentBlockSnapshot  {
     // Skill-block data. Restore looks the skill up by name from SkillRegistry.
     private String skillName;
     public ContentBlockSnapshot() {}
-    public static ContentBlockSnapshot fromBlock(ContentBlock block) {
+    /**
+     * The block as it is stored. A prompt object is written whole with each artifact in it
+     * as a reference into the conversation's registry, where the artifact itself is stored
+     * with its full values; the write registers an artifact the registry does not hold yet.
+     *
+     * @param block the block to store
+     * @param registry the registry of the conversation the block belongs to
+     */
+    public static ContentBlockSnapshot fromBlock(ContentBlock block, ArtifactRegistry registry) {
         ContentBlockSnapshot snapshot = new ContentBlockSnapshot();
         switch (block) {
             case TextBlock tb -> {
@@ -54,7 +65,7 @@ public class ContentBlockSnapshot  {
             }
             case PojoBlock pb -> {
                 snapshot.type = "pojo";
-                snapshot.pojoJson = NucleoJsonSerializer.writeSummarized(pb.pojo());
+                snapshot.pojoJson = NucleoJsonSerializer.writeStoredWithRefs(pb.pojo(), registry);
                 snapshot.pojoClass = pb.pojo().getClass().getName();
             }
             case JsonBlock jb -> {
@@ -108,7 +119,16 @@ public class ContentBlockSnapshot  {
         }
         return snapshot;
     }
-    public ContentBlock toBlock() {
+    /**
+     * The block this snapshot stores. A prompt object is read back as its class and its
+     * artifacts are taken from the registry by their references, so the object holds the
+     * registry's own artifacts with their full values. An object whose class is gone, whose
+     * JSON no longer reads as the class, or whose artifacts the registry does not hold is
+     * restored as the JSON it was stored as.
+     *
+     * @param registry the restored registry of the conversation the block belongs to
+     */
+    public ContentBlock toBlock(ArtifactRegistry registry) {
         return switch (type) {
             case "text" -> new TextBlock(text);
             case "pojo" -> {
@@ -116,8 +136,9 @@ public class ContentBlockSnapshot  {
                     try {
                         // Dynamically load the class and deserialize
                         Class<?> clazz = Class.forName(pojoClass);
-                        Object pojo = NucleoJsonSerializer.parseLLMResponse(pojoJson, clazz);
-                        yield new PojoBlock(pojo);
+                        List<String> missing = new ArrayList<>();
+                        Object pojo = registry.held(NucleoJsonSerializer.parseLLMResponse(pojoJson, clazz), missing);
+                        yield missing.isEmpty() ? new PojoBlock(pojo) : new JsonBlock(pojoJson);
                     } catch (Exception e) {
                         // Fall back to JSON block if class not found or parsing fails
                         yield new JsonBlock(pojoJson);

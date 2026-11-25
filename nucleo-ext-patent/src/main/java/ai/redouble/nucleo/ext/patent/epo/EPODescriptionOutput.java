@@ -6,17 +6,20 @@
 
 package ai.redouble.nucleo.ext.patent.epo;
 
+import ai.redouble.nucleo.harness.artifacts.*;
 import ai.redouble.nucleo.harness.schema.*;
 
 /**
  * Output from EPO patent description/specification retrieval.
  * Contains the patent number for joining with a PatentArtifact, plus the raw
- * description text. Does not create a separate artifact.
+ * description text. An artifact, so that a model shown a summary of a long description
+ * can read it whole by the reference.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-02-02)
  */
-public class EPODescriptionOutput {
+@TypeAlias("patent:description")
+public class EPODescriptionOutput extends AbstractArtifact {
     @LLMDescription("Patent number this description belongs to")
     private String patentNumber;
     @LLMSummarizable(value = "patent specification", threshold = 2000, size = SummarySize.PARAGRAPHS)

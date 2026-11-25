@@ -6,6 +6,7 @@
 
 package ai.redouble.nucleo.harness.conversation;
 
+import ai.redouble.nucleo.harness.artifacts.*;
 import ai.redouble.nucleo.harness.conversation.ContentBlocks.*;
 import org.junit.jupiter.api.*;
 
@@ -148,10 +149,59 @@ class ConversationRestoreContractTest {
     }
 
     @Test
+    void artifactsAreStoredWholeWithTheSummariesAModelWasShown_andAPromptObjectTakesItsArtifactBack() throws Exception {
+        ai.redouble.nucleo.harness.schema.TypeAliasRegistry.register(ListArtifact.class);
+        ai.redouble.nucleo.harness.schema.TypeAliasRegistry.register(WebPageArtifact.class);
+        ai.redouble.nucleo.harness.schema.TypeAliasRegistry.register(ContentBlockSnapshotRoundTripTest.Doc.class);
+        ConversationContext conversation = conversationWithToolExchange();
+        String body = "FULL-BODY " + "x".repeat(9000);
+        WebPageArtifact page = new WebPageArtifact();
+        page.setUrl("https://example.org/long");
+        page.setTitle("Long page");
+        page.setContent(body);
+        WebPageArtifact row = new WebPageArtifact();
+        row.setUrl("https://example.org/row");
+        row.setContent("ROW-BODY " + "y".repeat(9000));
+        ListArtifact<WebPageArtifact> list = new ListArtifact<>();
+        list.setIterands(new ArrayList<>(List.of(row)));
+        list.setIterandTypeAlias("link:web");
+        conversation.getArtifactRegistry().register(page);
+        conversation.getArtifactRegistry().register(list);
+        ContentBlockSnapshotRoundTripTest.Doc doc = new ContentBlockSnapshotRoundTripTest.Doc();
+        doc.setBody("the body of a document held by a prompt object");
+        ContentBlockSnapshotRoundTripTest.Brief brief = new ContentBlockSnapshotRoundTripTest.Brief();
+        brief.setDoc(doc);
+        OutgoingMessage<String> withObject = new OutgoingMessage<>(StringResponseHandler.instance);
+        withObject.setRole("user");
+        withObject.addPojo(brief);
+        conversation.addMessage(withObject);
+        conversation.summarizeArtifacts((text, annotation) -> "MODEL-SUMMARY of " + annotation.value());
+        assertEquals("MODEL-SUMMARY of web page content", page.getSummaries().get("content"), "the summary a model made is kept on the artifact");
+
+        String stored = conversation.toSnapshot().toJson();
+        assertTrue(stored.contains(body), "an artifact is stored with its full value, never its summary");
+        ConversationContext restored = ConversationPersistenceSnapshot.fromJson(stored).toConversation(StringResponseHandler.instance);
+        WebPageArtifact restoredPage = (WebPageArtifact) restored.getArtifactRegistry().get(page.getArtifactRef());
+        assertEquals(body, restoredPage.getContent(), "so a restored conversation can still read the whole field");
+        assertEquals("MODEL-SUMMARY of web page content", restoredPage.getSummaries().get("content"),
+                "and shows the model the summary it was shown before, with no second call to make it");
+        restored.summarizeArtifacts((text, annotation) -> fail("a kept summary is never asked for again: " + annotation.value()));
+        @SuppressWarnings("unchecked")
+        ListArtifact<WebPageArtifact> restoredList = (ListArtifact<WebPageArtifact>) restored.getArtifactRegistry().get(list.getArtifactRef());
+        assertEquals(1, restoredList.getIterands().size(), "a list comes back with its rows");
+        assertTrue(restoredList.getIterands().get(0).getContent().startsWith("ROW-BODY"), "each row whole");
+        assertEquals("MODEL-SUMMARY of web page content", restoredList.getIterands().get(0).getSummaries().get("content"), "and with its kept summary");
+        Object restoredObject = restored.getMessages().stream().filter(OutgoingMessage.class::isInstance).map(OutgoingMessage.class::cast)
+                .flatMap(m -> ((List<?>) m.getContentBlocks()).stream()).filter(PojoBlock.class::isInstance).map(b -> ((PojoBlock) b).pojo()).findFirst().orElseThrow();
+        assertSame(restored.getArtifactRegistry().get(doc.getArtifactRef()), ((ContentBlockSnapshotRoundTripTest.Brief) restoredObject).getDoc(),
+                "a prompt object's artifact is the restored registry's own object");
+    }
+
+    @Test
     void dehydratedMessageRefusesToParse_untilRehydrated() throws Exception {
         IncomingMessage<String> stored = new IncomingMessage<>(StringResponseHandler.instance);
         stored.overwriteRawContent("the answer");
-        IncomingMessage<?> restored = (IncomingMessage<?>) MessageSnapshot.fromMessage(stored).toMessage(null);
+        IncomingMessage<?> restored = (IncomingMessage<?>) MessageSnapshot.fromMessage(stored, new ArtifactRegistry()).toMessage(null, null, new ArtifactRegistry());
         assertTrue(restored.isDehydrated(), "persistence loses the transient handler");
         assertThrows(DehydratedException.class, restored::getResponse,
                 "parsing without a handler is refused, never guessed");

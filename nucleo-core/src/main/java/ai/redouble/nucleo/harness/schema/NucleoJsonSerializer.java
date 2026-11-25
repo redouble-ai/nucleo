@@ -19,6 +19,7 @@ import com.fasterxml.jackson.databind.json.*;
 import com.fasterxml.jackson.databind.module.*;
 import com.fasterxml.jackson.databind.node.*;
 import com.fasterxml.jackson.databind.ser.*;
+import com.fasterxml.jackson.databind.util.TokenBuffer;
 import com.fasterxml.jackson.datatype.jsr310.*;
 import org.slf4j.*;
 
@@ -41,13 +42,31 @@ import java.util.concurrent.*;
  * <ul>
  *   <li>{@link #write} / {@link #writeCompact} - Full data, no transformations.
  *       Pretty-printed vs compact.</li>
- *   <li>{@link #writeSummarized} / {@link #writeSummarizedCompact} - {@code @LLMSummarizable}
- *       fields summarized via Summarizer. Artifacts serialized in full (with their
- *       annotated fields summarized).</li>
- *   <li>{@link #writeSummarizedWithRefs} - Same as writeSummarized, plus Artifact fields
- *       replaced with {@code {"@ref": "..."}}. Registers artifacts in the provided registry.
+ *   <li>{@link #writeSummarized} / {@link #writeSummarizedCompact} - an artifact is written
+ *       with its fields, each long {@code @LLMSummarizable} field as its summary.</li>
+ *   <li>{@link #writeSummarizedWithRefs} - every artifact is replaced with
+ *       {@code {"@ref": "..."}} and registered in the provided registry.
  *       Use right before passing content to the model.</li>
+ *   <li>{@link #modelFacingFields} - one artifact with every field whole, as a model may
+ *       read it back: the form the artifact tools serve.</li>
  * </ul>
+ *
+ * <p>There is one way a summary is made, and no write is handed a summarizer. What a
+ * field's summary is follows from its annotation: the fixed phrase of
+ * {@link LLMSummarizable#staticSummary()}; else the class named by
+ * {@link LLMSummarizable#summarizer()}; else a cut at a word boundary when
+ * {@link LLMSummarizable#llmSafe()} is false or the text is longer than
+ * {@value #MODEL_SUMMARY_MAX_CHARS} characters; else a model's summary. It is made once and
+ * kept in the artifact's {@link ArtifactSummaries}, and a kept summary is what every later
+ * write shows. A model is asked only by {@link #makeSummaries}; any other write that meets a
+ * field whose summary needs a model cuts the text for that one write and keeps nothing. A
+ * summarization that fails, and a named class that throws, are logged and keep nothing: the
+ * write is cut and the next {@link #makeSummaries} asks again.
+ *
+ * <p>A summary stands for a value the model can read whole through the artifact that holds
+ * it, so a field is summarized only when the class that declares it is an {@link Artifact}.
+ * The annotation anywhere else is refused when the code is compiled and when the dispatcher
+ * starts; a write that still meets one writes the field whole.
  *
  * <p>The compact variants back observability storage (the job and call records'
  * JSON columns): those bytes are kept forever in never-purged audit tables, and every
@@ -63,11 +82,20 @@ public class NucleoJsonSerializer {
     /** The serialized name of {@link ArtifactResponse}'s list of references. */
     static final String SELECTED_REFS_PROPERTY = "artifact_refs";
     static final String ATTR_MODE = "nucleo.mode";
-    static final String ATTR_SUMMARIZER = "nucleo.summarizer";
+    /** The summarizer that asks a model, present only in a write of {@link #makeSummaries}. */
+    static final String ATTR_MODEL = "nucleo.model";
     static final String ATTR_REGISTRY = "nucleo.registry";
+    /** The one artifact a {@link #MODE_FIELDS} write shows with its fields. */
+    static final String ATTR_ROOT = "nucleo.root";
     static final String MODE_LLM_REF = "LLM_REF";
     static final String MODE_SUMMARIZED = "SUMMARIZED";
-    private static final Summarizer DEFAULT_SUMMARIZER = new TruncatingSummarizer();
+    /** One artifact with every field whole; every artifact inside it is a reference. */
+    static final String MODE_FIELDS = "FIELDS";
+    /** An object kept beside a registry: everything whole, every artifact a reference into the registry. */
+    static final String MODE_STORED = "STORED";
+    /** A text longer than this is cut, never handed to a model to summarize. */
+    public static final int MODEL_SUMMARY_MAX_CHARS = 200_000;
+    private static final TruncatingSummarizer CUT = new TruncatingSummarizer();
 
     // Tracks which fields have already been warned about missing hints (once per field per JVM)
     private static final Set<String> WARNED_MISSING_HINTS = ConcurrentHashMap.newKeySet();
@@ -127,34 +155,129 @@ public class NucleoJsonSerializer {
     // --- LLM-aware serialization ---
 
     /**
-     * Serialize with {@code @LLMSummarizable} fields summarized (default truncation).
-     * Artifacts are serialized in full with their annotated fields summarized.
+     * Serialize an object as a model is shown it: an artifact with its fields, each long
+     * {@code @LLMSummarizable} field as its summary, and no {@code @LLMContextIgnore} field.
+     * A summary that is kept is shown; one that needs no model is made and kept; one that
+     * needs a model is a cut of the text for this write, with nothing kept.
      *
      * @param obj the object to serialize
      * @return pretty-printed JSON with long fields summarized
      */
     public static String writeSummarized(Object obj) {
-        return writeSummarized(obj, DEFAULT_SUMMARIZER);
-    }
-
-    /**
-     * Serialize with {@code @LLMSummarizable} fields summarized using the provided Summarizer.
-     * Artifacts are serialized in full with their annotated fields summarized.
-     *
-     * @param obj the object to serialize
-     * @param summarizer the summarization strategy
-     * @return pretty-printed JSON with long fields summarized
-     */
-    public static String writeSummarized(Object obj, Summarizer summarizer) {
         try {
             return MAPPER.writerWithDefaultPrettyPrinter()
                 .withAttribute(ATTR_MODE, MODE_SUMMARIZED)
-                .withAttribute(ATTR_SUMMARIZER, summarizer)
                 .writeValueAsString(obj);
         }
         catch (JsonProcessingException e) {
             throw serializationError(obj, e);
         }
+    }
+
+    /**
+     * Makes and keeps every summary an artifact is shown with, asking the given summarizer
+     * for the ones that need a model. This is the one place a model is asked: the artifact
+     * is written as {@link #writeSummarized} writes it, the artifacts inside it included,
+     * and the text is discarded.
+     *
+     * <p>A summarization that fails keeps nothing and is logged; the next call asks again.
+     * When the calling thread is interrupted, no further summary is asked for and the
+     * thread's interrupt flag is left set for the caller to act on.
+     *
+     * @param artifact the artifact whose summaries are made
+     * @param model asks a model for the summary of one text; it throws when it cannot
+     */
+    public static void makeSummaries(Artifact artifact, Summarizer model) {
+        try {
+            MAPPER.writer()
+                .withAttribute(ATTR_MODE, MODE_SUMMARIZED)
+                .withAttribute(ATTR_MODEL, model)
+                .writeValue(OutputStream.nullOutputStream(), artifact);
+        }
+        catch (JsonProcessingException e) {
+            throw serializationError(artifact, e);
+        }
+        catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * Serialize an object that is stored beside the registry holding its artifacts: every
+     * field is written, whole, and every artifact, the object itself included, is replaced
+     * with {@code {"@ref": "..."}} and registered in the registry. Nothing is summarized and
+     * nothing is left out, so the object read back and given the registry's artifacts
+     * ({@link ArtifactRegistry#held}) is the object that was written.
+     *
+     * @param obj the object to serialize
+     * @param registry the registry the artifacts are stored in
+     * @return pretty-printed JSON with artifacts as refs
+     */
+    public static String writeStoredWithRefs(Object obj, ArtifactRegistry registry) {
+        try {
+            return MAPPER.writerWithDefaultPrettyPrinter()
+                .withAttribute(ATTR_MODE, MODE_STORED)
+                .withAttribute(ATTR_REGISTRY, registry)
+                .writeValueAsString(obj);
+        }
+        catch (JsonProcessingException e) {
+            throw serializationError(obj, e);
+        }
+    }
+
+    /**
+     * One artifact as a model may read it back in full: every field whole, no
+     * {@code @LLMContextIgnore} field, and every artifact inside it as
+     * {@code {"@ref": "..."}}. No reference is minted and nothing is registered: an artifact
+     * inside that carries no reference fails the write with {@link IllegalStateException}.
+     *
+     * @param artifact the artifact to read
+     * @return its fields by their serialized names
+     */
+    public static ObjectNode modelFacingFields(Artifact artifact) {
+        try {
+            TokenBuffer buffer = new TokenBuffer(MAPPER, false);
+            MAPPER.writer()
+                .withAttribute(ATTR_MODE, MODE_FIELDS)
+                .withAttribute(ATTR_ROOT, artifact)
+                .writeValue(buffer, artifact);
+            return (ObjectNode) MAPPER.readTree(buffer.asParser());
+        }
+        catch (JsonProcessingException e) {
+            throw serializationError(artifact, e);
+        }
+        catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * The fields of an artifact class a model may read, by their serialized names: every
+     * property the class is written with, less the ones marked {@code @LLMContextIgnore}.
+     * A field that holds null is among them, though {@link #modelFacingFields} leaves it out.
+     *
+     * @param type the artifact's class
+     * @return the serialized names, in the order the class is written
+     */
+    public static Set<String> modelFacingFieldNames(Class<? extends Artifact> type) {
+        Set<String> names = new LinkedHashSet<>();
+        for (BeanPropertyDefinition property : MAPPER.getSerializationConfig().introspect(MAPPER.constructType(type)).findProperties()) {
+            if (property.couldSerialize() && (property.getField() == null || !property.getField().hasAnnotation(LLMContextIgnore.class))) {
+                names.add(property.getName());
+            }
+        }
+        return names;
+    }
+
+    /**
+     * The serialized name of a property, from either spelling of it: {@code fullText} and
+     * {@code full_text} both give {@code full_text}.
+     *
+     * @param name a field's name as Java or as JSON spells it
+     * @return the name the field is serialized under
+     */
+    public static String serializedName(String name) {
+        return PropertyNamingStrategies.SnakeCaseStrategy.INSTANCE.translate(name);
     }
 
     /**
@@ -169,7 +292,6 @@ public class NucleoJsonSerializer {
         try {
             return MAPPER.writer()
                 .withAttribute(ATTR_MODE, MODE_SUMMARIZED)
-                .withAttribute(ATTR_SUMMARIZER, DEFAULT_SUMMARIZER)
                 .writeValueAsString(obj);
         }
         catch (JsonProcessingException e) {
@@ -179,35 +301,22 @@ public class NucleoJsonSerializer {
 
 
     /**
-     * Serialize for model input: {@code @LLMSummarizable} fields summarized (default truncation),
-     * Artifact fields replaced with {@code {"@ref": "..."}} and registered in the registry.
-     * Use right before passing content to the model.
-     *
-     * @param obj the object to serialize
-     * @param registry the artifact registry for discovery and registration
-     * @return pretty-printed JSON with artifacts as refs and long fields summarized
-     */
-    public static String writeSummarizedWithRefs(Object obj, ArtifactRegistry registry) {
-        return writeSummarizedWithRefs(obj, registry, DEFAULT_SUMMARIZER);
-    }
-
-    /**
-     * Serialize for model input: {@code @LLMSummarizable} fields summarized,
-     * Artifact fields replaced with {@code {"@ref": "..."}} and registered in the registry.
+     * Serialize for model input: every artifact, the object itself included, is replaced with
+     * {@code {"@ref": "..."}} and registered in the registry, and no
+     * {@code @LLMContextIgnore} field is written. An artifact's fields, and so its
+     * summaries, are shown by the registry's own listing, never here.
      * Use right before passing content to the model. An artifact that reaches this mode with
      * no reference and no registry to mint one is a framework fault: the write fails with an
      * {@link IllegalStateException} naming the artifact in its cause chain.
      *
      * @param obj the object to serialize
      * @param registry the artifact registry for discovery and registration
-     * @param summarizer the summarization strategy
-     * @return pretty-printed JSON with artifacts as refs and long fields summarized
+     * @return pretty-printed JSON with artifacts as refs
      */
-    public static String writeSummarizedWithRefs(Object obj, ArtifactRegistry registry, Summarizer summarizer) {
+    public static String writeSummarizedWithRefs(Object obj, ArtifactRegistry registry) {
         try {
             return MAPPER.writerWithDefaultPrettyPrinter()
                 .withAttribute(ATTR_MODE, MODE_LLM_REF)
-                .withAttribute(ATTR_SUMMARIZER, summarizer)
                 .withAttribute(ATTR_REGISTRY, registry)
                 .writeValueAsString(obj);
         }
@@ -416,11 +525,10 @@ public class NucleoJsonSerializer {
     // ========================= Custom Serialization Module =========================
 
     /**
-     * Modifies serializers for two concerns:
-     * 1. Artifact fields: in LLM_REF mode, writes @ref instead of full content
-     * 2. @LLMSummarizable String fields: in summarized modes, delegates to Summarizer
-     * 3. @LLMSummarizable fields of any type that name a FieldSummarizer: in summarized
-     *    modes, delegates to it
+     * Modifies serializers for three concerns:
+     * 1. Artifacts: written as @ref wherever the mode shows a reference in place of content
+     * 2. @LLMSummarizable fields, of any type: summarized when an artifact is shown to a model
+     * 3. @LLMContextIgnore fields: left out of every write a model reads
      */
     static class NucleoSerializerModifier extends BeanSerializerModifier {
         @Override
@@ -428,9 +536,9 @@ public class NucleoJsonSerializer {
             for (int i = 0; i < beanProperties.size(); i++) {
                 BeanPropertyWriter writer = beanProperties.get(i);
                 if (writer.getAnnotation(LLMContextIgnore.class) != null) {
-                    // Schema-and-storage only: skipped when rendering into the prompt
-                    // (LLM_REF mode), kept everywhere else. Outermost wrapper so the
-                    // skip wins before any summarization would run.
+                    // Schema-and-storage only: skipped in every write a model reads, kept
+                    // in the plain ones. Outermost wrapper so the skip wins before any
+                    // summarization would run.
                     beanProperties.set(i, new ContextIgnorePropertyWriter(writer));
                     continue;
                 }
@@ -439,7 +547,7 @@ public class NucleoJsonSerializer {
                     continue;
                 }
                 LLMSummarizable anno = writer.getAnnotation(LLMSummarizable.class);
-                if (anno != null && (anno.preSummarized() || anno.summarizer() != FieldSummarizer.None.class || writer.getType().getRawClass() == String.class)) {
+                if (anno != null) {
                     beanProperties.set(i, new SummarizablePropertyWriter(writer, anno));
                 }
             }
@@ -509,8 +617,10 @@ public class NucleoJsonSerializer {
     /**
      * Wraps an Artifact serializer. In LLM_REF mode, writes @ref, minting and registering the
      * reference through the registry when the artifact has none; with no reference and no
-     * registry it throws {@link IllegalStateException}, a framework fault.
-     * In all other modes, delegates to the default bean serializer.
+     * registry it throws {@link IllegalStateException}, a framework fault. STORED mode does
+     * the same. In FIELDS mode
+     * every artifact but the one being read is written as @ref too, with nothing minted and
+     * nothing registered. In all other modes, delegates to the default bean serializer.
      */
     static class ArtifactRefSerializer extends JsonSerializer<Object> {
         private final JsonSerializer<Object> delegate;
@@ -521,11 +631,15 @@ public class NucleoJsonSerializer {
         @Override
         public void serialize(Object value, JsonGenerator gen, SerializerProvider provider) throws IOException {
             String mode = (String) provider.getAttribute(ATTR_MODE);
-            if (MODE_LLM_REF.equals(mode) && value instanceof Artifact artifact) {
+            boolean insideTheOneRead = MODE_FIELDS.equals(mode) && value != provider.getAttribute(ATTR_ROOT);
+            if ((MODE_LLM_REF.equals(mode) || MODE_STORED.equals(mode) || insideTheOneRead) && value instanceof Artifact artifact) {
                 // Register in registry
                 ArtifactRegistry registry = (ArtifactRegistry) provider.getAttribute(ATTR_REGISTRY);
                 if (registry != null) {
                     registry.ensureReference(artifact);
+                    if (artifact instanceof ArtifactResponse<?> response) {
+                        registerSelected(response, registry);
+                    }
                 }
                 String ref = artifact.getArtifactRef();
                 if (ref == null) {
@@ -544,10 +658,11 @@ public class NucleoJsonSerializer {
     }
 
     /**
-     * Property writer for {@code @LLMContextIgnore} fields: omits the property in
-     * LLM_REF mode (the model-facing prompt render) and delegates in every other
-     * mode, so the field still serializes for the schema-driven full {@link #write}
-     * (persistence and observability). See {@link LLMContextIgnore}.
+     * Property writer for {@code @LLMContextIgnore} fields: omits the property in every
+     * write a model reads (the prompt, the registry's listing of an artifact, an artifact
+     * read back whole) and delegates in the plain ones, so the field still serializes for
+     * the schema-driven full {@link #write} (persistence and observability). See
+     * {@link LLMContextIgnore}.
      */
     static class ContextIgnorePropertyWriter extends BeanPropertyWriter {
         private final BeanPropertyWriter delegate;
@@ -559,10 +674,27 @@ public class NucleoJsonSerializer {
 
         @Override
         public void serializeAsField(Object bean, JsonGenerator gen, SerializerProvider provider) throws Exception {
-            if (MODE_LLM_REF.equals(provider.getAttribute(ATTR_MODE))) {
+            Object mode = provider.getAttribute(ATTR_MODE);
+            if (mode != null && !MODE_STORED.equals(mode)) {
                 return;
             }
             delegate.serializeAsField(bean, gen, provider);
+        }
+    }
+
+    /**
+     * Registers, as entries of their own, the artifacts a response selected: how the
+     * artifacts a called thinker selected reach the registry of the thinker that called it,
+     * whether the response is written with its fields or, being an artifact itself, as a
+     * reference.
+     */
+    private static void registerSelected(ArtifactResponse<?> response, ArtifactRegistry registry) {
+        Collection<Artifact> selected = response.selectedArtifacts();
+        if (selected == null) {
+            return;
+        }
+        for (Artifact artifact : selected) {
+            registry.ensureReference(artifact);
         }
     }
 
@@ -610,28 +742,31 @@ public class NucleoJsonSerializer {
     }
 
     /**
-     * Property writer that handles @LLMSummarizable fields: a String field, and a field
-     * of any type that names its own {@link FieldSummarizer}.
-     * In summarized modes, checks cache (for artifacts) or calls Summarizer.
-     * In standard mode, writes full text.
+     * Property writer of an {@code @LLMSummarizable} field, of any type.
+     *
+     * <p>The field is summarized in one write only: {@code SUMMARIZED}, where an artifact is
+     * shown with its fields. Every other mode writes it whole, and so does a bean that is
+     * no {@link Artifact}, which has neither a place to keep a summary nor a reference to
+     * read the whole value by.
+     *
+     * <p>What is measured and summarized is the field as the serializer writes it without
+     * the annotation: a text as it is, any other value as its compact JSON, in which an
+     * artifact inside it is already shown with its own summaries. A value no longer than
+     * the threshold is written as it is.
      */
     static class SummarizablePropertyWriter extends BeanPropertyWriter {
         private final BeanPropertyWriter delegate;
         private final LLMSummarizable annotation;
-        private final String snakeCaseFieldName;
-        /** Whether the field names a summarizer for itself. */
-        private final boolean namesSummarizer;
+        private final String name;
         /** The summarizer the field names for itself; null when it names none or the class could not be made. */
-        private final FieldSummarizer<?> fieldSummarizer;
+        private final FieldSummarizer<?> named;
 
         SummarizablePropertyWriter(BeanPropertyWriter delegate, LLMSummarizable annotation) {
             super(delegate);
             this.delegate = delegate;
             this.annotation = annotation;
-            // Pre-compute snake_case name for cache lookups
-            this.snakeCaseFieldName = delegate.getName();
-            this.namesSummarizer = annotation.summarizer() != FieldSummarizer.None.class;
-            this.fieldSummarizer = namesSummarizer ? instantiate(annotation.summarizer()) : null;
+            this.name = delegate.getName();
+            this.named = annotation.summarizer() != FieldSummarizer.None.class ? instantiate(annotation.summarizer()) : null;
         }
 
         /** The summarizer of the given class, or null, with the failure logged, when the class cannot be made. */
@@ -640,167 +775,141 @@ public class NucleoJsonSerializer {
                 return summarizerClass.getConstructor().newInstance();
             }
             catch (ReflectiveOperationException e) {
-                log.error("The summarizer {} named by @LLMSummarizable needs a public no-argument constructor; its fields are shortened as plain text",
+                log.error("The summarizer {} named by @LLMSummarizable needs a public no-argument constructor; its fields are cut short as plain text",
                           summarizerClass.getName(), e);
                 return null;
             }
         }
 
-        /**
-         * Writes a field that names its own summarizer: whole when the value is no longer
-         * than the threshold, and otherwise as that summarizer writes it. The length is
-         * that of a text, and for any other value that of its compact JSON. On an artifact the
-         * summary is kept, so the summarizer runs once for a value.
-         *
-         * <p>A summarizer that throws, returns nothing or could not be made is logged and
-         * passed over, as {@link #summaryOrNull} states: the value is then cut short as
-         * plain text is, and when that fails too it is written whole.
-         */
-        @SuppressWarnings({"unchecked", "rawtypes"})
-        private void writeWithFieldSummarizer(Object bean, Object rawValue, JsonGenerator gen, SerializerProvider provider) throws Exception {
-            String text = rawValue instanceof String s ? s : NucleoJsonSerializer.writeCompact(rawValue);
-            if (text.length() <= annotation.threshold()) {
-                delegate.serializeAsField(bean, gen, provider);
-                return;
-            }
-            SummarizedField cached = bean instanceof Artifact artifact ? artifact.getCachedSummary(snakeCaseFieldName) : null;
-            if (cached == null) {
-                String summary = summaryOrNull((FieldSummarizer) fieldSummarizer, rawValue, text, bean);
-                if (summary == null) {
-                    delegate.serializeAsField(bean, gen, provider);
-                    return;
-                }
-                cached = new SummarizedField(text, summary);
-                if (bean instanceof Artifact artifact) {
-                    artifact.cacheSummary(snakeCaseFieldName, cached);
-                }
-            }
-            gen.writeFieldName(snakeCaseFieldName);
-            gen.writeString(cached.getSummary());
-        }
-
-        /**
-         * The summary of a field's value, or null when none could be made and the value
-         * is to be written whole. Summarizing saves tokens and is never a reason for a
-         * serialization to fail, so the steps cascade: the given summarizer, which is
-         * null when the field's own could not be made; then the plain cut of the value's
-         * text. A step that throws or returns null is logged and passed over.
-         *
-         * @param summarizer the field's own summarizer or the one of the serialization
-         * @param value what that summarizer takes: the field's value
-         * @param text the value as text, which the plain cut takes
-         */
-        private <T> String summaryOrNull(FieldSummarizer<T> summarizer, T value, String text, Object bean) {
-            String summary = null;
-            if (summarizer != null) {
-                try {
-                    summary = summarizer.summarize(value, annotation);
-                }
-                catch (RuntimeException e) {
-                    log.warn("The summarizer {} failed on {}.{}; the value is cut short as plain text",
-                             summarizer.getClass().getName(), bean.getClass().getSimpleName(), delegate.getName(), e);
-                }
-            }
-            if (summary == null) {
-                try {
-                    summary = DEFAULT_SUMMARIZER.summarize(text, annotation);
-                }
-                catch (RuntimeException e) {
-                    log.warn("Cutting {}.{} short failed; the value is written whole", bean.getClass().getSimpleName(), delegate.getName(), e);
-                }
-            }
-            return summary;
-        }
-
         @Override
         public void serializeAsField(Object bean, JsonGenerator gen, SerializerProvider provider) throws Exception {
-            String mode = (String) provider.getAttribute(ATTR_MODE);
-            if (mode == null) {
-                // Standard write() - no summarization
+            if (!MODE_SUMMARIZED.equals(provider.getAttribute(ATTR_MODE)) || !(bean instanceof Artifact artifact)) {
                 delegate.serializeAsField(bean, gen, provider);
                 return;
             }
-            Object rawValue = delegate.get(bean);
-            if (rawValue == null) {
+            Object value = delegate.get(bean);
+            if (value == null) {
                 delegate.serializeAsField(bean, gen, provider);
                 return;
             }
             if (annotation.preSummarized()) {
-                // Walk the value tree; consult the artifact's summaryCache by JSON pointer.
-                // Cache hits write the cached summary; misses fall through to default
-                // Jackson serialization (which dispatches polymorphically, including
-                // ArtifactRefSerializer for nested Artifact instances).
-                if (!(bean instanceof Artifact artifact)) {
-                    // preSummarized only makes sense for Artifact-resident fields where
-                    // the cache lives on the bean itself.
+                gen.writeFieldName(name);
+                writePreSummarized(value, "", artifact, gen, provider);
+                return;
+            }
+            if (value instanceof String text) {
+                if (text.length() <= annotation.threshold()) {
                     delegate.serializeAsField(bean, gen, provider);
                     return;
                 }
-                gen.writeFieldName(snakeCaseFieldName);
-                writePreSummarized(rawValue, "", artifact, gen, provider);
+                warnIfMissingHint(bean.getClass(), name, annotation);
+                gen.writeFieldName(name);
+                gen.writeString(summary(artifact, name, text, text, provider));
                 return;
             }
-            if (namesSummarizer) {
-                writeWithFieldSummarizer(bean, rawValue, gen, provider);
+            // Any other value is written once, aside, as it would be without the annotation
+            TokenBuffer aside = new TokenBuffer(MAPPER, false);
+            aside.writeStartObject();
+            delegate.serializeAsField(bean, aside, provider);
+            aside.writeEndObject();
+            JsonNode written = ((JsonNode) MAPPER.readTree(aside.asParser())).get(name);
+            if (written == null) {
                 return;
             }
-            if (!(rawValue instanceof String text)) {
-                delegate.serializeAsField(bean, gen, provider);
+            String json = MAPPER.writeValueAsString(written);
+            gen.writeFieldName(name);
+            if (json.length() <= annotation.threshold()) {
+                gen.writeTree(written);
                 return;
             }
-            if (text.length() <= annotation.threshold()) {
-                // Below threshold - write full text
-                delegate.serializeAsField(bean, gen, provider);
-                return;
-            }
-
-            // Text exceeds threshold - summarize
-            warnIfMissingHint(bean.getClass(), delegate.getName(), annotation);
-
-            // Check artifact cache
-            if (bean instanceof Artifact artifact) {
-                SummarizedField cached = artifact.getCachedSummary(snakeCaseFieldName);
-                if (cached != null) {
-                    gen.writeFieldName(snakeCaseFieldName);
-                    gen.writeString(cached.getSummary());
-                    return;
-                }
-            }
-
-            // Call Summarizer
-            Summarizer summarizer = (Summarizer) provider.getAttribute(ATTR_SUMMARIZER);
-            if (summarizer == null) {
-                summarizer = DEFAULT_SUMMARIZER;
-            }
-            String summary = summaryOrNull(summarizer, text, text, bean);
-            if (summary == null) {
-                delegate.serializeAsField(bean, gen, provider);
-                return;
-            }
-
-            // Cache on artifact so subsequent serializations reuse the result
-            if (bean instanceof Artifact artifact) {
-                artifact.cacheSummary(snakeCaseFieldName, new SummarizedField(text, summary));
-            }
-            gen.writeFieldName(snakeCaseFieldName);
-            gen.writeString(summary);
+            warnIfMissingHint(bean.getClass(), name, annotation);
+            gen.writeString(summary(artifact, name, value, json, provider));
         }
 
         /**
-         * Writes a pre-summarized tree: walks Map / List / primitive shapes; at every
-         * leaf path consults {@code artifact.getCachedSummary(path)} and writes the
-         * cached summary when present. Cache miss leaves fall through to the
-         * provider's default serializer (which dispatches polymorphically, so nested
-         * {@link Artifact} instances flow through {@link ArtifactRefSerializer}).
+         * What a model is shown in place of a long value: the one decision every summary
+         * is made by. A kept summary first; else the fixed phrase; else the named class;
+         * else a cut, when the content must not be paraphrased or is longer than a model
+         * is asked to summarize; else a model's summary. Each of those is kept.
          *
-         * <p>Path format is JSON Pointer relative to the annotated field, e.g.
-         * {@code /results/0/fullText}.
+         * <p>A model is asked only in a write that carries one. Without one, and when the
+         * named class or the model's job fails, the text is cut for this write and nothing
+         * is kept, so a later write that has a model asks again.
+         *
+         * @param key the key the summary is kept under
+         * @param value what a named class is handed: the field's value
+         * @param text the value as the serializer writes it, which is what is cut or sent to a model
+         */
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        private String summary(Artifact artifact, String key, Object value, String text, SerializerProvider provider) {
+            ArtifactSummaries summaries = artifact.getSummaries();
+            String kept = summaries.get(key);
+            if (kept != null) {
+                return kept;
+            }
+            if (!annotation.staticSummary().isEmpty()) {
+                return summaries.keep(key, String.format("[SUMMARY: %d chars] %s", text.length(), annotation.staticSummary()));
+            }
+            if (annotation.summarizer() != FieldSummarizer.None.class) {
+                return made(summaries, key, text, artifact, annotation.summarizer().getName(), () -> {
+                    if (named == null) {
+                        throw new IllegalStateException(annotation.summarizer().getName() + " could not be made");
+                    }
+                    return ((FieldSummarizer) named).summarize(value, annotation);
+                });
+            }
+            if (!annotation.llmSafe() || text.length() > MODEL_SUMMARY_MAX_CHARS) {
+                return summaries.keep(key, CUT.summarize(text, annotation));
+            }
+            Summarizer model = (Summarizer) provider.getAttribute(ATTR_MODEL);
+            if (model == null || Thread.currentThread().isInterrupted()) {
+                return CUT.summarize(text, annotation);
+            }
+            return made(summaries, key, text, artifact, model.getClass().getName(), () -> model.summarize(text, annotation));
+        }
+
+        /**
+         * The summary the maker makes, kept; or a cut of the text with nothing kept, when
+         * the maker throws or returns nothing, or when another thread's making of the same
+         * summary failed. An interruption leaves the thread's flag set.
+         */
+        private String made(ArtifactSummaries summaries, String key, String text, Artifact artifact, String maker, Callable<String> making) {
+            try {
+                String summary = summaries.make(key, () -> {
+                    String answer = making.call();
+                    if (answer == null) {
+                        throw new IllegalStateException(maker + " returned no summary");
+                    }
+                    return answer;
+                });
+                if (summary != null) {
+                    return summary;
+                }
+            }
+            catch (Exception e) {
+                for (Throwable cause = e; cause != null; cause = cause.getCause()) {
+                    if (cause instanceof InterruptedException) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
+                log.warn("{} made no summary of {} of {}; the text is cut for this write and nothing is kept",
+                         maker, key, artifact.getClass().getSimpleName(), e);
+            }
+            return CUT.summarize(text, annotation);
+        }
+
+        /**
+         * Writes a tree whose long text leaves are summarized one by one: walks Map and
+         * List shapes, and a text leaf longer than the threshold is written as its
+         * summary, decided as any field's is and kept under the field's name followed by
+         * the leaf's JSON pointer, e.g. {@code data/results/0/fullText}. Everything else
+         * goes to the provider's default serializer, so an artifact inside the tree is
+         * written as the mode writes artifacts.
          */
         private void writePreSummarized(Object value, String path, Artifact artifact,
                                         JsonGenerator gen, SerializerProvider provider) throws IOException {
-            SummarizedField cached = artifact.getCachedSummary(path);
-            if (cached != null) {
-                gen.writeString(cached.getSummary());
+            if (value instanceof String text && text.length() > annotation.threshold()) {
+                gen.writeString(summary(artifact, name + path, text, text, provider));
                 return;
             }
             if (value == null) {

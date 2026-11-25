@@ -17,9 +17,8 @@ import java.util.*;
  *
  * <p>A schema has two audiences. The standard keywords - {@code type}, {@code description},
  * {@code required}, {@code enum}, {@code examples} - are what a model reads in a tool
- * definition. These keywords are what a consuming HARNESS reads: whether a field can be
- * summarized and how, whether it belongs in a model's context at all, what an
- * artifact-typed field points at. In process a harness reads the annotations off the class;
+ * definition. These keywords are what a consuming HARNESS reads: whether a field belongs in
+ * a model's context at all, what an artifact-typed field points at. In process a harness reads the annotations off the class;
  * across an MCP boundary, where the concrete class may not resolve, the schema is the only
  * source. JSON Schema ignores unknown keywords, so they are inert for anyone else.
  *
@@ -32,8 +31,6 @@ import java.util.*;
 public final class NucleoSchemaKeywords {
     /** The prefix every harness-facing keyword carries, and what {@link #stripFrom} keys on. */
     public static final String PREFIX = "x-nucleo-";
-    /** {@code @LLMSummarizable}, as declared: hint, size, threshold, llmSafe, preSummarized, staticSummary. */
-    public static final String SUMMARIZABLE = PREFIX + "summarizable";
     /** {@code @LLMContextIgnore}: present in the payload, kept out of a model's context. */
     public static final String CONTEXT_IGNORE = PREFIX + "context-ignore";
     /** The {@code @TypeAlias} of an artifact-typed field, which is also what its refs carry. */

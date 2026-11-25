@@ -51,6 +51,9 @@ public interface ResponseHandler<T> extends Serializable {
      * the artifact the caller receives is the one the registry holds under it
      * ({@link ArtifactRegistry#held}). An artifact the registry cannot supply is described
      * in {@code violations}, which the caller treats as it treats a missing required field.
+     * The one artifact a model writes is a reply that is itself a response and an artifact,
+     * an {@code ArtifactThinkerOutput}: it is kept as written, without a reference, and
+     * the artifacts in its fields are taken from the registry ({@link ArtifactRegistry#heldAnswer}).
      * A handler whose reply carries objects that are answered one by one, as a tool call's
      * input is, overrides this to report each where its own answer goes.
      *
@@ -60,7 +63,7 @@ public interface ResponseHandler<T> extends Serializable {
      * @return the reply to use in place of {@code parsed}
      */
     default T heldArtifacts(T parsed, ArtifactRegistry registry, List<String> violations) {
-        return registry.held(parsed, violations);
+        return registry.heldAnswer(parsed, violations);
     }
 
     PojoDefinition writeDefinition();

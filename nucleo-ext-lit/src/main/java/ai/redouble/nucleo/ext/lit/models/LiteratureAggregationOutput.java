@@ -17,16 +17,20 @@ import java.util.*;
  * Contains a synthesis of findings from multiple papers plus
  * references to the most relevant individual articles.
  * Supports both published papers (PubMed) and preprints (bioRxiv/medRxiv).
+ * An artifact of whoever called the aggregator: a long synthesis is shown there as a
+ * summary and read whole by the reference. The thresholds are guards against a runaway
+ * answer, three times what each field should hold.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2025-11-03)
  */
 @LLMDescription("Results from aggregating and synthesizing biomedical literature (published papers and preprints) on a research topic. When using these results always provide properly formatted references (as is customary in scientific literature) with markdown-formatted external links to the articles")
-public class LiteratureAggregationOutput extends ThinkerOutput<ChainOfThoughtReasoning> {
+@TypeAlias("literature_aggregation")
+public class LiteratureAggregationOutput extends ArtifactThinkerOutput<ChainOfThoughtReasoning> {
 
     @LLMRequired
     @LLMDescription("Comprehensive summary synthesizing key findings, themes, and insights from the literature using STRICT Markdown only: H3-H6 headers (###-######), lists with * at column 0 (no leading spaces), **bold**, *italic*")
-    @LLMSummarizable(value = "literature synthesis summary", threshold = 4000, llmSafe = false)
+    @LLMSummarizable(value = "literature synthesis summary", threshold = 20000, llmSafe = false)
     private String summary;
 
     @LLMRequired
@@ -40,7 +44,7 @@ public class LiteratureAggregationOutput extends ThinkerOutput<ChainOfThoughtRea
     private List<String> keyThemes;
 
     @LLMDescription("Important gaps or limitations identified in the current research")
-    @LLMSummarizable(value = "research gaps and limitations", threshold = 2000)
+    @LLMSummarizable(value = "research gaps and limitations", threshold = 6000)
     private String researchGaps;
 
     public LiteratureAggregationOutput() {

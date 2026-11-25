@@ -195,6 +195,91 @@ class ArtifactAuthorshipTest {
         assertTrue(violations.isEmpty(), violations.toString());
     }
 
+    // ---- the one artifact a model writes: a thinker's own answer ----
+
+    /** A thinker's answer that is an artifact: the model writes its fields, and refers to the citation it holds. */
+    @TypeAlias("test:authorship:report")
+    public static class Report extends ai.redouble.nucleo.tools.thinking.ArtifactThinkerOutput<SimpleReasoning> {
+        @LLMSummarizable(value = "the report's text", threshold = 20, llmSafe = false)
+        private String text;
+        private CitationArtifact source;
+
+        public String getText() {return text;}
+
+        public void setText(String text) {this.text = text;}
+
+        public CitationArtifact getSource() {return source;}
+
+        public void setSource(CitationArtifact source) {this.source = source;}
+    }
+
+    @Test
+    void aThinkersAnswerThatIsAnArtifactIsWrittenByItsModelAndHasNoReferenceToWrite() throws IOException {
+        assertTrue(ArtifactRegistry.isWrittenByItsModel(Report.class), "an answer that is both a thinker's output and an artifact");
+        assertFalse(ArtifactRegistry.isWrittenByItsModel(CitationArtifact.class), "any other artifact as an answer is picked from the registry");
+        String schema = new PojoResponseHandler<>(Report.class).writeDefinition().toLLMSchema();
+        assertTrue(schema.contains("\"text\""), "the model is asked for the answer's own fields: " + schema);
+        JsonNode properties = NucleoJsonSerializer.readTree(new PojoResponseHandler<>(Report.class).writeDefinition().toJsonSchema()).get("properties");
+        assertFalse(properties.has("artifact_ref"), "and for no reference of the answer itself, which has none until it is registered: " + properties);
+        assertTrue(schema.contains("\"artifact_ref\"") && !schema.contains("\"doi\""),
+                "an artifact the answer holds is still asked for as its reference alone: " + schema);
+    }
+
+    /** An answer that holds a thinker's artifact answer in a field. */
+    public static class HoldingAReport {
+        private Report report;
+
+        public Report getReport() {return report;}
+
+        public void setReport(Report report) {this.report = report;}
+    }
+
+    @Test
+    void aThinkersArtifactAnswerInAFieldOfAnotherAnswerIsAReferenceLikeAnyOther() throws IOException {
+        TypeAliasRegistry.register(Report.class);
+        String schema = new PojoResponseHandler<>(HoldingAReport.class).writeDefinition().toLLMSchema();
+        assertTrue(schema.contains("\"artifact_ref\"") && !schema.contains("\"text\""), "in a field it is asked for as its reference alone: " + schema);
+        Report registered = new Report();
+        registered.setText("the report the registry holds");
+        String reportRef = registry.register(registered);
+        HoldingAReport parsed = NucleoJsonSerializer.parseLLMResponse("{\"report\": {\"artifact_ref\": \"" + reportRef + "\", \"text\": \"invented\"}}", HoldingAReport.class);
+        List<String> violations = new ArrayList<>();
+        assertSame(registered, registry.heldAnswer(parsed, violations).getReport(), "and arrives as the registry's object");
+        assertTrue(violations.isEmpty(), violations.toString());
+    }
+
+    @Test
+    void theWrittenAnswerIsKeptItsInventedReferenceDroppedAndItsArtifactsTakenFromTheRegistry() throws IOException {
+        String reply = "{\"artifact_ref\": \"«artifact:test:authorship:report~made1»\", \"text\": \"what the model wrote\", \"source\": " + written(ref) + "}";
+        Report parsed = NucleoJsonSerializer.parseLLMResponse(reply, Report.class);
+        List<String> violations = new ArrayList<>();
+        Report answer = registry.heldAnswer(parsed, violations);
+        assertTrue(violations.isEmpty(), violations.toString());
+        assertSame(parsed, answer, "the answer is the object the model wrote");
+        assertEquals("what the model wrote", answer.getText());
+        assertNull(answer.getArtifactRef(), "a reference the model wrote on its own answer is dropped: whoever receives the answer registers it");
+        assertSame(held, answer.getSource(), "an artifact inside it is the registry's own object");
+        assertEquals(REAL_DOI, answer.getSource().getDoi());
+        CitationArtifact picked = NucleoJsonSerializer.parseLLMResponse(written(ref), CitationArtifact.class);
+        assertSame(held, registry.heldAnswer(picked, violations), "an answer of any other artifact class is still picked from the registry");
+    }
+
+    @Test
+    void anAnswerReachesItsReceiverAsOneArtifactWithTheArtifactsItHoldsAndSelected() {
+        Report report = new Report();
+        report.setText("a report long enough to pass its threshold of twenty");
+        report.setSource(held);
+        CitationArtifact selected = new CitationArtifact();
+        selected.setDoi("10.1000/selected");
+        report.addArtifact(selected);
+        ArtifactRegistry receiver = new ArtifactRegistry();
+        String shown = NucleoJsonSerializer.writeSummarizedWithRefs(report, receiver);
+        assertEquals(3, receiver.getAllArtifactsIncludingReachable().size(), "the answer, the artifact it holds and the one it selected: " + receiver.getAllArtifactsIncludingReachable().keySet());
+        assertSame(report, receiver.get(report.getArtifactRef()), "the receiver registers the answer as a tool's result is registered");
+        assertNotNull(receiver.get(selected.getArtifactRef()), "the selected artifact is readable by the receiver's model");
+        assertTrue(shown.contains(report.getArtifactRef()) && !shown.contains("a report long enough"), "in the receiver's conversation the answer is its reference: " + shown);
+    }
+
     // ---- what is refused ----
 
     @Test

@@ -12,6 +12,7 @@ import ai.redouble.nucleo.harness.errors.*;
 import ai.redouble.nucleo.harness.errors.retry.*;
 import ai.redouble.nucleo.harness.models.*;
 import ai.redouble.nucleo.tools.*;
+import ai.redouble.nucleo.tools.builtin.*;
 
 import java.time.*;
 
@@ -53,6 +54,15 @@ public class LLMCall<T> extends AbstractModelDependentTool<Void, T> {
      * conversation, and the harness resolves it before execution - so the rate-limiter
      * reservation, the output budget, the wire ceiling and the truncation ceiling all read
      * one resolved cell and cannot silently diverge.
+     *
+     * <p>Building the call makes the summaries of the conversation's artifacts
+     * ({@link ConversationContext#summarizeArtifacts}), which is the one place a model is
+     * asked for a summary. It happens here because here the builder's thread is the thread
+     * of the thinker or doer that sends the conversation: the summarization jobs are that
+     * job's children, and it may wait for them. The call itself prices and renders the
+     * conversation on a thread that holds its resources and may submit nothing, so by then
+     * every summary it shows is already kept. The constructor returns when those jobs are
+     * done; content added to the conversation afterwards is shown cut, not summarized.
      */
     public LLMCall(Identifiable parent, ConversationContext conversation) {
         super(parent, buildJobIdPrefix(parent));
@@ -61,6 +71,7 @@ public class LLMCall<T> extends AbstractModelDependentTool<Void, T> {
             throw new IllegalArgumentException("Conversation cannot be null");
         }
         this.conversation = conversation;
+        conversation.summarizeArtifacts(new LLMSummarizer(parent));
     }
 
     /**

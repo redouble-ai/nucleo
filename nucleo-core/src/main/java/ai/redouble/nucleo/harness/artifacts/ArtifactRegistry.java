@@ -486,6 +486,40 @@ public class ArtifactRegistry {
         return (T) heldValue(written, Artifact.class, "", violations, Collections.newSetFromMap(new IdentityHashMap<>()));
     }
 
+    /**
+     * Whether an object of the class, given as the answer of a reply, is written by the
+     * model that answers: true of a response that is itself an artifact, which is what
+     * {@code ArtifactThinkerOutput} is, and of no other class. A thinker is a tool, and its
+     * answer becomes an artifact of whoever called it the way a tool's result does: by
+     * being registered there. Every other artifact class in the same place is a reference
+     * to an artifact the registry already lists.
+     *
+     * @param type the class a reply is asked for
+     */
+    public static boolean isWrittenByItsModel(Class<?> type) {
+        return ArtifactResponse.class.isAssignableFrom(type) && Artifact.class.isAssignableFrom(type);
+    }
+
+    /**
+     * {@link #held} for the answer of a reply. An answer that is written by its model
+     * ({@link #isWrittenByItsModel}) is kept as the object the model wrote: a reference
+     * written on it is dropped, since it has none until whoever receives it registers it,
+     * and the artifacts in its fields are taken from here as everywhere. Any other answer is
+     * given to {@link #held} whole.
+     *
+     * @param written    the answer as parsed from the model's reply, or null
+     * @param violations receives one line per artifact that could not be taken from here
+     * @return the answer to use in place of {@code written}
+     */
+    public <T> T heldAnswer(T written, List<String> violations) {
+        if (written instanceof Artifact answer && isWrittenByItsModel(written.getClass())) {
+            answer.setArtifactRef(null);
+            replaceWithin(written, written.getClass(), "", violations, Collections.newSetFromMap(new IdentityHashMap<>()));
+            return written;
+        }
+        return held(written, violations);
+    }
+
     private Object heldValue(Object value, Type declared, String path, List<String> violations, Set<Object> visited) {
         if (value == null) {
             return null;

@@ -79,9 +79,9 @@ public class GenericMCPToolAdapter extends AbstractTool<MCPToolInput, MCPToolRes
             return result;
         }
         // Walk the structured result into an MCPArtifact: nested sub-objects past the
-        // promotion threshold become nested artifacts; long string leaves get cached
-        // summaries keyed by JSON pointer. The framework's serializer reads from the
-        // cache via @LLMSummarizable(preSummarized=true) on MCPArtifact.data.
+        // promotion threshold become nested artifacts; long string leaves stay whole, and
+        // the serializer shows a model each one's summary, as
+        // @LLMSummarizable(preSummarized=true) on MCPArtifact.data states.
         // Content is @JsonIgnore'd on MCPToolResult, so we feed the walker a wrapper
         // tree built explicitly from getContent() rather than valueToTree(result).
         ObjectNode wrapper = NucleoJsonSerializer.createObjectNode();

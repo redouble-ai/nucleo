@@ -17,10 +17,11 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Pins the summarizer a field names for itself with {@link LLMSummarizable#summarizer()}:
- * it is handed the field's value, whatever the value's type, when the value is longer than
- * the threshold; it is used in place of the summarizer of the serialization; on an artifact
- * it runs once for a value; a field that names none is written as it always was; and a
- * summarizer that throws, returns nothing or cannot be made never fails the serialization.
+ * it is handed the field's value, whatever the value's type, when the JSON of the value is
+ * longer than the threshold; it is used in place of a model, with or without one at hand;
+ * it runs once for a value and its answer is kept on the artifact; and a summarizer that
+ * throws, returns nothing or cannot be made never fails the serialization: the value is
+ * cut for that write and nothing is kept.
  *
  * @author Andrey Santrosyan
  * @since 0.1.6 (2026-11-24)
@@ -55,6 +56,22 @@ public class FieldSummarizerTest {
         }
     }
 
+    /** A summarizer that always fails. */
+    public static class Throwing implements FieldSummarizer<JsonNode> {
+        @Override
+        public String summarize(JsonNode value, LLMSummarizable annotation) {
+            throw new IllegalStateException("this summarizer cannot summarize");
+        }
+    }
+
+    /** A summarizer that returns nothing. */
+    public static class Silent implements FieldSummarizer<String> {
+        @Override
+        public String summarize(String value, LLMSummarizable annotation) {
+            return null;
+        }
+    }
+
     @TypeAlias("test:fieldsummarizer")
     public static class Row extends AbstractArtifact {
         @LLMSummarizable(value = "a payload", threshold = 20, summarizer = KeyCount.class)
@@ -63,8 +80,6 @@ public class FieldSummarizerTest {
         private String trace;
         @LLMSummarizable(value = "a note", threshold = 20)
         private String note;
-        @LLMSummarizable(value = "a tree with no summarizer", threshold = 20)
-        private JsonNode plain;
 
         public JsonNode getPayload() { return payload; }
         public void setPayload(JsonNode payload) { this.payload = payload; }
@@ -72,16 +87,23 @@ public class FieldSummarizerTest {
         public void setTrace(String trace) { this.trace = trace; }
         public String getNote() { return note; }
         public void setNote(String note) { this.note = note; }
-        public JsonNode getPlain() { return plain; }
-        public void setPlain(JsonNode plain) { this.plain = plain; }
     }
 
-    public static class Broken {
-        @LLMSummarizable(value = "text", threshold = 20, summarizer = NoPlainConstructor.class)
-        private String text = "some text";
+    @TypeAlias("test:fieldsummarizer:failing")
+    public static class Failing extends AbstractArtifact {
+        @LLMSummarizable(value = "a tree", threshold = 20, summarizer = Throwing.class)
+        private JsonNode tree = tree(5);
+        @LLMSummarizable(value = "a text", threshold = 20, summarizer = Silent.class)
+        private String text = "word ".repeat(400);
+        @LLMSummarizable(value = "another text", threshold = 20, summarizer = NoPlainConstructor.class)
+        private String unmade = "word ".repeat(400);
 
+        public JsonNode getTree() { return tree; }
+        public void setTree(JsonNode tree) { this.tree = tree; }
         public String getText() { return text; }
         public void setText(String text) { this.text = text; }
+        public String getUnmade() { return unmade; }
+        public void setUnmade(String unmade) { this.unmade = unmade; }
     }
 
     private static ObjectNode tree(int keys) {
@@ -92,8 +114,12 @@ public class FieldSummarizerTest {
         return node;
     }
 
-    private static JsonNode written(Row row) throws Exception {
-        return NucleoJsonSerializer.readTree(NucleoJsonSerializer.writeSummarized(row, (text, annotation) -> "[CALLER]"));
+    private static JsonNode written(Object artifact) throws Exception {
+        return NucleoJsonSerializer.readTree(NucleoJsonSerializer.writeSummarized(artifact));
+    }
+
+    private static String cut(String text, Class<?> type, String field) throws Exception {
+        return new TruncatingSummarizer().summarize(text, type.getDeclaredField(field).getAnnotation(LLMSummarizable.class));
     }
 
     @Test
@@ -111,23 +137,18 @@ public class FieldSummarizerTest {
     }
 
     @Test
-    public void aLongTextIsWrittenByItsFieldsSummarizerAndNeverByTheCallers() throws Exception {
+    public void aFieldThatNamesItsSummarizerNeverReachesAModel() throws Exception {
         Row row = new Row();
         row.setTrace("x".repeat(40));
         row.setNote("y".repeat(40));
+        assertEquals("[40 characters]", written(row).get("trace").asText(), "the named class needs no model, so a write before any model already shows its summary");
+        NucleoJsonSerializer.makeSummaries(row, (text, annotation) -> "[MODEL]");
         JsonNode written = written(row);
-        assertEquals("[40 characters]", written.get("trace").asText(), "the field names its summarizer, so the caller's is not used for it");
-        assertEquals("[CALLER]", written.get("note").asText(), "a field that names none is summarized by the caller's summarizer, as before");
+        assertEquals("[40 characters]", written.get("trace").asText(), "the field names its summarizer, so the model is not asked for it");
+        assertEquals("[MODEL]", written.get("note").asText(), "a field that names none is summarized by the model");
         Row brief = new Row();
         brief.setTrace("short");
         assertEquals("short", written(brief).get("trace").asText(), "a text under the threshold is written whole");
-    }
-
-    @Test
-    public void aTreeThatNamesNoSummarizerIsWrittenWhole() throws Exception {
-        Row row = new Row();
-        row.setPlain(tree(5));
-        assertEquals(tree(5), written(row).get("plain"), "a field of another type than text that names no summarizer is written whole, as before");
     }
 
     @Test
@@ -140,70 +161,20 @@ public class FieldSummarizerTest {
         written(row);
         written(row);
         assertEquals(1, TREE_CALLS.get(), "the summary is kept on the artifact after the first serialization");
-    }
-
-    /** A summarizer that always fails. */
-    public static class Throwing implements FieldSummarizer<JsonNode> {
-        @Override
-        public String summarize(JsonNode value, LLMSummarizable annotation) {
-            throw new IllegalStateException("this summarizer cannot summarize");
-        }
-    }
-
-    /** A summarizer that returns nothing. */
-    public static class Silent implements FieldSummarizer<String> {
-        @Override
-        public String summarize(String value, LLMSummarizable annotation) {
-            return null;
-        }
-    }
-
-    public static class Failing {
-        @LLMSummarizable(value = "a tree", threshold = 20, summarizer = Throwing.class)
-        private JsonNode tree = tree(5);
-        @LLMSummarizable(value = "a text", threshold = 20, summarizer = Silent.class)
-        private String text = "word ".repeat(400);
-
-        public JsonNode getTree() { return tree; }
-        public void setTree(JsonNode tree) { this.tree = tree; }
-        public String getText() { return text; }
-        public void setText(String text) { this.text = text; }
+        assertEquals("[7 keys of a payload]", row.getSummaries().get("payload"));
     }
 
     @Test
-    public void aSummarizerThatFailsNeverFailsTheSerialization() throws Exception {
+    public void aSummarizerThatFailsNeverFailsTheSerializationAndKeepsNothing() throws Exception {
         Failing failing = new Failing();
-        JsonNode written = NucleoJsonSerializer.readTree(NucleoJsonSerializer.writeSummarized(failing));
-        String treeAsText = NucleoJsonSerializer.writeCompact(tree(5));
-        assertEquals(new TruncatingSummarizer().summarize(treeAsText, Failing.class.getDeclaredField("tree").getAnnotation(LLMSummarizable.class)),
-                     written.get("tree").asText(), "a tree whose summarizer throws is cut short as its JSON text");
-        assertEquals(new TruncatingSummarizer().summarize(failing.getText(), Failing.class.getDeclaredField("text").getAnnotation(LLMSummarizable.class)),
-                     written.get("text").asText(), "a summarizer that returns nothing is passed over the same way");
-    }
-
-    @Test
-    public void theSummarizerOfTheSerializationNeverFailsItEither() throws Exception {
-        Row row = new Row();
-        row.setNote("word ".repeat(400));
-        LLMSummarizable note = Row.class.getDeclaredField("note").getAnnotation(LLMSummarizable.class);
-        String cut = new TruncatingSummarizer().summarize(row.getNote(), note);
-        Summarizer throwing = (text, annotation) -> {
-            throw new IllegalStateException("this summarizer cannot summarize");
-        };
-        assertEquals(cut, NucleoJsonSerializer.readTree(NucleoJsonSerializer.writeSummarized(row, throwing)).get("note").asText(),
-                     "a field that names no summarizer is cut short when the summarizer handed to the serialization throws");
-        Row other = new Row();
-        other.setNote(row.getNote());
-        assertEquals(cut, NucleoJsonSerializer.readTree(NucleoJsonSerializer.writeSummarized(other, (text, annotation) -> null)).get("note").asText(),
-                     "and when it returns nothing");
-    }
-
-    @Test
-    public void aSummarizerThatCannotBeMadeLeavesItsFieldCutAsPlainText() throws Exception {
-        Broken broken = new Broken();
-        broken.setText("word ".repeat(400));
-        JsonNode written = NucleoJsonSerializer.readTree(NucleoJsonSerializer.writeSummarized(broken));
-        assertEquals(new TruncatingSummarizer().summarize(broken.getText(), Broken.class.getDeclaredField("text").getAnnotation(LLMSummarizable.class)),
-                     written.get("text").asText(), "a class with no public no-argument constructor is logged and passed over");
+        JsonNode written = written(failing);
+        assertEquals(cut(NucleoJsonSerializer.writeCompact(tree(5)), Failing.class, "tree"), written.get("tree").asText(),
+                     "a tree whose summarizer throws is cut short as its JSON text");
+        assertEquals(cut(failing.getText(), Failing.class, "text"), written.get("text").asText(),
+                     "a summarizer that returns nothing is passed over the same way");
+        assertEquals(cut(failing.getUnmade(), Failing.class, "unmade"), written.get("unmade").asText(),
+                     "and so is a class with no public no-argument constructor");
+        assertTrue(failing.getSummaries().all().isEmpty(), "a cut that stands in for a failed summarizer is not kept");
+        NucleoJsonSerializer.makeSummaries(failing, (text, annotation) -> fail("a field that names its summarizer is never handed to a model, even when the class fails"));
     }
 }

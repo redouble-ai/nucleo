@@ -32,24 +32,62 @@ it back: a description that merely contains those characters produces no require
 | `@LLMDescription` | class, field | the description; a class without one reads `Schema of <Name>`, a field without one `Field <name>` | nothing |
 | `@LLMRequired` | field | `@required` / the `required` array, and the `(REQUIRED)` token in the notation's prose | nothing at read; `PojoResponseHandler.validateRequiredFields` refuses null and a blank String, and accepts an empty collection as "nothing found" |
 | `@LLMExample` | field | `@examples` / `examples`; a value that parses as an integer publishes as a number | nothing |
-| `@LLMSummarizable` | field | the `x-nucleo-summarizable` keyword, carrying all six parts | in the summarized modes, a String past `threshold` is handed to the summarizer together with the annotation; the serializer honours nothing of the annotation beyond `threshold` and `preSummarized` itself, and `staticSummary`, `size` and `llmSafe` are the summarizer's to honour (the shipped `TruncatingSummarizer` reads the first two, `LLMSummarizer` all three); a non-String field is left alone unless `preSummarized`, in which case the value is walked and, at every leaf, an artifact's cached summary under that leaf's JSON pointer is written in place of the value; a field without a hint is warned about once per process |
-| `@LLMContextIgnore` | field | stays in the schema so a caller can populate it | omitted from the model-facing render (`writeSummarizedWithRefs`) and kept in every other mode |
+| `@LLMSummarizable` | field of an artifact | nothing: no keyword tells a consumer to make a summary | in the summarized modes, on a bean that is an `Artifact`, a value past `threshold` is written as its summary, decided in one place, below; a field without a hint is warned about once per process |
+| `@LLMContextIgnore` | field | stays in the schema so a caller can populate it | omitted from every write a model reads (`writeSummarized`, `writeSummarizedWithRefs`, `modelFacingFields`) and kept in `write` and `writeStoredWithRefs` |
 | `@TypeAlias` | artifact class | the `x-nucleo-type-alias` of fields typed with the class | the alias its references carry, below |
 
-A pre-summarized tree, `@LLMSummarizable(value = "...", preSummarized = true)`, is for
-`Map<String,Object>` / `List<Object>` fields whose leaves are summarized at construction
-time and stored in the artifact's `summaryCache` keyed by JSON pointer (MCP tool results are
-the case).
+### The summary of a field
+
+`SummarizablePropertyWriter` is the one place a summary is decided. It works on the value
+as the serializer would write it without the annotation: a `String` as it is, any other
+value as its compact JSON, which is also what `threshold` measures. For a value past the
+threshold it takes, in this order:
+
+1. the summary already kept on the artifact (`ArtifactSummaries`, from
+   `Artifact.getSummaries()`), under the field's name;
+2. `staticSummary`, written as `[SUMMARY: N chars] <phrase>`, and kept;
+3. what the field's own `FieldSummarizer` returns, kept; when the class throws, returns
+   null or cannot be made, the text is cut and nothing is kept;
+4. the cut, kept, when `llmSafe` is false or the text is longer than
+   `NucleoJsonSerializer.MODEL_SUMMARY_MAX_CHARS` (200,000);
+5. a model's summary, kept, only in `NucleoJsonSerializer.makeSummaries(artifact, model)`
+   and only while the thread is not interrupted;
+6. otherwise the cut for this write, with nothing kept.
+
+The cut is `TruncatingSummarizer`: the head of the text within the `size`'s budget (~200 /
+~500 / ~1200 characters), marked `[SUMMARY: N chars]` with the full length.
+
+`makeSummaries` is called for every artifact of a conversation by
+`ConversationContext.summarizeArtifacts`, which the `LLMCall` constructor calls with an
+`LLMSummarizer` on the thread of the thinker or doer that builds the call, so the
+summarization jobs are that job's children. `ArtifactSummaries.make` is single-flight: of
+several threads that need one summary, one asks for it and the rest wait for its result; a
+waiter whose owner failed gets nothing and cuts. An interrupted thread has its flag set
+again, asks for no summary and cuts, keeping nothing.
+
+A pre-summarized tree, `@LLMSummarizable(value = "...", preSummarized = true)`, is for a
+`Map<String,Object>` / `List<Object>` field that keeps its shape (`MCPArtifact.data` is the
+case). The value is walked, and each text leaf past the threshold goes through the same
+decision under the key `<field>/<JSON pointer of the leaf>`, such as `data/results/0/text`.
 
 `size()` (a `SummarySize`: `BRIEF` / `SHORT` / `PARAGRAPHS`) sets the target for both the
-LLM summarizer's prompt phrasing and the truncation fallback's character budget (~200 /
-~500 / ~1200). The enum is rendered as a prose phrase in prompts ("a short summary of
-about a paragraph"), never as a number - a precise count in the prompt invites small-model
-verification spirals. The strategy vocabulary is this package's own (`Summarizer`, the
-shipped default `TruncatingSummarizer`, and the `SummarizedField` tuple that artifact
-summary caching stores); the job-backed `LLMSummarizer` lives in `tools.builtin` beside
-the `SummarizationTool` it wraps, because spawning summarization jobs is tooling, not
-schema vocabulary.
+summarization job's prompt phrasing and the cut's character budget. The enum is rendered as
+a prose phrase in prompts ("a short summary of about a paragraph"), never as a number - a
+precise count in the prompt invites small-model verification spirals. The job-backed
+`LLMSummarizer` lives in `tools.builtin` beside the `SummarizationTool` it wraps, because
+spawning summarization jobs is tooling, not schema vocabulary; it throws
+`SummarizationFailedException` when the job produces no summary.
+
+### Where the annotation may stand
+
+`SummarizablePlacement.check()`, the first thing `JobDispatcher.start()` does, scans the
+class files of the context class loader's roots and of the Java class path for fields that
+carry the annotation, loads each declaring class without initializing it, and throws
+`SummarizableOutsideArtifactException` naming every field whose declaring class is no
+`Artifact`. A class loader that passed is not scanned again. The compile-time check is
+`SummarizableFieldProcessor` in `nucleo-processor`, which depends on nothing of the runtime
+and knows the annotation and the interface by name; the Quarkus build's is
+`NucleoQuarkusProcessor.summarizablePlacementCheck`, over the Jandex index.
 
 ## Two renderings
 
@@ -124,7 +162,6 @@ reads, and they carry facts about the data that a harness needs and cannot deriv
 
 | Keyword | Carries | Why a consumer cannot derive it |
 |---|---|---|
-| `x-nucleo-summarizable` | `@LLMSummarizable` as declared: hint, size, threshold, `llmSafe`, `preSummarized`, `staticSummary` | how large a field gets, and whether an LLM paraphrase would corrupt it |
 | `x-nucleo-context-ignore` | `@LLMContextIgnore` | the field is in the payload and belongs out of a model's context |
 | `x-nucleo-type-alias` | the `@TypeAlias` of an artifact-typed field, or of the elements of an artifact-typed collection or array | what the field's refs point at, when no ref is present to read |
 
@@ -157,15 +194,20 @@ one. Its configuration is the contract every reader and writer shares:
 - `java.time` types serialize through the JSR-310 module, and `Prompt` through its own
   module.
 
-Three write modes:
+The write modes:
 
 - `write` / `writeCompact`: every field, no transformation. The compact form backs the
   observability columns, which are parsed before they are read.
-- `writeSummarized` / `writeSummarizedCompact`, with a `Summarizer` or the shipped
-  `TruncatingSummarizer`: `@LLMSummarizable` fields summarized as the table above says; an
-  artifact serialized in full with its annotated fields summarized, its summaries cached
-  on it so they are computed once; a `ListArtifact` rendered as a bounded digest.
-- `writeSummarizedWithRefs`, with an `ArtifactRegistry`: the same, plus every artifact
+- `writeSummarized` / `writeSummarizedCompact`: an artifact written with its fields, its
+  `@LLMSummarizable` fields summarized as above and `@LLMContextIgnore` fields omitted; a
+  `ListArtifact` rendered as a bounded digest. The form the registry section shows.
+- `modelFacingFields(artifact)`: the fields of one artifact as a JSON object, whole, with
+  `@LLMContextIgnore` fields omitted and an artifact inside written as its reference. What
+  the artifact tools read and search; `modelFacingFieldNames(class)` lists the names.
+- `writeStoredWithRefs`, with an `ArtifactRegistry`: every field whole, `@LLMContextIgnore`
+  included, with each artifact replaced by its reference and registered. The form a prompt
+  object is persisted in; the artifacts themselves are stored by the registry.
+- `writeSummarizedWithRefs`, with an `ArtifactRegistry`: every artifact
   replaced by `{"@ref": "..."}` and registered, and `@LLMContextIgnore` fields omitted. The
   form that goes into a prompt. Registering an artifact mints a reference for every artifact
   reachable inside it and indexes each as reachable, resolvable through the registry without

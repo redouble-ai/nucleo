@@ -6,8 +6,6 @@
 
 package ai.redouble.nucleo.harness.artifacts;
 
-import ai.redouble.nucleo.harness.schema.*;
-
 /**
  * Marker interface for domain entities that can be preserved as artifacts
  * across multi-agent workflows.
@@ -24,6 +22,13 @@ import ai.redouble.nucleo.harness.schema.*;
  * <p>This solves the "broken telephone" problem in multi-agent hierarchies where
  * domain objects get corrupted as they pass through multiple LLM transformations.
  *
+ * <p>An artifact does not change once it is registered. A model is shown the summary of a
+ * long field, made once and kept, and reads the whole value through the artifact tools; a
+ * value changed after registration would no longer be the one its summary describes.
+ *
+ * <p>An artifact is the only class a field may carry {@code @LLMSummarizable} in: the
+ * summary of a field is kept here, and the reference is what the whole value is read by.
+ *
  * <p>Concrete implementations should extend {@link AbstractArtifact} which provides
  * the artifactRef field and associated logic.
  *
@@ -35,22 +40,14 @@ import ai.redouble.nucleo.harness.schema.*;
 public interface Artifact  {
 
     /**
-     * Gets a previously cached summary for a field, or null if not cached.
-     * Used by the Jackson serializer to avoid re-summarizing on repeated serializations.
+     * The summaries kept for this artifact's long fields. The serializer makes each once
+     * and shows it in every later write; a conversation store saves them with the artifact.
+     * One instance for the life of the artifact, never null, and no part of the artifact's
+     * JSON or of its schema: an implementation marks the getter {@code @JsonIgnore}.
      *
-     * @param fieldName the snake_case field name
-     * @return the cached SummarizedField, or null
+     * @return this artifact's kept summaries
      */
-    SummarizedField getCachedSummary(String fieldName);
-
-    /**
-     * Caches a summary for a field. Called by the Jackson serializer after generating
-     * a summary so subsequent serializations skip the Summarizer.
-     *
-     * @param fieldName the snake_case field name
-     * @param value the SummarizedField containing both full text and summary
-     */
-    void cacheSummary(String fieldName, SummarizedField value);
+    ArtifactSummaries getSummaries();
 
     /**
      * Gets the artifact reference string, or null if not yet assigned.

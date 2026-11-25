@@ -343,7 +343,7 @@ The consumer does not need the exact class. `TypeAliasRegistry.resolveAliasWithF
 
 Scope is the ROOT of the result: a served tool whose output is an artifact, single or a `ListArtifact` of them, arrives as that artifact. A result that is a plain POJO with artifacts in its fields takes the generic path whole, because the containing type is what a foreign consumer is least likely to hold.
 
-Refs are preserved as the producing process minted them, so one ref names the same thing in both processes' logs. Summaries are not carried: `summaryCache` is transient, so an arriving artifact is newly born and the consuming harness summarizes it under its own annotations and its own policy.
+Refs are preserved as the producing process minted them, so one ref names the same thing in both processes' logs. Summaries are not carried: an artifact's kept summaries (`Artifact.getSummaries()`) are no property of its JSON, so an arriving artifact is newly born and the consuming harness summarizes it under its own annotations.
 
 `GenericMCPToolAdapter` tries `MCPArtifactRehydrator` first on each result and falls back to `MCPResultWalker`. The order is what makes typed artifacts from a redouble server transparent and leaves every third-party server on the generic path, decided by what is in the payload rather than by knowing who the server is.
 
@@ -354,26 +354,25 @@ Generic artifact wrapping an MCP tool's structured response. Behaves like every 
 ```java
 @TypeAlias("mcp")
 public class MCPArtifact extends AbstractArtifact {
-    @LLMSummarizable(value = "MCP tool result data", preSummarized = true)
+    @LLMSummarizable(value = "MCP tool result text", preSummarized = true, threshold = 1000, llmSafe = false)
     private Map<String, Object> data;
     private String mcpHandle;
     private String toolName;
 }
 ```
 
-The `preSummarized = true` flag tells the framework's serializer to walk `data` and consult the artifact's inherited `summaryCache` at each leaf path (JSON pointer). Cache hits render the cached summary; cache misses render the raw value. The walker that produces the artifact (see below) is the cache populator.
+The `preSummarized = true` flag tells the framework's serializer to walk `data` and show each text leaf longer than the threshold as its summary, kept on the artifact under `data` followed by the leaf's JSON pointer (`data/results/0/fullText`). `llmSafe = false` makes that summary a cut: a served text is never paraphrased. The model reads a whole leaf with `get_artifact_field`, naming it by that same path.
 
 ### MCPResultWalker
 
-Pure transformation of a `JsonNode` into an `MCPArtifact`. No registry, no I/O. Two rules:
+Pure transformation of a `JsonNode` into an `MCPArtifact`. No registry, no I/O, and no summarizing. The rules:
 
 | Condition | Action |
 |---|---|
 | Object value whose serialized form > 2000 bytes | Promoted to its own nested `MCPArtifact`, embedded as the value at that key in the parent's `data`. The framework's `ArtifactRefSerializer` collapses each nested instance to `{"@ref": ...}` in LLM-facing serialization. |
-| String leaf longer than 1000 chars | Full text stays in `data`; the artifact's `summaryCache` gets an entry keyed by JSON pointer (`/results/0/fullText`) carrying a `TruncatingSummarizer` summary. |
-| Anything smaller | Passes through verbatim. |
+| Anything else, a long text included | Passes through verbatim. |
 
-Pointer paths reset to root inside each promoted nested artifact - each artifact's cache is keyed relative to its own `data`. `GenericMCPToolAdapter.execute` invokes the walker after the tool call and attaches the result to `MCPToolResult.resultArtifact`.
+Each promoted nested artifact keeps the summaries of its own leaves, keyed from its own `data`. `GenericMCPToolAdapter.execute` invokes the walker after the tool call and attaches the result to `MCPToolResult.resultArtifact`.
 
 ### MCPContent
 

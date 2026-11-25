@@ -30,7 +30,7 @@ public class SchemaDialectTest {
     private static final String CANONICAL_JSON = """
             {"type":"object","title":"Ask","additionalProperties":false,
              "properties":{
-               "query":{"type":"string","description":"What to look up","%s":{"hint":"long"}},
+               "query":{"type":"string","description":"What to look up","%s":true},
                "limit":{"type":"integer","description":"How many","minimum":-2147483648,"maximum":2147483647},
                "when":{"type":"string","format":"date","description":"As YYYY-MM-DD"},
                "mode":{"type":"string","enum":["fast","deep"]},
@@ -40,7 +40,7 @@ public class SchemaDialectTest {
              "$defs":{"Node":{"type":"object","title":"Node","description":"A node",
                "properties":{"label":{"type":"string"},"children":{"type":"array","items":{"$ref":"#/$defs/Node"}}},
                "required":["label"]}}}
-            """.formatted(NucleoSchemaKeywords.SUMMARIZABLE);
+            """.formatted(NucleoSchemaKeywords.CONTEXT_IGNORE);
     private static JsonNode canonical;
 
     @BeforeAll

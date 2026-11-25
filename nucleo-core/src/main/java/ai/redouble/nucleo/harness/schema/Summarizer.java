@@ -7,24 +7,23 @@
 package ai.redouble.nucleo.harness.schema;
 
 /**
- * Strategy for summarizing text fields that exceed the {@link LLMSummarizable} threshold.
+ * Makes the summary of one text of an {@link LLMSummarizable} field.
  *
- * <p>The Jackson serializer calls this when a field marked with {@code @LLMSummarizable}
- * exceeds its threshold during summarized serialization. Two built-in implementations:
+ * <p>The serializer decides which fields are summarized and how; a caller never chooses
+ * a summarizer for a write. The two implementations are the two ways the serializer has
+ * of summarizing a text that names no {@link FieldSummarizer} of its own:
  * <ul>
- *   <li>{@link TruncatingSummarizer} - Fast truncation, no external calls. Default.</li>
- *   <li>{@code ai.redouble.nucleo.tools.builtin.LLMSummarizer} - Spawns SummarizationTool
- *       jobs for high-quality summaries. Only use from orchestrators (Thinkers/Doers),
- *       never from resource-bearing Tools.</li>
+ *   <li>{@link TruncatingSummarizer} - the cut: the head of the text within the size's
+ *       budget, marked with the full length. No external calls.</li>
+ *   <li>{@code ai.redouble.nucleo.tools.builtin.LLMSummarizer} - a model's summary, made
+ *       by a summarization job. It is handed to
+ *       {@link NucleoJsonSerializer#makeSummaries} by the thinker or doer about to send a
+ *       conversation, on its own thread, and throws when the job produces no summary.</li>
  * </ul>
  *
- * <p>Summarizing saves tokens and never fails a serialization. When an implementation
- * throws or returns null, the failure is logged and the text is cut short as
- * {@link TruncatingSummarizer} cuts it; when that fails too, the text is written whole.
- *
- * <p>A field that names its own {@link FieldSummarizer} with
- * {@link LLMSummarizable#summarizer()} is summarized by that class and never reaches this
- * strategy.
+ * <p>Summarizing saves tokens and never fails a serialization. When the model's
+ * summarizer throws or returns null, the failure is logged, nothing is kept, and the text
+ * is shown cut until a later making succeeds.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-04-03)

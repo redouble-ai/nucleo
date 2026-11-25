@@ -11,15 +11,16 @@ import ai.redouble.nucleo.harness.artifacts.*;
 import ai.redouble.nucleo.harness.errors.*;
 import ai.redouble.nucleo.harness.schema.*;
 import ai.redouble.nucleo.tools.*;
-import org.slf4j.*;
 
-import java.lang.reflect.*;
 import java.util.*;
 
 /**
  * Tool for searching artifact content by exact case-insensitive string matching.
- * Walks all String fields of every artifact in the registry via reflection and
- * returns matching snippets with surrounding context.
+ * Searches the whole values of every artifact in the registry, the ones a model is shown
+ * as summaries included, as the serializer writes them: every text field, and every text
+ * inside a list, a map or a nested object. A field marked {@code @LLMContextIgnore} is not
+ * searched. Each match names the path of its text, which {@code get_artifact_field} takes
+ * as a field name.
  *
  * <p>A search that matches nothing is a valid empty result, never an error. A missing
  * artifact registry is the caller's wiring fault, {@link SystemException}: the tool runs
@@ -34,7 +35,6 @@ import java.util.*;
 @ReadOnly
 @ToolWeight(type = ToolType.IN_MEMORY)
 public class SearchArtifactContentTool extends AbstractDoer<SearchArtifactContentInput, SearchArtifactContentOutput> implements ArtifactRegistryAware {
-    private static final Logger log = LoggerFactory.getLogger(SearchArtifactContentTool.class);
     private static final int DEFAULT_CONTEXT_CHARS = 200;
     private static final int DEFAULT_MAX_RESULTS = 10;
     private ArtifactRegistry registry;
@@ -108,36 +108,12 @@ public class SearchArtifactContentTool extends AbstractDoer<SearchArtifactConten
     }
 
     /**
-     * Walks all String fields of an artifact (and its superclasses) via reflection,
-     * matching the query against each.
+     * Matches the query against every text of an artifact as the serializer writes it
+     * whole: text fields, and the texts inside lists, maps and nested objects.
      */
     private void searchArtifact(Artifact artifact, String artifactRef, String query,
                                 List<SearchMatch> matches, int maxResults, int contextChars) {
-        Class<?> clazz = artifact.getClass();
-        while (clazz != null && clazz != Object.class) {
-            for (Field field : clazz.getDeclaredFields()) {
-                if (matches.size() >= maxResults) {
-                    return;
-                }
-                if (java.lang.reflect.Modifier.isStatic(field.getModifiers())) {
-                    continue;
-                }
-                if (field.getType() != String.class) {
-                    continue;
-                }
-                try {
-                    field.setAccessible(true);
-                    Object value = field.get(artifact);
-                    if (value instanceof String text) {
-                        searchText(text, field.getName(), artifactRef, query, matches, maxResults, contextChars);
-                    }
-                }
-                catch (IllegalAccessException e) {
-                    log.debug("Failed to access field {} on {}: {}", field.getName(), clazz.getSimpleName(), e.getMessage());
-                }
-            }
-            clazz = clazz.getSuperclass();
-        }
+        ModelFacingFields.texts(artifact, (path, text) -> searchText(text, path, artifactRef, query, matches, maxResults, contextChars));
     }
 
     private void searchText(String text, String fieldPath, String artifactRef,

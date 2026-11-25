@@ -26,7 +26,9 @@ All of them only read.
 | `epo_number_convert` | `EPONumberConversionTool` | A patent number converted between EPO's two number formats. |
 
 Claims, descriptions and abstracts can run long, so they are marked `@LLMSummarizable`: the
-model is shown a summary and your code keeps the whole text
+model is shown a summary and your code keeps the whole text. The outputs that carry them,
+`EPOClaimsOutput` (`patent:claims`) and `EPODescriptionOutput` (`patent:description`)
+among them, are artifacts, so the model reads a whole text back with `get_artifact_field`
 ([Answers as Java objects](../../../../../../../../../../nucleo-core/src/main/java/ai/redouble/nucleo/harness/schema/PACKAGE.md)).
 
 ## Patent numbers

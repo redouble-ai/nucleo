@@ -46,11 +46,16 @@ delimiters). This is the format used in:
 
 | Tool | Purpose |
 |------|---------|
-| `get_artifact_field` | Retrieve the content of a specific field, in slices of `maxChars` from `offset`. Accepts snake_case or camelCase field names |
-| `search_artifact_content` | Exact case-insensitive search across all String fields of every artifact, the reachable tier included |
+| `get_artifact_field` | Retrieve the content of a field, or of a value inside it by path, in slices of `maxChars` from `offset`. Accepts snake_case or camelCase field names |
+| `search_artifact_content` | Exact case-insensitive search across every text of every artifact, the reachable tier included |
 
-Both tools read the live artifact via reflection. They walk the class hierarchy so inherited fields
-are visible.
+Both tools read an artifact through `ModelFacingFields`, which reads the JSON the serializer
+writes for it (`NucleoJsonSerializer.modelFacingFields`): every value whole, a text as itself,
+any other value as its JSON, an artifact inside as its reference, and no field marked
+`@LLMContextIgnore`. Nothing is rendered with `toString()`. A value is addressed by a path: the
+field's name and then, for a value inside the field, the JSON pointer to it
+(`data/results/0/title`). `ModelFacingFields.texts` reports each text under the path
+`ModelFacingFields.read` takes, so a match of the search names what the read tool reads.
 
 ## Registry Injection
 
@@ -90,5 +95,6 @@ over.
 | `ReadRowsTool` | Returns a run of the rows a held list already has |
 | `ReadRowsInput` | Input: list, optional fromRow and howMany |
 | `ReadRowsOutput` | Output: rowsInList, fromRow, the rows |
+| `ModelFacingFields` | One artifact as the read and search tools see it: the serialized form, addressed by path |
 | `ReflectiveFields` | Shared field lookup for LLM-supplied names: snake_case/camelCase resolution up the class hierarchy (`find`), and the addressable field-name surface (`fieldNames`) |
 | `KeyedRecord` | An artifact whose filterable fields are a dynamic name->value set rather than static Java fields - the bridge for record-shaped artifacts whose columns are decided at run time, so a list-processing predicate can address a data-defined field by the name the caller asked for |

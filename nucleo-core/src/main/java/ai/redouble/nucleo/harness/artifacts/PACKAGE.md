@@ -205,8 +205,11 @@ from its query.
 
 A field holding more than is worth showing a model in full - a page, a patent, a sequence - is
 marked `@LLMSummarizable`, and the model sees a summary while the artifact keeps the whole
-value ([Answers as Java objects](../schema/PACKAGE.md)). Summaries are computed once and cached
-on the artifact. A model that needs the whole value asks for it with `get_artifact_field`, and
+value ([Answers as Java objects](../schema/PACKAGE.md)). The annotation is legal only on a
+field of an artifact, since an artifact is what a model can read the whole value back from. A
+summary is made once, kept on the artifact (`Artifact.getSummaries()`) and stored with a
+persisted conversation beside the artifact's whole value, so the model is shown the same
+summary every time. A model that needs the whole value asks for it with `get_artifact_field`, and
 `search_artifact_content` searches the text of every artifact; `read_rows` reads the rows of
 a list past the few its digest shows ([Artifact
 tools](tools/PACKAGE.md)).

@@ -89,6 +89,13 @@
                 <version>${project.version}</version>
                 <type>test-jar</type>
             </dependency>
+            <!-- The compile-time checks of the runtime's annotations: named in a build's
+                 annotationProcessorPaths, never a dependency of running code -->
+            <dependency>
+                <groupId>ai.redouble</groupId>
+                <artifactId>nucleo-processor</artifactId>
+                <version>${project.version}</version>
+            </dependency>
             <dependency>
                 <groupId>ai.redouble</groupId>
                 <artifactId>nucleo-provider-openai</artifactId>

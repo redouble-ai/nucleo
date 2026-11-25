@@ -27,8 +27,9 @@ subscribers are registered once, and shutdown is skipped on a reload or a test r
 `nucleo-quarkus-deployment` carries the extension's build steps (`NucleoQuarkusProcessor`),
 which run inside the Quarkus build of an application and never at application runtime:
 
-- it indexes nucleo-core, the provider modules, the demo engine and the public skills jar
-  with Jandex, so the reflection step can see their classes;
+- it indexes nucleo-core, the provider modules, the literature and patent extensions, the
+  Hibernate module, the demo engine and the public skills jar with Jandex, so the
+  reflection step and the checks below can see their classes;
 - it registers for reflection the transitive closure of the runtime's own serialized types
   (tools, artifacts, thinker inputs and outputs, reasoning, model specs, and every class
   carrying `@LLMDescription` or `@LLMRequired` members), never a third-party dependency's
@@ -38,7 +39,12 @@ which run inside the Quarkus build of an application and never at application ru
 - it carries the service files of providers, settings and configurators, and includes the
   skills and the providers' catalog fragments (`META-INF/nucleo/seed_models.json`) as resources,
   with a generated skill manifest in place of a classpath scan;
-- it fails the build when a concrete artifact class lacks `@TypeAlias`.
+- it fails the build when a concrete artifact class lacks `@TypeAlias`;
+- it fails the build, with a `SummarizableOutsideArtifactException` naming every such field,
+  when a field carries `@LLMSummarizable` and the class that declares it is no `Artifact`
+  (`summarizablePlacementCheck`); a parent class the index does not hold is followed through
+  the build's class loader. The same rule is checked when the dispatcher starts, which is
+  what a JVM run of the application meets.
 
 ## The native substitutions
 

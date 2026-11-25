@@ -6,6 +6,7 @@
 
 package ai.redouble.nucleo.quarkus.deployment;
 
+import ai.redouble.nucleo.harness.schema.*;
 import io.quarkus.deployment.*;
 import io.quarkus.deployment.annotations.*;
 import io.quarkus.deployment.builditem.*;
@@ -65,6 +66,7 @@ public class NucleoQuarkusProcessor {
     private static final DotName SCHEMA_REFINER = DotName.createSimple("ai.redouble.nucleo.tools.SchemaRefiner");
     private static final DotName TOOL_NAME = DotName.createSimple("ai.redouble.nucleo.tools.ToolName");
     private static final DotName TYPE_ALIAS = DotName.createSimple("ai.redouble.nucleo.harness.schema.TypeAlias");
+    private static final DotName LLM_SUMMARIZABLE = DotName.createSimple("ai.redouble.nucleo.harness.schema.LLMSummarizable");
     private static final DotName STATIC_PROMPT = DotName.createSimple("ai.redouble.nucleo.prompt.StaticPrompt");
     private static final DotName DYNAMIC_PROMPT = DotName.createSimple("ai.redouble.nucleo.prompt.DynamicPrompt");
     private static final DotName MCP = DotName.createSimple("ai.redouble.nucleo.mcp.MCP");
@@ -115,6 +117,11 @@ public class NucleoQuarkusProcessor {
         index.produce(new IndexDependencyBuildItem("ai.redouble", "nucleo-provider-anthropic"));
         index.produce(new IndexDependencyBuildItem("ai.redouble", "nucleo-provider-bedrock"));
         index.produce(new IndexDependencyBuildItem("ai.redouble", "nucleo-provider-systemone"));
+        // each declares artifacts and thinker outputs; a dependency the application does not
+        // have is skipped by Quarkus
+        index.produce(new IndexDependencyBuildItem("ai.redouble", "nucleo-ext-lit"));
+        index.produce(new IndexDependencyBuildItem("ai.redouble", "nucleo-ext-patent"));
+        index.produce(new IndexDependencyBuildItem("ai.redouble", "nucleo-hibernate"));
         // a skilljar: indexing it makes it an application archive the skill manifest step walks
         index.produce(new IndexDependencyBuildItem("ai.redouble", "nucleo-skills"));
     }
@@ -327,5 +334,67 @@ public class NucleoQuarkusProcessor {
         if (!missing.isEmpty()) {
             throw new IllegalStateException("Every concrete Artifact must carry @TypeAlias; missing on: " + missing);
         }
+    }
+
+    /**
+     * Fails the build if a field carries {@code @LLMSummarizable} and the class that declares
+     * it is not an Artifact: a summary stands in for a value a model can still read whole, and
+     * only an artifact has the reference that value is read by. The runtime makes the same
+     * check from the classpath when the dispatcher starts, which a native image has no
+     * classpath for; here it is made from the build's index.
+     */
+    @BuildStep
+    @Produce(ArtifactResultBuildItem.class)
+    void summarizablePlacementCheck(CombinedIndexBuildItem combined) {
+        List<String> misplaced = summarizableOutsideArtifact(combined.getIndex(), Thread.currentThread().getContextClassLoader());
+        if (!misplaced.isEmpty()) {
+            throw new SummarizableOutsideArtifactException(misplaced);
+        }
+    }
+
+    /**
+     * The annotated fields of the index whose declaring class is no Artifact, each as
+     * {@code declaring.Class.fieldName}, sorted. A superclass the index does not hold, as one
+     * from a jar that carries no index, is followed through the class loader.
+     */
+    static List<String> summarizableOutsideArtifact(IndexView index, ClassLoader loader) {
+        List<String> misplaced = new ArrayList<>();
+        for (AnnotationInstance annotation : index.getAnnotations(LLM_SUMMARIZABLE)) {
+            if (annotation.target().kind() != AnnotationTarget.Kind.FIELD) {
+                continue;
+            }
+            FieldInfo field = annotation.target().asField();
+            if (!isArtifact(field.declaringClass().name(), index, loader)) {
+                misplaced.add(field.declaringClass().name() + "." + field.name());
+            }
+        }
+        Collections.sort(misplaced);
+        return misplaced;
+    }
+
+    private static boolean isArtifact(DotName name, IndexView index, ClassLoader loader) {
+        if (name == null) {
+            return false;
+        }
+        if (ARTIFACT.equals(name)) {
+            return true;
+        }
+        ClassInfo info = index.getClassByName(name);
+        if (info == null) {
+            try {
+                return Class.forName(ARTIFACT.toString(), false, loader)
+                        .isAssignableFrom(Class.forName(name.toString(), false, loader));
+            }
+            catch (ClassNotFoundException e) {
+                throw new IllegalStateException("Cannot tell whether " + name + " is an Artifact: it is in no index and"
+                        + " the build's class loader does not load it", e);
+            }
+        }
+        for (DotName implemented : info.interfaceNames()) {
+            if (isArtifact(implemented, index, loader)) {
+                return true;
+            }
+        }
+        return isArtifact(info.superName(), index, loader);
     }
 }

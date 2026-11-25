@@ -6,16 +6,16 @@
 
 package ai.redouble.nucleo.harness.schema;
 
+import ai.redouble.nucleo.harness.artifacts.*;
 import org.junit.jupiter.api.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Pins the truncation fallback's contract: a static summary from the annotation wins
- * outright (no truncation), otherwise the text is cut to the per-size character budget
- * on a word boundary, and every summary opens with the "[SUMMARY: N chars]" prefix
- * carrying the ORIGINAL length - the signal that substantial content exists behind it.
- * No annotation means the SHORT budget.
+ * Pins the cut: the text is shortened to the per-size character budget on a word
+ * boundary, and every cut opens with the "[SUMMARY: N chars]" prefix carrying the
+ * ORIGINAL length - the signal that substantial content exists behind it. A fixed
+ * phrase is the serializer's decision and is no part of the cut.
  *
  * @author Andrey Santrosyan
  * @since 0.1 (2026-09-17)
@@ -23,7 +23,8 @@ import static org.junit.jupiter.api.Assertions.*;
 class TruncatingSummarizerTest {
 
     @SuppressWarnings("unused")
-    private static final class Annotated {
+    @TypeAlias("test:truncating")
+    private static final class Annotated extends AbstractArtifact {
         @LLMSummarizable(value = "chemical id", staticSummary = "SMILES molecular notation")
         String withStatic;
         @LLMSummarizable(value = "web page", size = SummarySize.BRIEF)
@@ -46,11 +47,11 @@ class TruncatingSummarizerTest {
     private final TruncatingSummarizer summarizer = new TruncatingSummarizer();
 
     @Test
-    void staticSummaryWinsOutright_prefixCarriesTheOriginalLength() {
+    void aFixedPhraseIsNotTheCutsDecision_theTextIsCutAsAnyOther() {
         String text = "C".repeat(12_345);
-        assertEquals("[SUMMARY: 12345 chars] SMILES molecular notation",
+        assertEquals("[SUMMARY: 12345 chars] " + "C".repeat(500) + "...",
                 summarizer.summarize(text, annotation("withStatic")),
-                "a static summary replaces the content whole - nothing of it is quoted");
+                "the cut reads the size and nothing else; the serializer writes the fixed phrase before a cut is considered");
     }
 
     @Test
@@ -72,13 +73,6 @@ class TruncatingSummarizerTest {
         assertTrue(budgetUsed(paragraphs, text) <= 1200, "PARAGRAPHS cuts at the 1200-char budget");
         assertTrue(brief.endsWith("word..."), "the cut lands on a word boundary, never mid-word: " + brief.substring(brief.length() - 12));
         assertTrue(budgetUsed(shortSummary, text) > budgetUsed(brief, text), "a larger size keeps more text");
-    }
-
-    @Test
-    void noAnnotationMeansTheShortBudget() {
-        String text = ("word ").repeat(400);
-        assertTrue(budgetUsed(summarizer.summarize(text, null), text) <= 500,
-                "a field without the annotation truncates at the SHORT default");
     }
 
     /** Characters of the original text kept in the summary, prefix excluded. */

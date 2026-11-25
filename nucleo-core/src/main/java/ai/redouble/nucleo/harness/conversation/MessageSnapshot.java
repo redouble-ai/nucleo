@@ -6,6 +6,7 @@
 
 package ai.redouble.nucleo.harness.conversation;
 
+import ai.redouble.nucleo.harness.artifacts.*;
 import ai.redouble.nucleo.harness.conversation.ContentBlocks.*;
 
 import java.io.*;
@@ -35,7 +36,11 @@ public class MessageSnapshot  {
     private String rawContent;
     private Integer actualOutputTokens;
     public MessageSnapshot() {}
-    public static MessageSnapshot fromMessage(Message message) {
+    /**
+     * @param registry the registry of the conversation the message belongs to: a prompt
+     *                 object is stored with its artifacts as references into it
+     */
+    public static MessageSnapshot fromMessage(Message message, ArtifactRegistry registry) {
         MessageSnapshot snapshot = new MessageSnapshot();
         snapshot.role = message.getRole();
         snapshot.messageId = message.getMessageId();
@@ -48,7 +53,7 @@ public class MessageSnapshot  {
             snapshot.requestedOutputTokens = outgoing.getRequestedOutputTokens();
             // Convert ContentBlocks to snapshots
             snapshot.contentBlocks = outgoing.getContentBlocks().stream()
-                .map(ContentBlockSnapshot::fromBlock)
+                .map(block -> ContentBlockSnapshot.fromBlock(block, registry))
                 .collect(Collectors.toList());
         } else if (message instanceof IncomingMessage<?> incoming) {
             snapshot.messageType = "incoming";
@@ -59,7 +64,7 @@ public class MessageSnapshot  {
             // previous message, so a restored conversation needs both sides or it cannot continue.
             if (incoming.hasContentBlocks()) {
                 snapshot.contentBlocks = incoming.getContentBlocks().stream()
-                    .map(ContentBlockSnapshot::fromBlock)
+                    .map(block -> ContentBlockSnapshot.fromBlock(block, registry))
                     .collect(Collectors.toList());
             }
         } else {
@@ -67,18 +72,16 @@ public class MessageSnapshot  {
         }
         return snapshot;
     }
-    public Message toMessage(ResponseHandler<?> responseHandler) {
-        return toMessage(responseHandler, null);
-    }
-
     /**
      * @param knownToolUseIds the tool_use ids present anywhere in the transcript being restored, or
      *                        null to restore every block as stored. A tool_result whose id is absent
      *                        is dropped: the provider refuses the entire conversation over one such
      *                        orphan, so keeping it would make the conversation unanswerable rather
      *                        than merely incomplete.
+     * @param registry        the restored registry of the conversation: a prompt object's
+     *                        artifacts are taken from it by their references
      */
-    public Message toMessage(ResponseHandler<?> responseHandler, Set<String> knownToolUseIds) {
+    public Message toMessage(ResponseHandler<?> responseHandler, Set<String> knownToolUseIds, ArtifactRegistry registry) {
         if ("outgoing".equals(messageType)) {
             OutgoingMessage<?> message = new OutgoingMessage<>(responseHandler);
             message.setRole(role);
@@ -91,7 +94,7 @@ public class MessageSnapshot  {
             // Reconstruct content blocks
             if (contentBlocks != null) {
                 for (ContentBlockSnapshot blockSnapshot : contentBlocks) {
-                    ContentBlock block = blockSnapshot.toBlock();
+                    ContentBlock block = blockSnapshot.toBlock(registry);
                     // Add blocks based on type
                     switch (block) {
                         case TextBlock tb -> message.addText(tb.text());
@@ -157,7 +160,7 @@ public class MessageSnapshot  {
             // A snapshot that carries no blocks restores as text alone.
             if (contentBlocks != null && !contentBlocks.isEmpty()) {
                 message.setContentBlocks(contentBlocks.stream()
-                        .map(ContentBlockSnapshot::toBlock)
+                        .map(blockSnapshot -> blockSnapshot.toBlock(registry))
                         .collect(Collectors.toList()));
             }
             return message;

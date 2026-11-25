@@ -63,7 +63,9 @@ A parsed response's refs are canonical by construction: `ArtifactResponse`'s lis
 
 `PatentArtifact` lives in `nucleo-ext-patent`.
 
-The serialization that turns artifacts into refs and summarizes their large fields is the schema package's (`NucleoJsonSerializer`, `@LLMSummarizable`, the `Summarizer` strategies - [Answers as Java objects](../schema/PACKAGE.md) and [Inside the serializer](../schema/SERIALIZER.md)). An artifact's summaries are cached on it (`Artifact.cacheSummary()`, `SummarizedField`) so they are computed once and reused across serializations.
+The serialization that turns artifacts into refs and summarizes their large fields is the schema package's (`NucleoJsonSerializer`, `@LLMSummarizable`, the `Summarizer` strategies - [Answers as Java objects](../schema/PACKAGE.md) and [Inside the serializer](../schema/SERIALIZER.md)). An artifact's summaries are kept on it in an `ArtifactSummaries` (`Artifact.getSummaries()`), keyed by the field's name, and for a leaf of a pre-summarized tree by the field's name and the leaf's JSON pointer. `keep` stores a summary unless one is there; `make` is single-flight, so of several threads that need one summary one makes it and the rest wait. The summaries are no property of the artifact's JSON: a persisted conversation stores them beside the registry, and an artifact that crosses a process boundary arrives with none.
+
+`ArtifactRegistry.isWrittenByItsModel(class)` names the one artifact a model writes: a class that is both an `ArtifactResponse` and an `Artifact`, which `ArtifactThinkerOutput` is. `heldAnswer` keeps such an answer as the object the model wrote, drops a reference written on it, and takes the artifacts in its fields from the registry; every other answer goes through `held` whole.
 
 ## Text rendering
 

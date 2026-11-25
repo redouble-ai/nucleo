@@ -42,7 +42,7 @@ public class ArtifactRegistryIterandIndexTest {
     @TypeAlias("test:reg-iface")
     public static class InterfaceOnlyArtifact implements Artifact {
         private String artifactRef;
-        private final Map<String, SummarizedField> cache = new HashMap<>();
+        private final ArtifactSummaries summaries = new ArtifactSummaries();
 
         @Override
         public String getArtifactRef() {
@@ -55,13 +55,9 @@ public class ArtifactRegistryIterandIndexTest {
         }
 
         @Override
-        public SummarizedField getCachedSummary(String fieldName) {
-            return cache.get(fieldName);
-        }
-
-        @Override
-        public void cacheSummary(String fieldName, SummarizedField value) {
-            cache.put(fieldName, value);
+        @com.fasterxml.jackson.annotation.JsonIgnore
+        public ArtifactSummaries getSummaries() {
+            return summaries;
         }
     }
 
