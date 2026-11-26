@@ -15,7 +15,8 @@ group `ai.redouble`; a published version is never changed in place.
   A field has one summary: the static phrase, else what the field's own summarizer
   returns, else the start of the text for content marked `llmSafe = false` or longer than
   200,000 characters, else a model's summary, written once by a summarization job when a
-  conversation is sent to a model.
+  conversation is sent to a model
+  ([#51](https://github.com/redouble-ai/nucleo/issues/51)).
 - A field can name the class that summarizes it. `@LLMSummarizable(summarizer = ...)` names
   a `FieldSummarizer<T>`, a new interface that `Summarizer` extends for text, for a value
   with a structure of its own: JSON, a stack trace, a list of identifiers. The serializer
